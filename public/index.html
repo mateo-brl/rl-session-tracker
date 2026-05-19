@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rocket League &middot; Session Tracker</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,wght@1,300;1,400;1,500;1,600&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+
+<!-- Data layer first so JSX modules can read window.RL -->
+<script src="data.js"></script>
+<script src="i18n.js"></script>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="modules.jsx"></script>
+<script type="text/babel" src="variants.jsx"></script>
+
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="env,react">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = {
+  "accent": "#00e5ff",
+  "dark": true,
+  "density": "spacious",
+  "font": "Inter",
+  "lang": "fr",
+  "showMMR": true,
+  "showMatches": true,
+  "showTilt": true,
+  "showStats": true,
+  "showModes": true,
+  "showOpponents": true,
+  "rightOrder": "tilt-stats-modes-opps",
+  "liveDemo": false
+};
+
+const ACCENT_OPTIONS = [
+  { hex: '#00e5ff', ink: '#04181e' },
+  { hex: '#b6ec3d', ink: '#0e1f02' },
+  { hex: '#ff3d71', ink: '#280611' },
+  { hex: '#f59e0b', ink: '#2a1800' },
+  { hex: '#8b5cf6', ink: '#150626' },
+];
+
+const FONT_OPTIONS = ['Geist', 'Inter', 'IBM Plex Sans', 'JetBrains Mono'];
+
+const RIGHT_ORDERS = [
+  'tilt-stats-modes-opps',
+  'stats-tilt-opps-modes',
+  'modes-opps-tilt-stats',
+];
+
+function inkFor(hex) {
+  const o = ACCENT_OPTIONS.find(a => a.hex.toLowerCase() === hex.toLowerCase());
+  return o ? o.ink : '#04181e';
+}
+
+function applyTweaks(t) {
+  const r = document.documentElement;
+  r.style.setProperty('--accent', t.accent);
+  r.style.setProperty('--accent-ink', inkFor(t.accent));
+  r.setAttribute('data-theme', t.dark ? 'dark' : 'light');
+  r.setAttribute('data-density', t.density);
+
+  const fontMap = {
+    'Geist': "'Geist', system-ui, sans-serif",
+    'Inter': "'Inter', system-ui, sans-serif",
+    'IBM Plex Sans': "'IBM Plex Sans', system-ui, sans-serif",
+    'JetBrains Mono': "'JetBrains Mono', ui-monospace, monospace",
+  };
+  r.style.setProperty('--font-sans', fontMap[t.font] || fontMap.Inter);
+
+  document.body.classList.toggle('rl-hide-mmr',       !t.showMMR);
+  document.body.classList.toggle('rl-hide-matches',   !t.showMatches);
+  document.body.classList.toggle('rl-hide-tilt',      !t.showTilt);
+  document.body.classList.toggle('rl-hide-stats',     !t.showStats);
+  document.body.classList.toggle('rl-hide-modes',     !t.showModes);
+  document.body.classList.toggle('rl-hide-opponents', !t.showOpponents);
+
+  const parts = t.rightOrder.split('-');
+  parts.forEach((key, i) => {
+    const cssVar = key === 'opps' ? '--ord-opponents' : '--ord-' + key;
+    r.style.setProperty(cssVar, String(i + 1));
+  });
+}
+
+function SettingsPanel({ open, onClose, t, setTweak }) {
+  if (!open) return null;
+  return (
+    <div style={{
+      position:'fixed', right:16, bottom:16, zIndex:2147483646, width:290,
+      maxHeight:'calc(100vh - 32px)', display:'flex', flexDirection:'column',
+      background:'rgba(15,18,22,0.92)', color:'var(--fg)',
+      backdropFilter:'blur(24px) saturate(160%)',
+      border:'1px solid var(--border-2)', borderRadius:10,
+      boxShadow:'0 12px 40px rgba(0,0,0,.5)',
+      font:'12px/1.4 var(--font-sans)', overflow:'hidden'
+    }}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid var(--border)'}}>
+        <b style={{fontSize:13,letterSpacing:'0.04em',textTransform:'uppercase',fontFamily:'var(--font-mono)'}}>Options</b>
+        <button onClick={onClose} style={{background:'none',border:0,color:'var(--fg-muted)',cursor:'pointer',fontSize:16}}>&times;</button>
+      </div>
+      <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto',scrollbarWidth:'thin'}}>
+        <SettingsSection label="Theme" />
+        <SettingsRow label="Langue">
+          <SettingsSeg value={t.lang} options={['fr','en']} onChange={v => setTweak('lang', v)} />
+        </SettingsRow>
+        <SettingsRow label="Accent">
+          <div style={{display:'flex',gap:6}}>
+            {ACCENT_OPTIONS.map(o => (
+              <button key={o.hex} onClick={() => setTweak('accent', o.hex)} style={{
+                width:28,height:28,borderRadius:4,border: t.accent === o.hex ? '2px solid var(--fg)' : '1px solid var(--border)',
+                background:o.hex,cursor:'pointer',padding:0
+              }} />
+            ))}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Mode sombre">
+          <SettingsToggle value={t.dark} onChange={v => setTweak('dark', v)} />
+        </SettingsRow>
+        <SettingsRow label="Densit\u00e9">
+          <SettingsSeg value={t.density} options={['compact','regular','spacious']} onChange={v => setTweak('density', v)} />
+        </SettingsRow>
+        <SettingsRow label="Police">
+          <select value={t.font} onChange={e => setTweak('font', e.target.value)} style={{
+            background:'var(--bg-2)',color:'var(--fg)',border:'1px solid var(--border)',borderRadius:4,
+            padding:'4px 8px',font:'12px var(--font-mono)',cursor:'pointer'
+          }}>
+            {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </SettingsRow>
+
+        <SettingsSection label="Modules" />
+        <SettingsRow label="Graph MMR"><SettingsToggle value={t.showMMR} onChange={v => setTweak('showMMR', v)} /></SettingsRow>
+        <SettingsRow label="Historique"><SettingsToggle value={t.showMatches} onChange={v => setTweak('showMatches', v)} /></SettingsRow>
+        <SettingsRow label="Tiltom\u00e8tre"><SettingsToggle value={t.showTilt} onChange={v => setTweak('showTilt', v)} /></SettingsRow>
+        <SettingsRow label="Stats"><SettingsToggle value={t.showStats} onChange={v => setTweak('showStats', v)} /></SettingsRow>
+        <SettingsRow label="Modes"><SettingsToggle value={t.showModes} onChange={v => setTweak('showModes', v)} /></SettingsRow>
+
+        <SettingsSection label="Test" />
+        <div style={{display:'flex',gap:8}}>
+          <button onClick={() => window.RL.addMatch({result:'W'})} style={{
+            flex:1,height:32,border:0,borderRadius:4,background:'var(--win)',color:'#0a1900',
+            font:'600 12px var(--font-mono)',cursor:'pointer',letterSpacing:'0.06em'
+          }}>FORCE WIN</button>
+          <button onClick={() => window.RL.addMatch({result:'L'})} style={{
+            flex:1,height:32,border:0,borderRadius:4,background:'var(--loss)',color:'#260210',
+            font:'600 12px var(--font-mono)',cursor:'pointer',letterSpacing:'0.06em'
+          }}>FORCE LOSS</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsSection({ label }) {
+  return <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--fg-faint)',paddingTop:8}}>{label}</div>;
+}
+
+function SettingsRow({ label, children }) {
+  return (
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+      <span style={{color:'var(--fg-2)',fontSize:12,fontWeight:500}}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function SettingsToggle({ value, onChange }) {
+  return (
+    <button onClick={() => onChange(!value)} style={{
+      width:36,height:20,borderRadius:10,border:0,padding:0,cursor:'pointer',
+      background: value ? 'var(--accent)' : 'var(--surface-2)',
+      position:'relative',transition:'background 0.15s'
+    }}>
+      <span style={{
+        position:'absolute',top:2,left: value ? 18 : 2,
+        width:16,height:16,borderRadius:8,background:'#fff',
+        transition:'left 0.15s',boxShadow:'0 1px 3px rgba(0,0,0,0.3)'
+      }} />
+    </button>
+  );
+}
+
+function SettingsSeg({ value, options, onChange }) {
+  return (
+    <div style={{display:'flex',background:'var(--bg-2)',borderRadius:4,padding:2,border:'1px solid var(--border)'}}>
+      {options.map(o => (
+        <button key={o} onClick={() => onChange(o)} style={{
+          flex:1,border:0,borderRadius:3,padding:'5px 8px',cursor:'pointer',
+          font:'500 10px var(--font-mono)',letterSpacing:'0.1em',textTransform:'uppercase',
+          background: value === o ? 'var(--surface-2)' : 'transparent',
+          color: value === o ? 'var(--fg)' : 'var(--fg-muted)',
+        }}>{o}</button>
+      ))}
+    </div>
+  );
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [screen, setScreen] = useState('search');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const rlState = useRLState();
+
+  useEffect(() => {
+    if (!rlState && screen === 'dashboard') setScreen('search');
+  }, [rlState, screen]);
+
+  useEffect(() => { applyTweaks(t); }, [t]);
+  useEffect(() => { window.setLang(t.lang); }, [t.lang]);
+
+  useEffect(() => {
+    if (t.liveDemo && rlState) window.RL.kickLiveLoop();
+    else window.RL.stopLiveLoop();
+  }, [t.liveDemo, rlState]);
+
+  if (screen === 'search') {
+    return <SearchScreen onFound={() => setScreen('dashboard')} />;
+  }
+
+  return (
+    <React.Fragment>
+      <AppShell onOpenSettings={() => setSettingsOpen(s => !s)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} t={t} setTweak={setTweak} />
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>
