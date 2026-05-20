@@ -752,6 +752,27 @@ function MatchRow({ match, dense = false }) {
   );
 }
 
+// Honest data-freshness footer. The dashboard polls every 15s, but tracker.gg
+// itself only refreshes a player's data every few minutes — so a finished
+// match is never instant. This makes that explicit instead of looking broken.
+function DataFreshness() {
+  useLang();
+  const s = useRLState();
+  const now = useNow(1000);
+  if (!s || !s.lastPolledAt) return null;
+  const sec = Math.max(0, Math.round((now - s.lastPolledAt) / 1000));
+  const ago = sec < 60 ? sec + 's' : Math.floor(sec / 60) + 'm';
+  const stale = sec > 75; // ~5 missed 15s polls — something is off
+  return (
+    <div className={'rl-fresh' + (stale ? ' is-stale' : '')}>
+      <span className="rl-fresh-dot" />
+      <span className="rl-fresh-checked">{T('fresh.checked', { ago })}</span>
+      <span className="rl-fresh-sep">&middot;</span>
+      <span className="rl-fresh-note">{T('fresh.note')}</span>
+    </div>
+  );
+}
+
 function MatchList({ limit = 8, title, dense = false }) {
   useLang();
   const s = useRLState();
@@ -766,9 +787,15 @@ function MatchList({ limit = 8, title, dense = false }) {
       action={<span className="rl-meta">{T('matches.of', { shown: items.length, total: s.matches.length })}</span>}
     >
       <div className="rl-match-list">
-        {items.length === 0 && <div className="rl-meta" style={{ padding: '12px 0' }}>Aucun match pour cette session</div>}
+        {items.length === 0 && (
+          <div className="rl-match-empty">
+            <div className="rl-match-empty-title">{T('matches.waiting')}</div>
+            <div className="rl-match-empty-hint">{T('matches.waitingHint')}</div>
+          </div>
+        )}
         {items.map(m => <MatchRow key={m.id} match={m} dense={dense} />)}
       </div>
+      <DataFreshness />
     </Card>
   );
 }
@@ -1019,7 +1046,7 @@ Object.assign(window, {
   Card, AnimatedNumber, Chip, ModeChip, Sparkline,
   StatusPill, RankBadge, PlayerHeader, PlaylistPicker, SearchScreen,
   SessionTimer, WLBlock, StreakBlock, MMRDeltaBlock, ObjectiveBlock, SessionRibbon,
-  MMRChart, TiltMeter, MatchRow, MatchList,
+  MMRChart, TiltMeter, MatchRow, MatchList, DataFreshness,
   StatComparison, ModeBreakdown, OpponentsCard,
   ToastStack, TickerBar,
 });
