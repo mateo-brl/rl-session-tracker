@@ -180,7 +180,6 @@ function CommandCenter() {
           <TiltMeter />
           <StatComparison />
           <ModeBreakdown />
-          <OpponentsCard />
         </div>
       </div>
 
@@ -221,7 +220,6 @@ function Sidekick() {
       <MatchList limit={5} dense />
       <StatComparison />
       <ModeBreakdown />
-      <OpponentsCard />
 
       <TickerBar />
       <ToastStack />

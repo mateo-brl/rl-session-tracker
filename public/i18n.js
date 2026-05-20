@@ -83,7 +83,7 @@
       'focus.time':          'Temps',
 
       'ticker.peak':         'PIC SAISON',
-      'ticker.winrate':      'WR SAISON',
+      'ticker.winrate':      'WR RÉCENT',
       'ticker.played':       'MATCHS JOU\u00c9S',
       'ticker.startMmr':     'D\u00c9BUT DE SESSION',
       'ticker.currentMmr':   'MMR EN COURS',
@@ -182,7 +182,7 @@
       'focus.time':          'Time',
 
       'ticker.peak':         'SEASON PEAK',
-      'ticker.winrate':      'SEASON WR',
+      'ticker.winrate':      'RECENT WR',
       'ticker.played':       'GAMES PLAYED',
       'ticker.startMmr':     'SESSION START',
       'ticker.currentMmr':   'CURRENT MMR',

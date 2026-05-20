@@ -719,6 +719,8 @@ function TiltMeter({ size = 'md' }) {
    Match list
 ============================================================ */
 
+// One match row. Every value here is real tracker.gg data: result, goals,
+// saves, assists, shots and the MMR delta all come from the sessions API.
 function MatchRow({ match, dense = false }) {
   useLang();
   const win = match.result === 'W';
@@ -728,20 +730,13 @@ function MatchRow({ match, dense = false }) {
       <div className="rl-match-l">
         <span className={'rl-match-result ' + (win ? 'is-win' : 'is-loss')}>{win ? 'W' : 'L'}</span>
         <ModeChip mode={match.mode} />
-        <span className="rl-match-score rl-num">{match.score[0]}&ndash;{match.score[1]}</span>
       </div>
-      {match.hasDetailedStats !== false ? (
-        <div className="rl-match-m">
-          <span title="goals">    <em>{T('matches.g')}</em> {match.goals}</span>
-          <span title="saves">    <em>{T('matches.s')}</em> {match.saves}</span>
-          <span title="assists">  <em>{T('matches.a')}</em> {match.assists}</span>
-          <span title="shots">    <em>{T('matches.sh')}</em> {match.shots}</span>
-        </div>
-      ) : (
-        <div className="rl-match-m">
-          <ModeChip mode={match.mode} size="sm" />
-        </div>
-      )}
+      <div className="rl-match-m">
+        <span title="goals"><em>{T('matches.g')}</em> {match.goals}</span>
+        <span title="saves"><em>{T('matches.s')}</em> {match.saves}</span>
+        <span title="assists"><em>{T('matches.a')}</em> {match.assists}</span>
+        <span title="shots"><em>{T('matches.sh')}</em> {match.shots}</span>
+      </div>
       <div className="rl-match-r">
         <span className={'rl-match-mmr ' + (win ? 'is-up' : 'is-down')}>
           {win ? '+' : ''}{match.mmrChange}
@@ -857,24 +852,17 @@ function ModeBreakdown() {
   const s = useRLState();
   if (!s) return null;
 
-  // Use modeStats from API if no session matches, otherwise aggregate session
+  // Per-mode breakdown of the current session; falls back to season totals.
   let rows;
-  if (s.matches.length > 0) {
-    const agg = {};
-    s.matches.forEach(m => {
-      if (!agg[m.mode]) agg[m.mode] = { w: 0, l: 0 };
-      if (m.result === 'W') agg[m.mode].w++; else agg[m.mode].l++;
-    });
-    rows = Object.entries(agg)
-      .map(([id, v]) => ({ id, ...v, total: v.w + v.l }))
-      .sort((a, b) => b.total - a.total);
+  const sessionRows = (s.playlists || [])
+    .filter(p => p.matches && p.matches.length > 0)
+    .map(p => ({ id: p.id, w: p.sessionWins, l: p.sessionLosses, total: p.matches.length }))
+    .sort((a, b) => b.total - a.total);
+  if (sessionRows.length > 0) {
+    rows = sessionRows;
   } else {
-    rows = s.modeStats.map(ms => ({
-      id: ms.id,
-      w: ms.wins,
-      l: ms.losses,
-      total: ms.played,
-    })).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+    rows = s.modeStats.map(ms => ({ id: ms.id, w: ms.wins, l: ms.losses, total: ms.played }))
+      .filter(r => r.total > 0).sort((a, b) => b.total - a.total);
   }
 
   return (
@@ -1010,12 +998,13 @@ function TickerBar({ items }) {
   useLang();
   const s = useRLState();
   if (!s) return null;
+  const wr = s.seasonStats.winRate;
   const defaults = [
     { label: T('ticker.startMmr'),   val: s.player.startMMR },
     { label: T('ticker.currentMmr'), val: s.player.mmr },
     { label: T('ticker.peakSession'),val: Math.max(s.player.startMMR, ...s.matches.map(m => m.mmrAfter), s.player.mmr) },
-    { label: T('ticker.peak'),       val: s.player.peakMMR },
-    { label: T('ticker.winrate'),    val: Math.round(s.seasonStats.winRate * 100) + '%' },
+    { label: T('ticker.peak'),       val: s.player.seasonPeak || s.player.mmr },
+    { label: T('ticker.winrate'),    val: wr == null ? '—' : Math.round(wr * 100) + '%' },
     { label: T('ticker.played'),     val: s.seasonStats.played },
   ];
   const list = items || defaults;
