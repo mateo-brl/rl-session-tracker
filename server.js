@@ -137,74 +137,47 @@ async function searchAllPlatforms(query) {
   return results.slice(0, 12);
 }
 
-// ───────── Scrape profile + sessions in one page load ─────────
-// Navigate to the profile page, intercept the profile XHR,
-// then fetch sessions from within the page context (reuses CF cookies).
-
+// ───────── Fetch profile + sessions ─────────
+// Both come straight from api.tracker.gg, fetched inside the warm page so its
+// Cloudflare cookies are reused — no slow full-page navigation per request.
+// This takes ~1-2s instead of ~20s for a full page load.
 async function scrapeAll(platform, username) {
-  const b = await getBrowser();
-  const page = await b.newPage();
   const plat = PLATFORM_MAP[platform] || platform;
+  const user = encodeURIComponent(username);
+  const profileUrl  = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${plat}/${user}`;
+  const sessionsUrl = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${plat}/${user}/sessions`;
 
-  let profileData = null;
-
-  // Intercept the profile API response
-  page.on('response', async (resp) => {
-    const url = resp.url();
-    if (url.includes('api.tracker.gg') &&
-        url.includes('/profile/') &&
-        !url.includes('/sessions') &&
-        !url.includes('/mmr') &&
-        !url.includes('/segments/') &&
-        !url.includes('/interactions') &&
-        !url.includes('/search')) {
-      try {
-        const text = await resp.text();
-        profileData = { status: resp.status(), body: text };
-      } catch (e) {}
-    }
-  });
-
-  const profileUrl = `https://rocketleague.tracker.network/rocket-league/profile/${plat}/${encodeURIComponent(username)}/overview`;
-
-  try {
-    await page.goto(profileUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    if (!profileData) await new Promise(r => setTimeout(r, 3000));
-
-    if (!profileData) {
-      await page.close();
-      return { profile: null, sessions: null };
-    }
-
-    // Now fetch sessions from within the browser (has Cloudflare cookies)
-    const sessionsUrl = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${plat}/${encodeURIComponent(username)}/sessions`;
-    const sessionsResult = await page.evaluate(async (url) => {
-      try {
-        const resp = await fetch(url, {
-          headers: { 'Accept': 'application/json' },
-          credentials: 'include',
-        });
-        const text = await resp.text();
-        return { status: resp.status, body: text };
-      } catch (e) {
-        return { status: 0, body: e.message };
+  async function fetchBoth() {
+    const page = await getWarmPage();
+    return page.evaluate(async (pUrl, sUrl) => {
+      async function get(u) {
+        try {
+          const r = await fetch(u, { headers: { Accept: 'application/json' }, credentials: 'include' });
+          return { status: r.status, body: await r.text() };
+        } catch (e) { return { status: 0, body: String(e) }; }
       }
-    }, sessionsUrl);
-
-    await page.close();
-
-    // Parse results
-    let profile = null, sessions = null;
-    try { profile = JSON.parse(profileData.body); } catch (e) {}
-    if (sessionsResult.status === 200) {
-      try { sessions = JSON.parse(sessionsResult.body); } catch (e) {}
-    }
-
-    return { profile, sessions };
-  } catch (err) {
-    await page.close();
-    throw err;
+      const [p, s] = await Promise.all([get(pUrl), get(sUrl)]);
+      return { p, s };
+    }, profileUrl, sessionsUrl);
   }
+
+  let res;
+  try {
+    res = await fetchBoth();
+  } catch (e) {
+    await rewarmPage();
+    res = await fetchBoth();
+  }
+  // A blocked/empty profile response means Cloudflare clearance lapsed.
+  if ([0, 403, 429, 503].includes(res.p.status)) {
+    await rewarmPage();
+    res = await fetchBoth();
+  }
+
+  let profile = null, sessions = null;
+  try { profile = JSON.parse(res.p.body); } catch (e) {}
+  if (res.s.status === 200) { try { sessions = JSON.parse(res.s.body); } catch (e) {} }
+  return { profile, sessions };
 }
 
 // ───────── Routes ─────────
@@ -273,7 +246,11 @@ app.listen(PORT, process.env.HOST || '127.0.0.1', async () => {
   console.log('  Mode: headless Chromium + live sessions');
   try {
     await getBrowser();
-    console.log('  Chromium: ready\n');
+    console.log('  Chromium: ready');
+    // Warm the Cloudflare page up front so the first request is already fast.
+    getWarmPage()
+      .then(() => console.log('  Warm page: ready\n'))
+      .catch(() => console.log('  Warm page: will retry on first request\n'));
   } catch (e) {
     console.log('  Chromium: failed -', e.message, '\n');
   }

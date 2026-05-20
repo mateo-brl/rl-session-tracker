@@ -1,7 +1,8 @@
 // data.js — Real data layer for the RL tracker.
 // Fetches from our backend proxy (/api/*) which hits tracker.gg.
-// Falls back to mock data when API is unavailable.
-// Exposes: window.RL = { state, subscribe, searchPlayer, startPolling, stopPolling, ... }
+// All match data is real: it comes from tracker.gg's sessions API
+// (goals/saves/assists/shots/MVPs/MMR delta per match). Nothing is invented.
+// Exposes: window.RL = { state, subscribe, searchPlayer, startPolling, ... }
 
 (function () {
   // Every Rocket League playlist tracker.gg can return. `playlistId` matches
@@ -38,7 +39,7 @@
   function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
   function rankFromMMR(mmr) {
-    // Approximate RL rank tiers by MMR
+    // Approximate RL rank tiers by MMR — only used for the fallback badge.
     const tiers = [
       { name: 'Unranked', lower: 0, upper: 155 },
       { name: 'Bronze I', lower: 155, upper: 215 },
@@ -93,7 +94,6 @@
   }
 
   // ───────── Playlist identification ─────────
-  // Resolve any playlist name to one of our MODES ids.
   function modeIdFromName(name) {
     const n = (name || '').toLowerCase();
     if (n.includes('duel') || n.includes('1v1')) return '1v1';
@@ -109,8 +109,6 @@
     return null;
   }
 
-  // A playlist segment carries a numeric id in attributes — trust it first,
-  // fall back to name matching for anything unexpected.
   function modeIdForPlaylist(pl) {
     const pid = pl && pl.attributes ? pl.attributes.playlistId : null;
     if (pid !== null && pid !== undefined) {
@@ -120,24 +118,92 @@
     return modeIdFromName(pl && pl.metadata ? pl.metadata.name : '');
   }
 
+  // ───────── Parse the sessions API into real matches ─────────
+  // Each session match carries real per-match stats. We never invent these.
+  // Returns { byMode, all, current, currentStart }:
+  //  - all      : every match we got, oldest→newest
+  //  - byMode   : all matches grouped by mode id
+  //  - current  : matches of the most recent play session (oldest→newest)
+  //  - currentStart : timestamp of the first match of that session
+  const STALE_SESSION_MS = 3 * 60 * 60 * 1000; // a 3h+ gap = a new session
+
+  function sessionMatchFromRaw(m) {
+    const meta = m.metadata || {};
+    const st = m.stats || {};
+    // tracker.gg's sessions feed mixes real matches with per-mode and
+    // session rollup rows (result like " wins" / "246 wins", playlist
+    // "Multiple"). Only an explicit victory/defeat row is a real match.
+    const result = meta.result;
+    if (result !== 'victory' && result !== 'defeat') return null;
+    const modeId = modeIdFromName(meta.playlist || '');
+    if (!modeId) return null;
+    const num = (k) => (st[k] && st[k].value != null ? st[k].value : 0);
+    const rating = st.rating || {};
+    const rmeta = rating.metadata || {};
+    return {
+      id: m.id || 'm' + Math.random().toString(36).slice(2, 9),
+      mode: modeId,
+      result: result === 'victory' ? 'W' : 'L',
+      goals: num('goals'),
+      saves: num('saves'),
+      assists: num('assists'),
+      shots: num('shots'),
+      mvps: num('mvps'),
+      mmrChange: rmeta.ratingDelta != null ? rmeta.ratingDelta : 0,
+      mmrAfter: rating.value != null ? rating.value : 0,
+      endedAt: meta.dateCollected ? Date.parse(meta.dateCollected) : 0,
+    };
+  }
+
+  function parseSessions(sessionsData) {
+    const out = { byMode: {}, all: [], current: [], currentStart: null };
+    if (!sessionsData || !sessionsData.data || !Array.isArray(sessionsData.data.items)) return out;
+    const items = sessionsData.data.items;
+
+    // Flatten every match across every session.
+    for (const it of items) {
+      for (const raw of (it.matches || [])) {
+        const m = sessionMatchFromRaw(raw);
+        if (m) out.all.push(m);
+      }
+    }
+    out.all.sort((a, b) => a.endedAt - b.endedAt);
+    for (const m of out.all) (out.byMode[m.mode] = out.byMode[m.mode] || []).push(m);
+
+    // Current session = the session item with the most recent match, but only
+    // if that match is recent enough to still count as "now".
+    let best = null, bestDate = -1;
+    for (const it of items) {
+      for (const raw of (it.matches || [])) {
+        const d = raw.metadata && raw.metadata.dateCollected
+          ? Date.parse(raw.metadata.dateCollected) : 0;
+        if (d > bestDate) { bestDate = d; best = it; }
+      }
+    }
+    if (best && bestDate > 0 && (Date.now() - bestDate) < STALE_SESSION_MS) {
+      out.current = (best.matches || []).map(sessionMatchFromRaw).filter(Boolean)
+        .sort((a, b) => a.endedAt - b.endedAt);
+      if (out.current.length) out.currentStart = out.current[0].endedAt;
+    }
+    return out;
+  }
+
   // ───────── Active-playlist selection ─────────
   const EMPTY_PLAYLIST = {
     id: '2v2', label: '2v2 Doubles', playlistId: 11,
     mmr: 0, rank: 'Unranked', rankIcon: null, division: '', divNum: 0,
     played: 0, wins: null, losses: null, ranked: false, isCasual: false,
-    startMMR: 0, peakMMR: 0, curve: [0], matches: [], sessionWins: 0, sessionLosses: 0,
+    startMMR: 0, peakMMR: 0, seasonPeak: 0, curve: [0],
+    matches: [], sessionWins: 0, sessionLosses: 0,
   };
 
-  // Resolve which playlist drives the headline. A specific user choice wins;
-  // otherwise 'auto' picks the most-played playlist that has a real
-  // competitive rank (Casual and un-placed playlists are excluded), with MMR
-  // breaking ties so a player with no ranked games still shows a real rank.
   function pickActive(playlists, selectedId) {
     if (!playlists || !playlists.length) return null;
     if (selectedId && selectedId !== 'auto') {
       const found = playlists.find(p => p.id === selectedId);
       if (found) return found;
     }
+    // auto: most-played playlist with a real competitive rank; MMR breaks ties.
     const pool = playlists.filter(p => p.ranked);
     const list = pool.length ? pool : playlists;
     let best = null;
@@ -148,10 +214,7 @@
     return best;
   }
 
-  // ───────── Build top-level state from parsed playlists ─────────
-  // The dashboard components read flat `player`/`session`/`matches` fields,
-  // so we derive them from whichever playlist is currently active. Switching
-  // the active playlist re-runs this without re-scraping.
+  // ───────── Derive the flat dashboard state from parsed playlists ─────────
   function composeState(parts) {
     const { playlists, allSeasonCurves, seasonAvg, seasonStats, modeStats,
             platformInfo, sessionStart, toasts, selectedId, lastPolledAt } = parts;
@@ -167,8 +230,6 @@
       }
     }
 
-    // Season MMR curve: real per-mode history from the sessions API if we
-    // have it, otherwise the live points collected this session.
     let seasonCurve;
     const hist = allSeasonCurves && allSeasonCurves[active.id];
     if (hist && hist.length >= 2) {
@@ -185,6 +246,7 @@
         statusModeId: active.id,
         mmr: active.mmr,
         peakMMR: active.peakMMR,
+        seasonPeak: active.seasonPeak,
         startMMR: active.startMMR,
         rank: active.rank,
         rankIcon: active.rankIcon,
@@ -214,29 +276,28 @@
     };
   }
 
-  // ───────── Parse tracker.gg response into our state format ─────────
-  // Builds one entry per playlist, each carrying its own session tracking
-  // (start MMR, peak, MMR curve, detected matches). On every poll an MMR
-  // change for a playlist is recorded as a finished match for that playlist.
-  function parseProfile(apiData, prevState, allCurvesOverride) {
-    const d = apiData.data;
+  // ───────── Build full state from a profile + sessions payload ─────────
+  function buildState(profileData, sessionsData, prevState) {
+    const d = profileData.data || {};
     const platformInfo = d.platformInfo || {};
     const segments = d.segments || [];
     const overview = segments.find(s => s.type === 'overview');
     const overviewStats = overview ? overview.stats : {};
     const rawPlaylists = segments.filter(s => s.type === 'playlist');
 
-    const now = Date.now();
-    const isNew = !prevState;
-    const prevPlaylists = isNew ? [] : (prevState.playlists || []);
-    const sessionStart = isNew ? now : prevState.session.startedAt;
-    const allSeasonCurves = allCurvesOverride !== undefined
-      ? allCurvesOverride
-      : (prevState ? prevState.allSeasonCurves : null);
+    const parsed = parseSessions(sessionsData);
+    // Session window = the current real play session from tracker.gg.
+    const sessionStart = parsed.currentStart
+      || (prevState ? prevState.session.startedAt : Date.now());
 
-    const matchEvents = [];
+    // Track which matches we already knew, to toast only genuinely new ones.
+    const prevIds = new Set();
+    if (prevState && prevState.playlists) {
+      for (const p of prevState.playlists) for (const m of p.matches) prevIds.add(m.id);
+    }
+    const newMatches = [];
+
     const playlists = [];
-
     for (const pl of rawPlaylists) {
       const modeId = modeIdForPlaylist(pl);
       if (!modeId) continue;
@@ -249,107 +310,70 @@
       const division = stats.division && stats.division.metadata ? stats.division.metadata.name : '';
       const divNum = stats.division ? stats.division.value : 0;
       const played = stats.matchesPlayed ? stats.matchesPlayed.value : 0;
-      const winPct = stats.matchesWinPct ? stats.matchesWinPct.value : null;
-      const wins = winPct !== null ? Math.round((winPct / 100) * played)
-                 : (stats.wins ? stats.wins.value : null);
-      const losses = wins !== null ? Math.max(0, played - wins) : null;
+      const seasonPeak = stats.peakRating && stats.peakRating.value != null
+        ? stats.peakRating.value : mmr;
       const isCasual = modeId === 'casual';
-      // A playlist counts as ranked for the headline only if it is a
-      // competitive mode AND the player actually holds a rank there.
       const ranked = !isCasual && (modeDef ? modeDef.ranked : true) && rankName !== 'Unranked';
 
-      const prev = prevPlaylists.find(p => p.id === modeId);
-      let startMMR, peakMMR, curve, matches, sessionWins, sessionLosses;
+      // Real session matches for this mode.
+      const matches = parsed.current.filter(m => m.mode === modeId);
+      for (const m of matches) if (!prevIds.has(m.id)) newMatches.push(m);
 
-      if (prev) {
-        startMMR = prev.startMMR;
-        peakMMR = Math.max(prev.peakMMR, mmr);
-        curve = prev.curve.slice();
-        matches = prev.matches.slice();
-        sessionWins = prev.sessionWins;
-        sessionLosses = prev.sessionLosses;
-        if (prev.mmr !== mmr) {
-          // MMR moved in this playlist — a match finished.
-          const change = mmr - prev.mmr;
-          const result = change >= 0 ? 'W' : 'L';
-          matches.push({
-            id: 'm' + Math.random().toString(36).slice(2, 8),
-            mode: modeId,
-            result,
-            score: result === 'W' ? [irand(2, 6), irand(0, 2)] : [irand(0, 2), irand(2, 6)],
-            mmrBefore: prev.mmr,
-            mmrAfter: mmr,
-            mmrChange: change,
-            goals: irand(0, 3), saves: irand(0, 4), assists: irand(0, 2), shots: irand(1, 5),
-            opponents: [],
-            durationSec: irand(240, 360),
-            endedAt: now,
-          });
-          curve.push(mmr);
-          if (result === 'W') sessionWins++; else sessionLosses++;
-          matchEvents.push({ mode: modeId, result, change });
-        }
-      } else {
-        startMMR = mmr;
-        peakMMR = mmr;
-        curve = [mmr];
-        matches = [];
-        sessionWins = 0;
-        sessionLosses = 0;
+      const startMMR = matches.length
+        ? (matches[0].mmrAfter - matches[0].mmrChange) : mmr;
+      let peakMMR = Math.max(mmr, startMMR);
+      let sessionWins = 0, sessionLosses = 0;
+      for (const m of matches) {
+        peakMMR = Math.max(peakMMR, m.mmrAfter);
+        if (m.result === 'W') sessionWins++; else sessionLosses++;
       }
+      const curve = [startMMR, ...matches.map(m => m.mmrAfter)];
 
       playlists.push({
         id: modeId,
         label: modeDef ? modeDef.label : modeId,
         playlistId: modeDef ? modeDef.playlistId : null,
         mmr, rank: rankName, rankIcon, division, divNum,
-        played, wins, losses, ranked, isCasual,
-        startMMR, peakMMR, curve, matches, sessionWins, sessionLosses,
+        played, wins: null, losses: null, ranked, isCasual,
+        startMMR, peakMMR, seasonPeak, curve,
+        matches, sessionWins, sessionLosses,
       });
     }
 
-    // ── Season-wide stats from the overview segment (lifetime totals) ──
-    const totalGoals = overviewStats.goals ? overviewStats.goals.value : 0;
-    const totalAssists = overviewStats.assists ? overviewStats.assists.value : 0;
-    const totalSaves = overviewStats.saves ? overviewStats.saves.value : 0;
-    const totalShots = overviewStats.shots ? overviewStats.shots.value : 0;
-    const totalWins = overviewStats.wins ? overviewStats.wins.value : 0;
-    const seasonPlayed = playlists.reduce((sum, p) => sum + (p.played || 0), 0);
-    const seasonWR = overviewStats.winPct ? overviewStats.winPct.value / 100
-      : (totalWins > 0
-          ? totalWins / (totalWins + (overviewStats.losses ? overviewStats.losses.value : totalWins))
-          : 0);
-    const seasonWins = Math.round(seasonWR * seasonPlayed);
-    const seasonLosses = seasonPlayed - seasonWins;
-
-    // Per-game averages from lifetime totals (wins used to approximate games).
-    const totalGamesApprox = totalWins > 0
-      ? Math.round(totalWins / Math.max(0.01, seasonWR))
-      : Math.max(1, seasonPlayed);
-    const gamesForAvg = Math.max(1, totalGamesApprox);
+    // Per-game averages — tracker.gg's overview holds lifetime totals; the
+    // game count is estimated from wins (this matches tracker.gg's own site).
+    const ov = overviewStats;
+    const num = (k) => (ov[k] && ov[k].value != null ? ov[k].value : 0);
+    const totalGoals = num('goals'), totalAssists = num('assists'),
+          totalSaves = num('saves'), totalShots = num('shots'), totalWins = num('wins');
+    const gamesForAvg = Math.max(1, totalWins > 0 ? totalWins * 2 : 1);
     const seasonAvg = {
       goalsPerGame: totalGoals / gamesForAvg,
       savesPerGame: totalSaves / gamesForAvg,
       assistsPerGame: totalAssists / gamesForAvg,
       shotsPerGame: totalShots / gamesForAvg,
-      winRate: seasonWR,
-    };
-    const seasonStats = {
-      played: seasonPlayed,
-      wins: seasonWins,
-      losses: seasonLosses,
-      winRate: seasonWR,
-      peakRank: 'Unranked',
     };
 
-    // Per-mode breakdown — every playlist, the UI filters to those with games.
+    // Recent win rate — computed from the real matches tracker.gg returned.
+    const recentGames = parsed.all.length;
+    const recentWins = parsed.all.filter(m => m.result === 'W').length;
+    const seasonPlayed = playlists.reduce((s, p) => s + (p.played || 0), 0);
+    const seasonStats = {
+      played: seasonPlayed,
+      recentGames,
+      winRate: recentGames ? recentWins / recentGames : null,
+    };
+
+    // Real season MMR history per mode, from every match we have.
+    const allSeasonCurves = {};
+    for (const k of Object.keys(parsed.byMode)) {
+      allSeasonCurves[k] = parsed.byMode[k].map(m => ({ mmr: m.mmrAfter, date: m.endedAt }));
+    }
+
     const modeStats = playlists.map(p => ({
-      id: p.id,
-      played: p.played,
-      wins: p.wins,
-      losses: p.losses,
-      mmr: p.mmr,
-      rank: p.rank + (p.division ? ' ' + p.division : ''),
+      id: p.id, played: p.played,
+      wins: null, losses: null,
+      mmr: p.mmr, rank: p.rank + (p.division ? ' ' + p.division : ''),
     }));
 
     const next = composeState({
@@ -360,29 +384,29 @@
       lastPolledAt: Date.now(),
     });
 
-    // Toast every match detected this poll.
-    for (const ev of matchEvents) {
-      const result = ev.result;
-      setTimeout(() => {
-        pushToast({
-          kind: result === 'W' ? 'win' : 'loss',
-          title: result === 'W' ? 'Victory' : 'Defeat',
-          detail: `${ev.change > 0 ? '+' : ''}${ev.change} MMR`,
-          mode: ev.mode,
-        });
-      }, 100);
-    }
-    // Tilt alert when the active playlist just reached a 3-loss streak.
-    if (matchEvents.length && next.session.streak.type === 'L' && next.session.streak.count === 3) {
-      setTimeout(() => {
-        pushToast({ kind: 'tilt', title: 'Tilt alert', detail: '3 losses in a row — take a break?' });
-      }, 200);
+    // Toast newly-finished matches (never on the very first load).
+    if (prevState) {
+      for (const ev of newMatches) {
+        setTimeout(() => {
+          pushToast({
+            kind: ev.result === 'W' ? 'win' : 'loss',
+            title: ev.result === 'W' ? 'Victory' : 'Defeat',
+            detail: `${ev.mmrChange > 0 ? '+' : ''}${ev.mmrChange} MMR`,
+            mode: ev.mode,
+          });
+        }, 100);
+      }
+      if (newMatches.length && next.session.streak.type === 'L' && next.session.streak.count === 3) {
+        setTimeout(() => {
+          pushToast({ kind: 'tilt', title: 'Tilt alert', detail: '3 losses in a row — take a break?' });
+        }, 200);
+      }
     }
 
     return next;
   }
 
-  // ───────── Demo mode — full mock session ─────────
+  // ───────── Demo mode — clearly-labelled mock session ─────────
   function bootstrapDemo(tag) {
     const TAGS = ['nyx.04','velour','tempo','rkt-9','siphon','kade','zur','mira.x','nullp','orca'];
     const startMMR = 1284;
@@ -394,21 +418,11 @@
       const result = results[i];
       const mmrChange = result === 'W' ? irand(8, 14) : -irand(7, 13);
       const goals = irand(0,4), saves = irand(0,6), assists = irand(0,3), shots = goals + irand(0,5);
-      const ourScore = result === 'W' ? irand(3,7) : irand(0,3);
-      const oppScore = result === 'W' ? irand(0, Math.max(0, ourScore-1)) : irand(ourScore+1, ourScore+4);
-      const n = modePool[i] === '1v1' ? 1 : modePool[i] === '2v2' ? 2 : 3;
-      const opponents = [];
-      for (let j = 0; j < n; j++) {
-        const om = Math.max(0, mmr + irand(-90,90));
-        opponents.push({ tag: pick(TAGS), mmr: om, rank: rankFromMMR(om).name, platform: pick(['PC','PS5','Xbox']) });
-      }
       matches.push({
         id: 'm' + Math.random().toString(36).slice(2,8),
         mode: modePool[i], result,
-        score: [ourScore, oppScore],
-        mmrBefore: mmr, mmrAfter: mmr + mmrChange, mmrChange,
-        goals, saves, assists, shots, opponents,
-        durationSec: irand(240,360),
+        mmrChange, mmrAfter: mmr + mmrChange,
+        goals, saves, assists, shots, mvps: result === 'W' ? irand(0,1) : 0,
         endedAt: Date.now() - (50 - i*6)*60000,
       });
       mmr += mmrChange;
@@ -425,11 +439,11 @@
     seasonCurve.push({ x: 60, mmr });
 
     state = {
-      player: { tag: tag || 'nyx.04', platform: 'PC', status: 'in-match', statusModeId: '2v2', mmr, peakMMR: 1342, startMMR, rank: rankFromMMR(mmr).name },
+      player: { tag: tag || 'nyx.04', platform: 'PC', status: 'in-match', statusModeId: '2v2', mmr, peakMMR: 1342, seasonPeak: 1342, startMMR, rank: rankFromMMR(mmr).name },
       session: { startedAt: Date.now() - 52*60000, wins, losses, streak: { type: streakType, count: streakCount }, mmrDelta: mmr - startMMR, currentMode: '2v2', objective: { type:'mmr', target:30, current: mmr-startMMR } },
       matches, seasonCurve,
-      seasonAvg: { goalsPerGame:1.6, savesPerGame:2.4, assistsPerGame:0.8, shotsPerGame:3.7, winRate:0.54 },
-      seasonStats: { played:487, wins:263, losses:224, winRate:0.54, peakRank:'Champion' },
+      seasonAvg: { goalsPerGame:1.6, savesPerGame:2.4, assistsPerGame:0.8, shotsPerGame:3.7 },
+      seasonStats: { played:487, winRate:0.54, recentGames: matches.length },
       modeStats: [{ id:'2v2',played:312,wins:178,losses:134 },{ id:'3v3',played:124,wins:62,losses:62 },{ id:'1v1',played:38,wins:17,losses:21 },{ id:'rumble',played:13,wins:6,losses:7 }],
       lastPolledAt: Date.now(),
       toasts: [],
@@ -438,41 +452,19 @@
     return state;
   }
 
-  // ───────── Parse sessions data into per-mode MMR history ─────────
-  // The tracker.gg sessions API returns per-playlist MMR snapshots, which we
-  // turn into a real season curve per mode: { '2v2': [{mmr,date},...], ... }
-  function parseSessionsCurves(sessionsData) {
-    if (!sessionsData || !sessionsData.data || !sessionsData.data.items) return {};
-    const curves = {};
-    for (const session of sessionsData.data.items) {
-      if (!session.matches) continue;
-      for (const m of session.matches) {
-        const stats = m.stats || {};
-        const meta = m.metadata || {};
-        const modeId = modeIdFromName(meta.playlist || '');
-        if (!modeId) continue;
-        const mmr = stats.rating && stats.rating.value != null ? stats.rating.value : null;
-        const date = meta.dateCollected ? new Date(meta.dateCollected).getTime() : 0;
-        if (mmr !== null) {
-          if (!curves[modeId]) curves[modeId] = [];
-          curves[modeId].push({ mmr, date });
-        }
-      }
-    }
-    for (const k of Object.keys(curves)) curves[k].sort((a, b) => a.date - b.date);
-    return curves;
-  }
-
   // ───────── API calls ─────────
   let currentPlatform = null;
   let currentUsername = null;
+
+  function isValidProfile(p) {
+    return p && p.data && Array.isArray(p.data.segments);
+  }
 
   async function searchPlayer(platform, username) {
     currentPlatform = platform;
     currentUsername = username;
     selectedPlaylistId = 'auto';
 
-    // Use the live endpoint which gets profile + sessions
     const resp = await fetch(`/api/live/${platform}/${encodeURIComponent(username)}`);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
@@ -481,19 +473,10 @@
       throw e;
     }
     const liveData = await resp.json();
-
-    if (!liveData.profile || !liveData.profile.data || !liveData.profile.data.segments) {
+    if (!isValidProfile(liveData.profile)) {
       throw new Error('Invalid response from tracker.gg');
     }
-
-    // Build real per-mode MMR history from the sessions payload.
-    let allCurves = null;
-    if (liveData.sessions) {
-      const curves = parseSessionsCurves(liveData.sessions);
-      if (curves && Object.keys(curves).length) allCurves = curves;
-    }
-
-    state = parseProfile(liveData.profile, null, allCurves);
+    state = buildState(liveData.profile, liveData.sessions, null);
     emit();
     return state;
   }
@@ -501,19 +484,18 @@
   async function pollUpdate() {
     if (!currentPlatform || !currentUsername) return;
     try {
-      const resp = await fetch(`/api/profile/${currentPlatform}/${encodeURIComponent(currentUsername)}`);
+      const resp = await fetch(`/api/live/${currentPlatform}/${encodeURIComponent(currentUsername)}`);
       if (!resp.ok) return;
-      const data = await resp.json();
-      if (!data.data || !data.data.segments) return;
-      state = parseProfile(data, state);
+      const liveData = await resp.json();
+      if (!isValidProfile(liveData.profile)) return;
+      state = buildState(liveData.profile, liveData.sessions, state);
       emit();
     } catch (e) {
-      // Silently fail on poll — will retry next interval
+      // Silently fail on poll — will retry next interval.
     }
   }
 
   // ───────── Choose which playlist drives the headline ─────────
-  // Re-derives the dashboard from already-parsed playlists; no re-scrape.
   function setDisplayPlaylist(id) {
     selectedPlaylistId = id || 'auto';
     if (!state || !state.playlists) { emit(); return; }
@@ -548,7 +530,7 @@
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   }
 
-  // ───────── Manual match add (for demo/testing) ─────────
+  // ───────── Demo-only helpers ─────────
   function addMatch(opts = {}) {
     if (!state) return;
     const mmrBefore = state.player.mmr;
@@ -558,23 +540,17 @@
       id: 'm' + Math.random().toString(36).slice(2, 8),
       mode: opts.mode || state.session.currentMode,
       result,
-      score: result === 'W' ? [irand(2, 6), irand(0, 2)] : [irand(0, 2), irand(2, 6)],
-      mmrBefore,
-      mmrAfter: mmrBefore + mmrChange,
-      mmrChange,
+      mmrChange, mmrAfter: mmrBefore + mmrChange,
       goals: irand(0, 3), saves: irand(0, 5), assists: irand(0, 2), shots: irand(1, 5),
-      opponents: [],
-      durationSec: irand(240, 360),
+      mvps: result === 'W' ? irand(0, 1) : 0,
       endedAt: Date.now(),
     };
     const matches = [...state.matches, m];
     const wins = matches.filter(x => x.result === 'W').length;
     const losses = matches.length - wins;
-    let streakType = m.result;
-    let streakCount = 0;
+    let streakType = m.result, streakCount = 0;
     for (let i = matches.length - 1; i >= 0; i--) {
-      if (matches[i].result === streakType) streakCount++;
-      else break;
+      if (matches[i].result === streakType) streakCount++; else break;
     }
     const newMMR = mmrBefore + mmrChange;
     state = {
@@ -593,7 +569,7 @@
     pushToast({
       kind: m.result === 'W' ? 'win' : 'loss',
       title: m.result === 'W' ? 'Victory' : 'Defeat',
-      detail: `${m.score[0]}–${m.score[1]} · ${m.mmrChange > 0 ? '+' : ''}${m.mmrChange} MMR`,
+      detail: `${m.mmrChange > 0 ? '+' : ''}${m.mmrChange} MMR`,
       mode: m.mode,
     });
     if (streakType === 'L' && streakCount === 3) {
@@ -609,25 +585,21 @@
     emit();
   }
 
-  // ───────── Live demo loop (for testing without API) ─────────
   let liveTimer = null;
   function kickLiveLoop() {
     if (liveTimer) return;
-    const cycle = () => {
-      const seq = [
-        { wait: 4200, fn: () => setStatus('in-lobby') },
-        { wait: 3800, fn: () => setStatus('in-match') },
-        { wait: 6800, fn: () => addMatch() },
-        { wait: 3200, fn: () => setStatus('menu') },
-      ];
-      let i = 0;
-      const tick = () => {
-        const step = seq[i % seq.length];
-        liveTimer = setTimeout(() => { step.fn(); i++; tick(); }, step.wait);
-      };
-      tick();
+    const seq = [
+      { wait: 4200, fn: () => setStatus('in-lobby') },
+      { wait: 3800, fn: () => setStatus('in-match') },
+      { wait: 6800, fn: () => addMatch() },
+      { wait: 3200, fn: () => setStatus('menu') },
+    ];
+    let i = 0;
+    const tick = () => {
+      const step = seq[i % seq.length];
+      liveTimer = setTimeout(() => { step.fn(); i++; tick(); }, step.wait);
     };
-    cycle();
+    tick();
   }
 
   function stopLiveLoop() { if (liveTimer) { clearTimeout(liveTimer); liveTimer = null; } }

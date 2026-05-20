@@ -149,18 +149,6 @@ function SettingsPanel({ open, onClose, t, setTweak }) {
         <SettingsRow label="Tiltom\u00e8tre"><SettingsToggle value={t.showTilt} onChange={v => setTweak('showTilt', v)} /></SettingsRow>
         <SettingsRow label="Stats"><SettingsToggle value={t.showStats} onChange={v => setTweak('showStats', v)} /></SettingsRow>
         <SettingsRow label="Modes"><SettingsToggle value={t.showModes} onChange={v => setTweak('showModes', v)} /></SettingsRow>
-
-        <SettingsSection label="Test" />
-        <div style={{display:'flex',gap:8}}>
-          <button onClick={() => window.RL.addMatch({result:'W'})} style={{
-            flex:1,height:32,border:0,borderRadius:4,background:'var(--win)',color:'#0a1900',
-            font:'600 12px var(--font-mono)',cursor:'pointer',letterSpacing:'0.06em'
-          }}>FORCE WIN</button>
-          <button onClick={() => window.RL.addMatch({result:'L'})} style={{
-            flex:1,height:32,border:0,borderRadius:4,background:'var(--loss)',color:'#260210',
-            font:'600 12px var(--font-mono)',cursor:'pointer',letterSpacing:'0.06em'
-          }}>FORCE LOSS</button>
-        </div>
       </div>
     </div>
   );
