@@ -88,8 +88,10 @@
       'search.go':           'Lancer le tracking',
       'search.searching':    'Recherche en cours\u2026',
       'search.hint':         'Le pseudo doit correspondre \u00e0 ton compte Epic Games, Steam, PSN ou Xbox',
-      'search.notFound':     'Joueur introuvable. V\u00e9rifie le pseudo et la plateforme.',
-      'search.error':        'Erreur de connexion. R\u00e9essaie dans quelques secondes.',
+      'search.notFound':     'Joueur introuvable. V\u00e9rifie le pseudo saisi et la plateforme s\u00e9lectionn\u00e9e.',
+      'search.unavailable':  'tracker.network est momentan\u00e9ment injoignable. R\u00e9essaie dans quelques secondes.',
+      'search.network':      'Impossible de joindre le serveur. V\u00e9rifie ta connexion internet.',
+      'search.error':        'Une erreur inattendue est survenue. R\u00e9essaie.',
     },
     en: {
       'brand.tag':           'TRACKER \u00b7 RL',
@@ -176,8 +178,10 @@
       'search.go':           'Start tracking',
       'search.searching':    'Searching\u2026',
       'search.hint':         'Username must match your Epic Games, Steam, PSN or Xbox account',
-      'search.notFound':     'Player not found. Check username and platform.',
-      'search.error':        'Connection error. Try again in a few seconds.',
+      'search.notFound':     'Player not found. Double-check the username spelling and the selected platform.',
+      'search.unavailable':  'tracker.network is temporarily unreachable. Try again in a few seconds.',
+      'search.network':      'Could not reach the server. Check your internet connection.',
+      'search.error':        'An unexpected error occurred. Please try again.',
     },
   };
 
