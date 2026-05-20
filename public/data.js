@@ -154,7 +154,7 @@
   // the active playlist re-runs this without re-scraping.
   function composeState(parts) {
     const { playlists, allSeasonCurves, seasonAvg, seasonStats, modeStats,
-            platformInfo, sessionStart, toasts, selectedId } = parts;
+            platformInfo, sessionStart, toasts, selectedId, lastPolledAt } = parts;
     const active = pickActive(playlists, selectedId) || EMPTY_PLAYLIST;
     const mmrDelta = active.mmr - active.startMMR;
 
@@ -209,6 +209,7 @@
       allSeasonCurves: allSeasonCurves || null,
       activeId: active.id,
       selectedId: selectedId || 'auto',
+      lastPolledAt: lastPolledAt || Date.now(),
       toasts: toasts || [],
     };
   }
@@ -356,6 +357,7 @@
       platformInfo, sessionStart,
       toasts: prevState ? prevState.toasts : [],
       selectedId: selectedPlaylistId,
+      lastPolledAt: Date.now(),
     });
 
     // Toast every match detected this poll.
@@ -429,6 +431,7 @@
       seasonAvg: { goalsPerGame:1.6, savesPerGame:2.4, assistsPerGame:0.8, shotsPerGame:3.7, winRate:0.54 },
       seasonStats: { played:487, wins:263, losses:224, winRate:0.54, peakRank:'Champion' },
       modeStats: [{ id:'2v2',played:312,wins:178,losses:134 },{ id:'3v3',played:124,wins:62,losses:62 },{ id:'1v1',played:38,wins:17,losses:21 },{ id:'rumble',played:13,wins:6,losses:7 }],
+      lastPolledAt: Date.now(),
       toasts: [],
     };
     emit();
@@ -527,6 +530,7 @@
       sessionStart: state.session.startedAt,
       toasts: state.toasts,
       selectedId: selectedPlaylistId,
+      lastPolledAt: state.lastPolledAt,
     });
     emit();
   }

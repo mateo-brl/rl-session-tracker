@@ -51,6 +51,11 @@
       'matches.s':           'A',
       'matches.a':           'PD',
       'matches.sh':          'TIRS',
+      'matches.waiting':     'En attente d\'un nouveau match',
+      'matches.waitingHint': 'Joue un match — il apparaîtra ici dès que tracker.gg l\'aura enregistré',
+
+      'fresh.checked':       'Vérifié il y a {ago}',
+      'fresh.note':          'tracker.gg peut avoir quelques minutes de retard',
 
       'stats.eyebrow':       'Performance',
       'stats.title':         'Toi vs moy. saison',
@@ -145,6 +150,11 @@
       'matches.s':           'S',
       'matches.a':           'A',
       'matches.sh':          'SH',
+      'matches.waiting':     'Waiting for a new match',
+      'matches.waitingHint': 'Play a match — it shows up here once tracker.gg has logged it',
+
+      'fresh.checked':       'Checked {ago} ago',
+      'fresh.note':          'tracker.gg data can be a few minutes behind',
 
       'stats.eyebrow':       'Performance',
       'stats.title':         'You vs season avg',
