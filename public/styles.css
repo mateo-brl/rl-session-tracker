@@ -574,6 +574,39 @@ button { font-family: inherit; }
 .rl-playlist-picker option { background: var(--surface); color: var(--fg); }
 
 /* ============================================================
+   Data freshness footer + empty match state
+============================================================ */
+.rl-fresh {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 9px;
+  border-top: 1px solid var(--border);
+  font: 500 10.5px/1.4 var(--font-mono);
+  letter-spacing: 0.02em;
+}
+.rl-fresh-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--win); box-shadow: 0 0 6px var(--win);
+  flex-shrink: 0;
+}
+.rl-fresh.is-stale .rl-fresh-dot { background: var(--fg-faint); box-shadow: none; }
+.rl-fresh-checked { color: var(--fg-muted); }
+.rl-fresh-sep { color: var(--fg-faint); }
+.rl-fresh-note { color: var(--fg-faint); }
+.rl-match-empty {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 20px 8px; text-align: center;
+}
+.rl-match-empty-title {
+  font: 500 13px/1.3 var(--font-sans);
+  color: var(--fg-2);
+}
+.rl-match-empty-hint {
+  font: 400 11.5px/1.45 var(--font-mono);
+  color: var(--fg-faint);
+  max-width: 320px; margin: 0 auto;
+}
+
+/* ============================================================
    Status pill
 ============================================================ */
 .rl-status {
