@@ -334,6 +334,36 @@ function getNextRankIconUrl(currentIconUrl) {
   });
 }
 
+/* ============================================================
+   Playlist picker — choose which playlist drives the headline MMR
+============================================================ */
+
+function PlaylistPicker() {
+  useLang();
+  const s = useRLState();
+  if (!s || !s.playlists || s.playlists.length === 0) return null;
+  // Most-played first so the dropdown order matches the auto pick.
+  const sorted = s.playlists.slice().sort((a, b) => b.played - a.played);
+  return (
+    <select
+      className="rl-playlist-picker"
+      value={s.selectedId || 'auto'}
+      title={T('picker.label')}
+      onChange={e => window.RL.setDisplayPlaylist(e.target.value)}
+    >
+      <option value="auto">{T('picker.auto')}</option>
+      {sorted.map(p => {
+        const rk = p.isCasual ? 'Casual' : (p.rank || 'Unranked');
+        return (
+          <option key={p.id} value={p.id}>
+            {p.label} — {rk} · {p.mmr}{p.played ? ` (${p.played})` : ''}
+          </option>
+        );
+      })}
+    </select>
+  );
+}
+
 function PlayerHeader({ compact = false }) {
   useLang();
   const s = useRLState();
@@ -356,6 +386,7 @@ function PlayerHeader({ compact = false }) {
           <span className="rl-player-tag">{s.player.tag}</span>
           <span className="rl-player-platform">{s.player.platform}</span>
           <StatusPill status={s.player.status} modeId={s.player.statusModeId} />
+          <PlaylistPicker />
         </div>
         <div className="rl-player-rankline">
           <span className="rl-rank-name">{currentRank}{s.player.division ? ' ' + s.player.division : ''}</span>
@@ -910,7 +941,7 @@ function TickerBar({ items }) {
 Object.assign(window, {
   useRLState, useTween, useNow, useLang,
   Card, AnimatedNumber, Chip, ModeChip, Sparkline,
-  StatusPill, RankBadge, PlayerHeader, SearchScreen,
+  StatusPill, RankBadge, PlayerHeader, PlaylistPicker, SearchScreen,
   SessionTimer, WLBlock, StreakBlock, MMRDeltaBlock, ObjectiveBlock, SessionRibbon,
   MMRChart, TiltMeter, MatchRow, MatchList,
   StatComparison, ModeBreakdown, OpponentsCard,

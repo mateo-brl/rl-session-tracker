@@ -34,6 +34,9 @@
       'mmr.session':         'Session',
       'mmr.season':          'Saison',
 
+      'picker.label':        'Choisir le MMR affiché',
+      'picker.auto':         'Auto · mode le + joué',
+
       'tilt.eyebrow':        'Tiltom\u00e8tre',
       'tilt.chill':          'D\u00e9tendu',
       'tilt.edge':           'Sur les nerfs',
@@ -123,6 +126,9 @@
       'mmr.eyebrow':         'MMR',
       'mmr.session':         'Session',
       'mmr.season':          'Season',
+
+      'picker.label':        'Choose the displayed MMR',
+      'picker.auto':         'Auto · most played',
 
       'tilt.eyebrow':        'Tilt meter',
       'tilt.chill':          'Chill',
