@@ -493,6 +493,34 @@ button { font-family: inherit; }
 .rl-chip-mode-rumble{ color: #fb923c; border-color: rgba(251,146,60,0.25); background: rgba(251,146,60,0.05); }
 .rl-chip-mode-hoops { color: #4ade80; border-color: rgba(74,222,128,0.25); background: rgba(74,222,128,0.05); }
 .rl-chip-mode-tourney { color: var(--win); border-color: color-mix(in oklab, var(--win) 30%, transparent); background: color-mix(in oklab, var(--win) 6%, transparent); }
+.rl-chip-mode-dropshot   { color: #f472b6; border-color: rgba(244,114,182,0.25); background: rgba(244,114,182,0.05); }
+.rl-chip-mode-snowday    { color: #7dd3fc; border-color: rgba(125,211,252,0.25); background: rgba(125,211,252,0.05); }
+.rl-chip-mode-heatseeker { color: #f87171; border-color: rgba(248,113,113,0.25); background: rgba(248,113,113,0.05); }
+.rl-chip-mode-casual     { color: var(--fg-muted); border-color: var(--border); background: var(--surface-2); }
+
+/* ============================================================
+   Playlist picker — selects which playlist drives the headline MMR
+============================================================ */
+.rl-playlist-picker {
+  appearance: none; -webkit-appearance: none;
+  background: var(--surface-2);
+  color: var(--fg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: 500 11px/1 var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 6px 24px 6px 9px;
+  cursor: pointer;
+  max-width: 280px;
+  text-overflow: ellipsis;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888' d='M0 0h10L5 6z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.rl-playlist-picker:hover { border-color: var(--border-2); color: var(--fg); }
+.rl-playlist-picker:focus { outline: none; border-color: var(--accent); }
+.rl-playlist-picker option { background: var(--surface); color: var(--fg); }
 
 /* ============================================================
    Status pill

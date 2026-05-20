@@ -256,6 +256,7 @@ function FocusVariant() {
           <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
             <span className="rl-eyebrow">{window.t('brand.live')}</span>
             <StatusPill status={s.player.status} modeId={s.player.statusModeId} />
+            <PlaylistPicker />
           </div>
         </div>
 

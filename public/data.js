@@ -4,13 +4,20 @@
 // Exposes: window.RL = { state, subscribe, searchPlayer, startPolling, stopPolling, ... }
 
 (function () {
+  // Every Rocket League playlist tracker.gg can return. `playlistId` matches
+  // tracker.gg's numeric ids; `ranked: false` flags Casual, whose hidden MMR
+  // must never be treated as a competitive rank.
   const MODES = [
-    { id: '1v1',    label: '1v1 Duel',     short: '1v1',    playlistId: '10' },
-    { id: '2v2',    label: '2v2 Doubles',  short: '2v2',    playlistId: '11' },
-    { id: '3v3',    label: '3v3 Standard', short: '3v3',    playlistId: '13' },
-    { id: 'rumble', label: 'Rumble',       short: 'RUMBLE', playlistId: '28' },
-    { id: 'hoops',  label: 'Hoops',        short: 'HOOPS',  playlistId: '27' },
-    { id: 'tourney',label: 'Tournament',   short: 'TOURNEY',playlistId: '34' },
+    { id: '1v1',        label: '1v1 Duel',     short: '1v1',     playlistId: 10, ranked: true },
+    { id: '2v2',        label: '2v2 Doubles',  short: '2v2',     playlistId: 11, ranked: true },
+    { id: '3v3',        label: '3v3 Standard', short: '3v3',     playlistId: 13, ranked: true },
+    { id: 'hoops',      label: 'Hoops',        short: 'HOOPS',   playlistId: 27, ranked: true },
+    { id: 'rumble',     label: 'Rumble',       short: 'RUMBLE',  playlistId: 28, ranked: true },
+    { id: 'dropshot',   label: 'Dropshot',     short: 'DROP',    playlistId: 29, ranked: true },
+    { id: 'snowday',    label: 'Snow Day',     short: 'SNOW',    playlistId: 30, ranked: true },
+    { id: 'tourney',    label: 'Tournament',   short: 'TOURNEY', playlistId: 34, ranked: true },
+    { id: 'heatseeker', label: 'Heatseeker',   short: 'HEAT',    playlistId: 63, ranked: true },
+    { id: 'casual',     label: 'Casual',       short: 'CASUAL',  playlistId: 0,  ranked: false },
   ];
 
   const RANKS = [
@@ -65,6 +72,9 @@
 
   // ───────── State ─────────
   let state = null;
+  // Which playlist's MMR drives the headline. 'auto' = most-played ranked
+  // playlist; otherwise a specific MODES id chosen by the user.
+  let selectedPlaylistId = 'auto';
   const listeners = new Set();
   function emit() { listeners.forEach(fn => { try { fn(state); } catch(e) {} }); }
   function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -82,84 +92,239 @@
     }, 5200);
   }
 
+  // ───────── Playlist identification ─────────
+  // Resolve any playlist name to one of our MODES ids.
+  function modeIdFromName(name) {
+    const n = (name || '').toLowerCase();
+    if (n.includes('duel') || n.includes('1v1')) return '1v1';
+    if (n.includes('doubles') || n.includes('2v2')) return '2v2';
+    if (n.includes('standard') || n.includes('3v3')) return '3v3';
+    if (n.includes('hoops') || n.includes('basket')) return 'hoops';
+    if (n.includes('rumble')) return 'rumble';
+    if (n.includes('dropshot') || n.includes('drop shot')) return 'dropshot';
+    if (n.includes('snow')) return 'snowday';
+    if (n.includes('heatseeker') || n.includes('heat seeker')) return 'heatseeker';
+    if (n.includes('tournament') || n.includes('tourney')) return 'tourney';
+    if (n.includes('casual') || n.includes('unranked') || n.includes('un-ranked')) return 'casual';
+    return null;
+  }
+
+  // A playlist segment carries a numeric id in attributes — trust it first,
+  // fall back to name matching for anything unexpected.
+  function modeIdForPlaylist(pl) {
+    const pid = pl && pl.attributes ? pl.attributes.playlistId : null;
+    if (pid !== null && pid !== undefined) {
+      const byId = MODES.find(m => String(m.playlistId) === String(pid));
+      if (byId) return byId.id;
+    }
+    return modeIdFromName(pl && pl.metadata ? pl.metadata.name : '');
+  }
+
+  // ───────── Active-playlist selection ─────────
+  const EMPTY_PLAYLIST = {
+    id: '2v2', label: '2v2 Doubles', playlistId: 11,
+    mmr: 0, rank: 'Unranked', rankIcon: null, division: '', divNum: 0,
+    played: 0, wins: null, losses: null, ranked: false, isCasual: false,
+    startMMR: 0, peakMMR: 0, curve: [0], matches: [], sessionWins: 0, sessionLosses: 0,
+  };
+
+  // Resolve which playlist drives the headline. A specific user choice wins;
+  // otherwise 'auto' picks the most-played playlist that has a real
+  // competitive rank (Casual and un-placed playlists are excluded), with MMR
+  // breaking ties so a player with no ranked games still shows a real rank.
+  function pickActive(playlists, selectedId) {
+    if (!playlists || !playlists.length) return null;
+    if (selectedId && selectedId !== 'auto') {
+      const found = playlists.find(p => p.id === selectedId);
+      if (found) return found;
+    }
+    const pool = playlists.filter(p => p.ranked);
+    const list = pool.length ? pool : playlists;
+    let best = null;
+    for (const p of list) {
+      if (!best || p.played > best.played ||
+         (p.played === best.played && p.mmr > best.mmr)) best = p;
+    }
+    return best;
+  }
+
+  // ───────── Build top-level state from parsed playlists ─────────
+  // The dashboard components read flat `player`/`session`/`matches` fields,
+  // so we derive them from whichever playlist is currently active. Switching
+  // the active playlist re-runs this without re-scraping.
+  function composeState(parts) {
+    const { playlists, allSeasonCurves, seasonAvg, seasonStats, modeStats,
+            platformInfo, sessionStart, toasts, selectedId } = parts;
+    const active = pickActive(playlists, selectedId) || EMPTY_PLAYLIST;
+    const mmrDelta = active.mmr - active.startMMR;
+
+    let streakType = 'W', streakCount = 0;
+    if (active.matches.length) {
+      streakType = active.matches[active.matches.length - 1].result;
+      for (let i = active.matches.length - 1; i >= 0; i--) {
+        if (active.matches[i].result === streakType) streakCount++;
+        else break;
+      }
+    }
+
+    // Season MMR curve: real per-mode history from the sessions API if we
+    // have it, otherwise the live points collected this session.
+    let seasonCurve;
+    const hist = allSeasonCurves && allSeasonCurves[active.id];
+    if (hist && hist.length >= 2) {
+      seasonCurve = hist.map((p, i) => ({ x: i, mmr: p.mmr }));
+    } else {
+      seasonCurve = active.curve.map((m, i) => ({ x: i, mmr: m }));
+    }
+
+    return {
+      player: {
+        tag: platformInfo.platformUserHandle || platformInfo.platformUserId || 'Unknown',
+        platform: (platformInfo.platformSlug || 'pc').toUpperCase(),
+        status: 'online',
+        statusModeId: active.id,
+        mmr: active.mmr,
+        peakMMR: active.peakMMR,
+        startMMR: active.startMMR,
+        rank: active.rank,
+        rankIcon: active.rankIcon,
+        division: active.division,
+        divNum: active.divNum,
+      },
+      session: {
+        startedAt: sessionStart,
+        wins: active.sessionWins,
+        losses: active.sessionLosses,
+        streak: { type: streakType, count: streakCount },
+        mmrDelta,
+        currentMode: active.id,
+        objective: { type: 'mmr', target: 30, current: mmrDelta },
+      },
+      matches: active.matches,
+      seasonAvg,
+      seasonCurve,
+      seasonStats: { ...seasonStats, peakRank: active.rank },
+      modeStats,
+      playlists,
+      allSeasonCurves: allSeasonCurves || null,
+      activeId: active.id,
+      selectedId: selectedId || 'auto',
+      toasts: toasts || [],
+    };
+  }
+
   // ───────── Parse tracker.gg response into our state format ─────────
-  function parseProfile(apiData, prevState) {
+  // Builds one entry per playlist, each carrying its own session tracking
+  // (start MMR, peak, MMR curve, detected matches). On every poll an MMR
+  // change for a playlist is recorded as a finished match for that playlist.
+  function parseProfile(apiData, prevState, allCurvesOverride) {
     const d = apiData.data;
     const platformInfo = d.platformInfo || {};
     const segments = d.segments || [];
-
-    // Find the overview segment
     const overview = segments.find(s => s.type === 'overview');
-    const playlists = segments.filter(s => s.type === 'playlist');
-
-    // Get overall stats from overview
     const overviewStats = overview ? overview.stats : {};
+    const rawPlaylists = segments.filter(s => s.type === 'playlist');
 
-    // Build per-playlist data
-    let bestPlaylist = null;
-    let bestMMR = 0;
-    const modeStats = [];
+    const now = Date.now();
+    const isNew = !prevState;
+    const prevPlaylists = isNew ? [] : (prevState.playlists || []);
+    const sessionStart = isNew ? now : prevState.session.startedAt;
+    const allSeasonCurves = allCurvesOverride !== undefined
+      ? allCurvesOverride
+      : (prevState ? prevState.allSeasonCurves : null);
 
-    playlists.forEach(pl => {
+    const matchEvents = [];
+    const playlists = [];
+
+    for (const pl of rawPlaylists) {
+      const modeId = modeIdForPlaylist(pl);
+      if (!modeId) continue;
+      const modeDef = MODES.find(m => m.id === modeId);
       const stats = pl.stats || {};
+
       const mmr = stats.rating ? stats.rating.value : 0;
-      const rankName = stats.tier ? stats.tier.metadata.name : 'Unranked';
+      const rankName = stats.tier && stats.tier.metadata ? stats.tier.metadata.name : 'Unranked';
       const rankIcon = stats.tier && stats.tier.metadata ? stats.tier.metadata.iconUrl : null;
-      const division = stats.division ? stats.division.metadata.name : '';
+      const division = stats.division && stats.division.metadata ? stats.division.metadata.name : '';
       const divNum = stats.division ? stats.division.value : 0;
       const played = stats.matchesPlayed ? stats.matchesPlayed.value : 0;
       const winPct = stats.matchesWinPct ? stats.matchesWinPct.value : null;
-      const wins = winPct !== null ? Math.round((winPct / 100) * played) : (stats.wins ? stats.wins.value : null);
+      const wins = winPct !== null ? Math.round((winPct / 100) * played)
+                 : (stats.wins ? stats.wins.value : null);
+      const losses = wins !== null ? Math.max(0, played - wins) : null;
+      const isCasual = modeId === 'casual';
+      // A playlist counts as ranked for the headline only if it is a
+      // competitive mode AND the player actually holds a rank there.
+      const ranked = !isCasual && (modeDef ? modeDef.ranked : true) && rankName !== 'Unranked';
 
-      // Map playlist metadata name to our mode id
-      const plName = (pl.metadata && pl.metadata.name) || '';
-      let modeId = null;
-      if (plName.includes('Duel') || plName.includes('1v1')) modeId = '1v1';
-      else if (plName.includes('Doubles') || plName.includes('2v2')) modeId = '2v2';
-      else if (plName.includes('Standard') || plName.includes('3v3')) modeId = '3v3';
-      else if (plName.includes('Rumble')) modeId = 'rumble';
-      else if (plName.includes('Hoops')) modeId = 'hoops';
-      else if (plName.includes('Tournament') || plName.includes('Tourney')) modeId = 'tourney';
+      const prev = prevPlaylists.find(p => p.id === modeId);
+      let startMMR, peakMMR, curve, matches, sessionWins, sessionLosses;
 
-      if (modeId) {
-        modeStats.push({ id: modeId, played, wins: wins, losses: wins !== null ? played - wins : null, mmr, rank: rankName + (division ? ' ' + division : '') });
+      if (prev) {
+        startMMR = prev.startMMR;
+        peakMMR = Math.max(prev.peakMMR, mmr);
+        curve = prev.curve.slice();
+        matches = prev.matches.slice();
+        sessionWins = prev.sessionWins;
+        sessionLosses = prev.sessionLosses;
+        if (prev.mmr !== mmr) {
+          // MMR moved in this playlist — a match finished.
+          const change = mmr - prev.mmr;
+          const result = change >= 0 ? 'W' : 'L';
+          matches.push({
+            id: 'm' + Math.random().toString(36).slice(2, 8),
+            mode: modeId,
+            result,
+            score: result === 'W' ? [irand(2, 6), irand(0, 2)] : [irand(0, 2), irand(2, 6)],
+            mmrBefore: prev.mmr,
+            mmrAfter: mmr,
+            mmrChange: change,
+            goals: irand(0, 3), saves: irand(0, 4), assists: irand(0, 2), shots: irand(1, 5),
+            opponents: [],
+            durationSec: irand(240, 360),
+            endedAt: now,
+          });
+          curve.push(mmr);
+          if (result === 'W') sessionWins++; else sessionLosses++;
+          matchEvents.push({ mode: modeId, result, change });
+        }
+      } else {
+        startMMR = mmr;
+        peakMMR = mmr;
+        curve = [mmr];
+        matches = [];
+        sessionWins = 0;
+        sessionLosses = 0;
       }
 
-      if (mmr > bestMMR) {
-        bestMMR = mmr;
-        bestPlaylist = { mmr, rank: rankName, rankIcon, division, divNum, modeId, played, wins };
-      }
-    });
+      playlists.push({
+        id: modeId,
+        label: modeDef ? modeDef.label : modeId,
+        playlistId: modeDef ? modeDef.playlistId : null,
+        mmr, rank: rankName, rankIcon, division, divNum,
+        played, wins, losses, ranked, isCasual,
+        startMMR, peakMMR, curve, matches, sessionWins, sessionLosses,
+      });
+    }
 
-    // Get lifetime stats from overview (the API returns lifetime totals, not season)
+    // ── Season-wide stats from the overview segment (lifetime totals) ──
     const totalGoals = overviewStats.goals ? overviewStats.goals.value : 0;
     const totalAssists = overviewStats.assists ? overviewStats.assists.value : 0;
     const totalSaves = overviewStats.saves ? overviewStats.saves.value : 0;
     const totalShots = overviewStats.shots ? overviewStats.shots.value : 0;
     const totalWins = overviewStats.wins ? overviewStats.wins.value : 0;
-    // Sum matches from playlists (these are current-season ranked matches)
-    const seasonPlayed = playlists.reduce((sum, pl) => {
-      const mp = pl.stats && pl.stats.matchesPlayed ? pl.stats.matchesPlayed.value : 0;
-      return sum + mp;
-    }, 0);
-    // Use the overview winPct if available, else approximate
+    const seasonPlayed = playlists.reduce((sum, p) => sum + (p.played || 0), 0);
     const seasonWR = overviewStats.winPct ? overviewStats.winPct.value / 100
-      : (totalWins > 0 && totalGoals > 0 ? totalWins / (totalWins + (overviewStats.losses ? overviewStats.losses.value : totalWins)) : 0);
+      : (totalWins > 0
+          ? totalWins / (totalWins + (overviewStats.losses ? overviewStats.losses.value : totalWins))
+          : 0);
     const seasonWins = Math.round(seasonWR * seasonPlayed);
     const seasonLosses = seasonPlayed - seasonWins;
 
-    const mmr = bestPlaylist ? bestPlaylist.mmr : 0;
-    const rank = bestPlaylist ? bestPlaylist.rank : 'Unranked';
-
-    // Use previous state's session data if available, otherwise initialize
-    const isNewSession = !prevState;
-    const startMMR = isNewSession ? mmr : prevState.player.startMMR;
-    const sessionStart = isNewSession ? Date.now() : prevState.session.startedAt;
-    const prevMatches = isNewSession ? [] : prevState.matches;
-
-    // Compute per-game averages from lifetime totals
-    // We use totalWins as a proxy for total games (wins + losses ≈ total)
-    const totalGamesApprox = totalWins > 0 ? Math.round(totalWins / Math.max(0.01, seasonWR)) : Math.max(1, seasonPlayed);
+    // Per-game averages from lifetime totals (wins used to approximate games).
+    const totalGamesApprox = totalWins > 0
+      ? Math.round(totalWins / Math.max(0.01, seasonWR))
+      : Math.max(1, seasonPlayed);
     const gamesForAvg = Math.max(1, totalGamesApprox);
     const seasonAvg = {
       goalsPerGame: totalGoals / gamesForAvg,
@@ -168,119 +333,51 @@
       shotsPerGame: totalShots / gamesForAvg,
       winRate: seasonWR,
     };
+    const seasonStats = {
+      played: seasonPlayed,
+      wins: seasonWins,
+      losses: seasonLosses,
+      winRate: seasonWR,
+      peakRank: 'Unranked',
+    };
 
-    // Season MMR curve — only real data points (current + polling deltas)
-    let seasonCurve;
-    if (prevState) {
-      seasonCurve = [...prevState.seasonCurve];
-      if (seasonCurve[seasonCurve.length - 1].mmr !== mmr) {
-        seasonCurve.push({ x: seasonCurve.length, mmr });
-      }
-    } else {
-      // Start with just current MMR — will grow as we poll
-      seasonCurve = [{ x: 0, mmr }];
-    }
+    // Per-mode breakdown — every playlist, the UI filters to those with games.
+    const modeStats = playlists.map(p => ({
+      id: p.id,
+      played: p.played,
+      wins: p.wins,
+      losses: p.losses,
+      mmr: p.mmr,
+      rank: p.rank + (p.division ? ' ' + p.division : ''),
+    }));
 
-    // Detect new matches by comparing MMR delta from previous poll
-    let matches = prevMatches;
-    let sessionWinsCount = isNewSession ? 0 : prevState.session.wins;
-    let sessionLossesCount = isNewSession ? 0 : prevState.session.losses;
+    const next = composeState({
+      playlists, allSeasonCurves, seasonAvg, seasonStats, modeStats,
+      platformInfo, sessionStart,
+      toasts: prevState ? prevState.toasts : [],
+      selectedId: selectedPlaylistId,
+    });
 
-    if (prevState && prevState.player.mmr !== mmr) {
-      // MMR changed — a match likely finished
-      const mmrChange = mmr - prevState.player.mmr;
-      const result = mmrChange >= 0 ? 'W' : 'L';
-      const newMatch = {
-        id: 'm' + Math.random().toString(36).slice(2, 8),
-        mode: bestPlaylist ? (bestPlaylist.modeId || '3v3') : '3v3',
-        result,
-        score: result === 'W' ? [irand(2, 6), irand(0, 2)] : [irand(0, 2), irand(2, 6)],
-        mmrBefore: prevState.player.mmr,
-        mmrAfter: mmr,
-        mmrChange,
-        goals: irand(0, 3),
-        saves: irand(0, 4),
-        assists: irand(0, 2),
-        shots: irand(1, 5),
-        opponents: [],
-        durationSec: irand(240, 360),
-        endedAt: Date.now(),
-      };
-      matches = [...matches, newMatch];
-      if (result === 'W') sessionWinsCount++;
-      else sessionLossesCount++;
-
-      // Push toast
+    // Toast every match detected this poll.
+    for (const ev of matchEvents) {
+      const result = ev.result;
       setTimeout(() => {
         pushToast({
           kind: result === 'W' ? 'win' : 'loss',
           title: result === 'W' ? 'Victory' : 'Defeat',
-          detail: `${mmrChange > 0 ? '+' : ''}${mmrChange} MMR`,
-          mode: newMatch.mode,
+          detail: `${ev.change > 0 ? '+' : ''}${ev.change} MMR`,
+          mode: ev.mode,
         });
       }, 100);
     }
-
-    // Compute streak from session matches
-    let streakType = 'W';
-    let streakCount = 0;
-    if (matches.length > 0) {
-      streakType = matches[matches.length - 1].result;
-      for (let i = matches.length - 1; i >= 0; i--) {
-        if (matches[i].result === streakType) streakCount++;
-        else break;
-      }
-      // Tilt check
-      if (streakType === 'L' && streakCount === 3) {
-        setTimeout(() => {
-          pushToast({
-            kind: 'tilt',
-            title: 'Tilt alert',
-            detail: '3 losses in a row — take a break?',
-          });
-        }, 200);
-      }
+    // Tilt alert when the active playlist just reached a 3-loss streak.
+    if (matchEvents.length && next.session.streak.type === 'L' && next.session.streak.count === 3) {
+      setTimeout(() => {
+        pushToast({ kind: 'tilt', title: 'Tilt alert', detail: '3 losses in a row — take a break?' });
+      }, 200);
     }
 
-    const mmrDelta = mmr - startMMR;
-    const objective = { type: 'mmr', target: 30, current: mmrDelta };
-
-    return {
-      player: {
-        tag: platformInfo.platformUserHandle || platformInfo.platformUserId || 'Unknown',
-        platform: (platformInfo.platformSlug || 'pc').toUpperCase(),
-        status: 'online',
-        statusModeId: bestPlaylist ? (bestPlaylist.modeId || '3v3') : '3v3',
-        mmr,
-        peakMMR: Math.max(mmr, prevState ? prevState.player.peakMMR : mmr),
-        startMMR,
-        rank,
-        rankIcon: bestPlaylist ? bestPlaylist.rankIcon : null,
-        division: bestPlaylist ? bestPlaylist.division : '',
-        divNum: bestPlaylist ? bestPlaylist.divNum : 0,
-      },
-      session: {
-        startedAt: sessionStart,
-        wins: sessionWinsCount,
-        losses: sessionLossesCount,
-        streak: { type: streakType, count: streakCount },
-        mmrDelta,
-        currentMode: bestPlaylist ? (bestPlaylist.modeId || '3v3') : '3v3',
-        objective,
-      },
-      matches,
-      seasonAvg,
-      seasonCurve,
-      seasonStats: {
-        played: seasonPlayed,
-        wins: seasonWins,
-        losses: seasonLosses,
-        winRate: seasonWR,
-        peakRank: rank,
-      },
-      modeStats,
-      toasts: prevState ? prevState.toasts : [],
-    };
+    return next;
   }
 
   // ───────── Demo mode — full mock session ─────────
@@ -338,12 +435,9 @@
     return state;
   }
 
-  // ───────── Parse sessions data into match objects ─────────
-  // Parse sessions as MMR history snapshots (not individual matches).
-  // The tracker.gg sessions API returns per-playlist MMR snapshots at each session,
-  // not individual match results. We use these to build an MMR history curve.
-  // Build MMR curves per playlist from session snapshots.
-  // Returns { '2v2': [{mmr, date},...], '3v3': [...], ... }
+  // ───────── Parse sessions data into per-mode MMR history ─────────
+  // The tracker.gg sessions API returns per-playlist MMR snapshots, which we
+  // turn into a real season curve per mode: { '2v2': [{mmr,date},...], ... }
   function parseSessionsCurves(sessionsData) {
     if (!sessionsData || !sessionsData.data || !sessionsData.data.items) return {};
     const curves = {};
@@ -352,18 +446,8 @@
       for (const m of session.matches) {
         const stats = m.stats || {};
         const meta = m.metadata || {};
-        const playlist = meta.playlist || '';
-
-        let modeId = null;
-        if (playlist.includes('Duel') || playlist.includes('1v1')) modeId = '1v1';
-        else if (playlist.includes('Doubles') || playlist.includes('2v2')) modeId = '2v2';
-        else if (playlist.includes('Standard') || playlist.includes('3v3')) modeId = '3v3';
-        else if (playlist.includes('Rumble')) modeId = 'rumble';
-        else if (playlist.includes('Hoops')) modeId = 'hoops';
-        else if (playlist.includes('Tournament')) modeId = 'tourney';
-
+        const modeId = modeIdFromName(meta.playlist || '');
         if (!modeId) continue;
-
         const mmr = stats.rating && stats.rating.value != null ? stats.rating.value : null;
         const date = meta.dateCollected ? new Date(meta.dateCollected).getTime() : 0;
         if (mmr !== null) {
@@ -372,10 +456,7 @@
         }
       }
     }
-    // Sort each curve chronologically
-    for (const k of Object.keys(curves)) {
-      curves[k].sort((a, b) => a.date - b.date);
-    }
+    for (const k of Object.keys(curves)) curves[k].sort((a, b) => a.date - b.date);
     return curves;
   }
 
@@ -386,6 +467,7 @@
   async function searchPlayer(platform, username) {
     currentPlatform = platform;
     currentUsername = username;
+    selectedPlaylistId = 'auto';
 
     // Use the live endpoint which gets profile + sessions
     const resp = await fetch(`/api/live/${platform}/${encodeURIComponent(username)}`);
@@ -401,26 +483,14 @@
       throw new Error('Invalid response from tracker.gg');
     }
 
-    // Parse profile first
-    state = parseProfile(liveData.profile, null);
-
-    // Use sessions data to build real MMR history curves for the "Saison" graph
+    // Build real per-mode MMR history from the sessions payload.
+    let allCurves = null;
     if (liveData.sessions) {
       const curves = parseSessionsCurves(liveData.sessions);
-      // Pick the curve with the most data points (most played playlist)
-      let bestKey = null, bestLen = 0;
-      for (const k of Object.keys(curves)) {
-        if (curves[k].length > bestLen) { bestLen = curves[k].length; bestKey = k; }
-      }
-      if (bestKey && bestLen >= 2) {
-        state = {
-          ...state,
-          seasonCurve: curves[bestKey].map((p, i) => ({ x: i, mmr: p.mmr })),
-          allSeasonCurves: curves,
-        };
-      }
+      if (curves && Object.keys(curves).length) allCurves = curves;
     }
 
+    state = parseProfile(liveData.profile, null, allCurves);
     emit();
     return state;
   }
@@ -437,6 +507,28 @@
     } catch (e) {
       // Silently fail on poll — will retry next interval
     }
+  }
+
+  // ───────── Choose which playlist drives the headline ─────────
+  // Re-derives the dashboard from already-parsed playlists; no re-scrape.
+  function setDisplayPlaylist(id) {
+    selectedPlaylistId = id || 'auto';
+    if (!state || !state.playlists) { emit(); return; }
+    state = composeState({
+      playlists: state.playlists,
+      allSeasonCurves: state.allSeasonCurves,
+      seasonAvg: state.seasonAvg,
+      seasonStats: state.seasonStats,
+      modeStats: state.modeStats,
+      platformInfo: {
+        platformUserHandle: state.player.tag,
+        platformSlug: (state.player.platform || 'pc').toLowerCase(),
+      },
+      sessionStart: state.session.startedAt,
+      toasts: state.toasts,
+      selectedId: selectedPlaylistId,
+    });
+    emit();
   }
 
   // ───────── Polling loop ─────────
@@ -497,11 +589,11 @@
     pushToast({
       kind: m.result === 'W' ? 'win' : 'loss',
       title: m.result === 'W' ? 'Victory' : 'Defeat',
-      detail: `${m.score[0]}\u2013${m.score[1]} \u00b7 ${m.mmrChange > 0 ? '+' : ''}${m.mmrChange} MMR`,
+      detail: `${m.score[0]}–${m.score[1]} · ${m.mmrChange > 0 ? '+' : ''}${m.mmrChange} MMR`,
       mode: m.mode,
     });
     if (streakType === 'L' && streakCount === 3) {
-      pushToast({ kind: 'tilt', title: 'Tilt alert', detail: '3 losses in a row \u2014 take a break?' });
+      pushToast({ kind: 'tilt', title: 'Tilt alert', detail: '3 losses in a row — take a break?' });
     }
     emit();
     return m;
@@ -549,6 +641,7 @@
     stopLiveLoop();
     currentPlatform = null;
     currentUsername = null;
+    selectedPlaylistId = 'auto';
     state = null;
     emit();
   }
@@ -563,6 +656,7 @@
     pollUpdate,
     addMatch,
     setStatus,
+    setDisplayPlaylist,
     kickLiveLoop,
     stopLiveLoop,
     logout,
