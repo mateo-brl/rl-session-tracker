@@ -60,6 +60,13 @@ function SearchScreen({ onFound }) {
   const [platform, setPlatform] = useState('epic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSug, setShowSug] = useState(false);
+  const [sugLoading, setSugLoading] = useState(false);
+  const [activeSug, setActiveSug] = useState(-1);
+  // Set just before a suggestion fills the input, so the resulting value
+  // change doesn't kick off another (pointless) search.
+  const pickedRef = useRef(false);
 
   const platforms = [
     { id: 'epic', label: 'EPIC' },
@@ -68,29 +75,72 @@ function SearchScreen({ onFound }) {
     { id: 'xbox', label: 'XBOX' },
   ];
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!username.trim()) return;
+  // Debounced username search — drives the autocomplete dropdown.
+  useEffect(() => {
+    if (pickedRef.current) { pickedRef.current = false; return; }
+    const q = username.trim();
+    if (q.length < 3) { setSuggestions([]); setSugLoading(false); setActiveSug(-1); return; }
+    let cancelled = false;
+    setShowSug(true);
+    setSugLoading(true);
+    const id = setTimeout(async () => {
+      try {
+        const resp = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const data = resp.ok ? await resp.json() : { results: [] };
+        if (cancelled) return;
+        setSuggestions(data.results || []);
+        setActiveSug(-1);
+      } catch (e) {
+        if (!cancelled) setSuggestions([]);
+      } finally {
+        if (!cancelled) setSugLoading(false);
+      }
+    }, 320);
+    return () => { cancelled = true; clearTimeout(id); };
+  }, [username]);
+
+  const startTracking = async (plat, user) => {
     setLoading(true);
     setError(null);
     try {
-      await window.RL.searchPlayer(platform, username.trim());
+      await window.RL.searchPlayer(plat, user);
       window.RL.startPolling();
       onFound();
     } catch (err) {
-      if (err.status === 404) {
-        setError(T('search.notFound'));
-      } else if (err.status >= 500) {
-        setError(T('search.unavailable'));
-      } else if (err.name === 'TypeError') {
-        setError(T('search.network'));
-      } else {
-        setError(T('search.error'));
-      }
-    } finally {
+      if (err.status === 404) setError(T('search.notFound'));
+      else if (err.status >= 500) setError(T('search.unavailable'));
+      else if (err.name === 'TypeError') setError(T('search.network'));
+      else setError(T('search.error'));
       setLoading(false);
     }
   };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!username.trim() || loading) return;
+    setShowSug(false);
+    startTracking(platform, username.trim());
+  };
+
+  const pickSuggestion = (sug) => {
+    pickedRef.current = true;
+    setUsername(sug.handle);
+    setPlatform(sug.platform);
+    setShowSug(false);
+    setSuggestions([]);
+    // Track with the exact identifier (e.g. a SteamID64, not the handle).
+    startTracking(sug.platform, sug.identifier);
+  };
+
+  const onKeyDown = (e) => {
+    if (!showSug || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveSug(i => Math.min(suggestions.length - 1, i + 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveSug(i => Math.max(-1, i - 1)); }
+    else if (e.key === 'Escape') { setShowSug(false); }
+    else if (e.key === 'Enter' && activeSug >= 0) { e.preventDefault(); pickSuggestion(suggestions[activeSug]); }
+  };
+
+  const q = username.trim();
 
   return (
     <div className="rl-search-screen">
@@ -101,7 +151,7 @@ function SearchScreen({ onFound }) {
       <div className="rl-search-card">
         <div className="rl-search-title">{T('search.title')}</div>
         <div className="rl-search-subtitle">{T('search.subtitle')}</div>
-        <form className="rl-search-form" onSubmit={handleSubmit}>
+        <form className="rl-search-form" onSubmit={handleSubmit} autoComplete="off">
           <div className="rl-search-field">
             <label className="rl-search-label">{T('search.platform')}</label>
             <div className="rl-search-platforms">
@@ -117,7 +167,7 @@ function SearchScreen({ onFound }) {
               ))}
             </div>
           </div>
-          <div className="rl-search-field">
+          <div className="rl-search-field rl-search-field-user">
             <label className="rl-search-label">{T('search.username')}</label>
             <input
               className="rl-search-input"
@@ -125,8 +175,34 @@ function SearchScreen({ onFound }) {
               placeholder="nyx.04"
               value={username}
               onChange={e => setUsername(e.target.value)}
+              onKeyDown={onKeyDown}
+              onFocus={() => { if (suggestions.length || q.length >= 3) setShowSug(true); }}
+              onBlur={() => setTimeout(() => setShowSug(false), 150)}
               autoFocus
+              autoComplete="off"
             />
+            {showSug && (suggestions.length > 0 || sugLoading) && (
+              <div className="rl-search-suggest">
+                {suggestions.map((sug, i) => (
+                  <div
+                    key={sug.platform + ':' + sug.identifier}
+                    className={'rl-suggest-item' + (i === activeSug ? ' is-active' : '')}
+                    onMouseDown={e => { e.preventDefault(); pickSuggestion(sug); }}
+                    onMouseEnter={() => setActiveSug(i)}
+                  >
+                    {sug.avatar
+                      ? <img className="rl-suggest-avatar" src={sug.avatar} alt=""
+                             onError={e => { e.target.style.visibility = 'hidden'; }} />
+                      : <span className="rl-suggest-avatar">{(sug.handle[0] || '?').toUpperCase()}</span>}
+                    <span className="rl-suggest-handle">{sug.handle}</span>
+                    <span className="rl-suggest-platform">{sug.platform}</span>
+                  </div>
+                ))}
+                {suggestions.length === 0 && sugLoading && (
+                  <div className="rl-suggest-empty">{T('search.suggestSearching')}</div>
+                )}
+              </div>
+            )}
           </div>
           {error && <div className="rl-search-error">{error}</div>}
           <button
