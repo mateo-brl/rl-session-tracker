@@ -78,8 +78,12 @@ function SearchScreen({ onFound }) {
       window.RL.startPolling();
       onFound();
     } catch (err) {
-      if (err.message.includes('404') || err.message.includes('not found')) {
+      if (err.status === 404) {
         setError(T('search.notFound'));
+      } else if (err.status >= 500) {
+        setError(T('search.unavailable'));
+      } else if (err.name === 'TypeError') {
+        setError(T('search.network'));
       } else {
         setError(T('search.error'));
       }

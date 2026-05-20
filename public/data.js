@@ -391,7 +391,9 @@
     const resp = await fetch(`/api/live/${platform}/${encodeURIComponent(username)}`);
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      throw new Error(err.error || `HTTP ${resp.status}`);
+      const e = new Error(err.error || `HTTP ${resp.status}`);
+      e.status = resp.status;
+      throw e;
     }
     const liveData = await resp.json();
 
