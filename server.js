@@ -22,7 +22,7 @@ let browser = null;
 async function getBrowser() {
   if (browser && browser.connected) return browser;
   browser = await puppeteer.launch({
-    executablePath: '/usr/bin/chromium',
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
     headless: 'new',
     args: [
       '--no-sandbox',
@@ -153,7 +153,7 @@ app.get('*', (_req, res) => {
 process.on('SIGINT', async () => { if (browser) await browser.close(); process.exit(0); });
 process.on('SIGTERM', async () => { if (browser) await browser.close(); process.exit(0); });
 
-app.listen(PORT, async () => {
+app.listen(PORT, process.env.HOST || '127.0.0.1', async () => {
   console.log(`\n  RL Session Tracker running at http://localhost:${PORT}`);
   console.log('  Mode: headless Chromium + live sessions');
   try {
