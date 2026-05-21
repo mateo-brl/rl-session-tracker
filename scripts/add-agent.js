@@ -27,6 +27,19 @@ function fail(msg) {
   process.exit(1);
 }
 
+// Le username est réinjecté dans une URL de scraping et affiché dans le
+// dashboard : on refuse les caractères de contrôle, la barre oblique et
+// l'antislash. Les caractères usuels d'un pseudo (lettres, chiffres, . - _)
+// restent autorisés.
+function badUsername(u) {
+  if (u.length < 1 || u.length > 64) return true;
+  for (let i = 0; i < u.length; i++) {
+    const c = u.charCodeAt(i);
+    if (c < 0x20 || c === 0x7f || c === 0x2f || c === 0x5c) return true;
+  }
+  return false;
+}
+
 players.load();
 
 // ───────── Mode liste ─────────
@@ -61,6 +74,9 @@ if (!/^[a-z0-9_-]{2,32}$/.test(id)) {
 if (!['epic', 'steam', 'psn', 'xbox'].includes(platform)) {
   fail('--platform doit valoir epic, steam, psn ou xbox.');
 }
+if (badUsername(username)) {
+  fail('--username invalide (1 à 64 caractères, sans / \\ ni caractères de contrôle).');
+}
 if (players.getPlayer(id)) {
   fail("l'identifiant « " + id + " » existe déjà.");
 }
@@ -88,6 +104,11 @@ console.log('');
 console.log('  Config écrite : ' + cfgPath);
 console.log('  → Renomme ce fichier en « config.json » et place-le À CÔTÉ');
 console.log('    de rl-agent.exe sur le PC ' + name + '.');
+console.log('');
+console.log('  ⚠  Ce fichier contient un SECRET (le token). Transfère-le par un');
+console.log('     canal sûr et SUPPRIME-le du serveur une fois transmis. Idéalement,');
+console.log('     lance cette commande sur une machine d\'administration, pas sur');
+console.log('     le serveur exposé.');
 console.log('');
 console.log('  Token (affiché une seule fois) :');
 console.log('    ' + token);

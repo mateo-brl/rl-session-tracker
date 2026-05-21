@@ -13,3 +13,6 @@ dist/
 
 # Sauvegardes
 *.bak
+
+# Bundle web pré-compilé
+public/dist/

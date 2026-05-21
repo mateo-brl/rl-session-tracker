@@ -101,6 +101,9 @@
       'search.unavailable':  'tracker.network est momentan\u00e9ment injoignable. R\u00e9essaie dans quelques secondes.',
       'search.network':      'Impossible de joindre le serveur. V\u00e9rifie ta connexion internet.',
       'search.error':        'Une erreur inattendue est survenue. R\u00e9essaie.',
+
+      'source.live':         'Agent connect\u00e9 \u00b7 live',
+      'source.deferred':     'via tracker.gg \u00b7 diff\u00e9r\u00e9',
     },
     en: {
       'brand.tag':           'TRACKER \u00b7 RL',
@@ -200,6 +203,9 @@
       'search.unavailable':  'tracker.network is temporarily unreachable. Try again in a few seconds.',
       'search.network':      'Could not reach the server. Check your internet connection.',
       'search.error':        'An unexpected error occurred. Please try again.',
+
+      'source.live':         'Agent connected · live',
+      'source.deferred':     'via tracker.gg · deferred',
     },
   };
 

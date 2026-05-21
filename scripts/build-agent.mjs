@@ -21,6 +21,7 @@ import { inject } from 'postject';
 import { NtExecutable, NtExecutableResource, Resource, Data } from 'resedit';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
@@ -56,19 +57,67 @@ execFileSync(process.execPath, ['--experimental-sea-config', seaConfig], { stdio
 console.log('  [2/5] Blob SEA généré');
 
 // ───────── 3) node.exe Windows officiel (téléchargé, mis en cache) ─────────
+// Vérification supply-chain : on récupère le SHASUMS256.txt officiel de
+// nodejs.org pour la version visée, on en extrait le SHA-256 attendu de
+// win-x64/node.exe, et on AVORTE le build si le binaire reçu (ou le cache)
+// ne correspond pas. Le cache n'est jamais réutilisé sans revérification.
+
+// Récupère le hash SHA-256 attendu pour win-x64/node.exe.
+async function expectedNodeHash() {
+  const shaUrl = `https://nodejs.org/dist/${NODE_VERSION}/SHASUMS256.txt`;
+  const resp = await fetch(shaUrl);
+  if (!resp.ok) {
+    throw new Error('Téléchargement de SHASUMS256.txt échoué (HTTP ' + resp.status + ')');
+  }
+  const text = await resp.text();
+  // Format de chaque ligne : "<hash>  win-x64/node.exe"
+  for (const line of text.split('\n')) {
+    const m = line.match(/^([0-9a-fA-F]{64})\s+win-x64\/node\.exe\s*$/);
+    if (m) return m[1].toLowerCase();
+  }
+  throw new Error('Hash de win-x64/node.exe introuvable dans SHASUMS256.txt');
+}
+
+function sha256OfFile(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
 const baseExe = path.join(dist, `node-${NODE_VERSION}-win-x64.exe`);
-if (!fs.existsSync(baseExe)) {
+const wantHash = await expectedNodeHash();
+
+// On (re)télécharge si le cache est absent OU si son hash ne correspond plus.
+let needDownload = true;
+if (fs.existsSync(baseExe)) {
+  const cachedHash = sha256OfFile(baseExe);
+  if (cachedHash === wantHash) {
+    needDownload = false;
+    console.log('        Cache node.exe vérifié (SHA-256 ' + wantHash + ')');
+  } else {
+    console.warn('        Cache node.exe invalide (hash ' + cachedHash +
+      ') — re-téléchargement');
+  }
+}
+
+if (needDownload) {
   const url = `https://nodejs.org/dist/${NODE_VERSION}/win-x64/node.exe`;
   console.log('        Téléchargement de ' + url);
   const resp = await fetch(url);
   if (!resp.ok) {
     throw new Error('Téléchargement de node.exe échoué (HTTP ' + resp.status + ')');
   }
-  fs.writeFileSync(baseExe, Buffer.from(await resp.arrayBuffer()));
+  const buf = Buffer.from(await resp.arrayBuffer());
+  const gotHash = crypto.createHash('sha256').update(buf).digest('hex');
+  if (gotHash !== wantHash) {
+    throw new Error('Vérification SHA-256 de node.exe ÉCHOUÉE — build avorté.\n' +
+      '  attendu : ' + wantHash + '\n  reçu    : ' + gotHash);
+  }
+  fs.writeFileSync(baseExe, buf);
+  console.log('        node.exe téléchargé et vérifié (SHA-256 ' + wantHash + ')');
 }
+
 const exePath = path.join(dist, 'rl-agent.exe');
 fs.copyFileSync(baseExe, exePath);
-console.log('  [3/5] node.exe Windows officiel prêt');
+console.log('  [3/5] node.exe Windows officiel vérifié et prêt');
 
 // ───────── 4) Injection du code de l'agent ─────────
 await inject(exePath, 'NODE_SEA_BLOB', fs.readFileSync(path.join(dist, 'sea-prep.blob')), {

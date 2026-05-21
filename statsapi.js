@@ -30,12 +30,24 @@ function modeFromCount(n) {
   return t + 'v' + t;
 }
 
+// Plafond du buffer de réception. Un évènement de la Stats API est petit
+// (quelques Ko au plus) : au-delà de cette taille, c'est qu'on s'est
+// désynchronisé sur du bruit — on coupe et on laisse la reconnexion
+// resynchroniser proprement.
+const MAX_BUFFER = 65536;
+// Bornes anti-abus sur les données joueurs.
+const MAX_PLAYERS = 8;
+const MAX_NAME_LEN = 64;
+
 class RLStatsAPI extends EventEmitter {
   constructor() {
     super();
     this.socket = null;
     this.connected = false;
     this.buffer = '';
+    // Position de scan déjà atteinte dans `buffer` : `_nextObject` ne
+    // ré-examine pas les octets déjà parcourus à l'appel précédent.
+    this._scanPos = 0;
     this.reconnectDelay = 2000;
     this.match = null;        // snapshot du match en cours, ou null
     this._lastStateEmit = 0;
@@ -71,14 +83,18 @@ class RLStatsAPI extends EventEmitter {
       this.connected = true;
       this.reconnectDelay = 2000;
       this.buffer = '';
+      this._scanPos = 0;
       if (DEBUG) console.log('[statsapi] connecté à ' + HOST + ':' + PORT);
       this.emit('connection', { connected: true });
     });
 
     sock.on('data', (chunk) => this._onData(chunk));
 
-    // L'erreur est gérée par l'évènement 'close' qui suit toujours.
-    sock.on('error', () => {});
+    // L'erreur est suivie d'un évènement 'close' qui gère la reconnexion ;
+    // on se contente de la tracer en mode debug au lieu de l'avaler.
+    sock.on('error', (err) => {
+      if (DEBUG) console.log('[statsapi] erreur socket:', err && err.message);
+    });
 
     sock.on('close', () => {
       if (this.connected) {
@@ -86,7 +102,10 @@ class RLStatsAPI extends EventEmitter {
         this.emit('connection', { connected: false });
       }
       this.socket = null;
-      setTimeout(() => this._connect(), this.reconnectDelay);
+      // Jitter ±20 % : évite que plusieurs agents/relances se reconnectent
+      // tous à la même milliseconde après une coupure commune.
+      const jitter = 1 + (Math.random() * 0.4 - 0.2);
+      setTimeout(() => this._connect(), Math.round(this.reconnectDelay * jitter));
       this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 15000);
     });
   }
@@ -104,14 +123,25 @@ class RLStatsAPI extends EventEmitter {
         if (DEBUG) console.log('[statsapi] JSON invalide ignoré:', e.message);
       }
     }
-    // Garde-fou : on ne laisse pas le buffer enfler indéfiniment sur du bruit.
-    if (this.buffer.length > 2_000_000) this.buffer = '';
+    // Garde-fou : un évènement RL est petit. Si le buffer dépasse le plafond
+    // sans qu'on ait pu en extraire un objet complet, c'est qu'on est
+    // désynchronisé. On ferme le socket : la reconnexion repartira sur un
+    // buffer vide et resynchronisera (plutôt que de vider en place, ce qui
+    // pourrait couper un objet valide en deux).
+    if (this.buffer.length > MAX_BUFFER) {
+      if (DEBUG) console.log('[statsapi] buffer saturé (' + this.buffer.length +
+        ' o) — fermeture pour resynchronisation');
+      if (this.socket) this.socket.destroy();
+    }
   }
 
   _nextObject() {
     const buf = this.buffer;
+    // `_scanPos` mémorise l'avancée du scan entre deux appels : on ne
+    // ré-examine pas les octets déjà parcourus (sinon coût O(n²) global).
+    let i = this._scanPos;
     let start = -1, depth = 0, inStr = false, esc = false;
-    for (let i = 0; i < buf.length; i++) {
+    for (; i < buf.length; i++) {
       const c = buf[i];
       if (start === -1) {
         if (c === '{') { start = i; depth = 1; }
@@ -129,12 +159,22 @@ class RLStatsAPI extends EventEmitter {
         depth--;
         if (depth === 0) {
           this.buffer = buf.slice(i + 1);
+          this._scanPos = 0;   // le buffer est tronqué : on repart de 0
           return buf.slice(start, i + 1);
         }
       }
     }
-    // Pas d'objet complet : on jette le bruit éventuel avant la 1re accolade.
-    if (start > 0) this.buffer = buf.slice(start);
+    // Pas d'objet complet sur ce passage. On jette le bruit éventuel avant
+    // la 1re accolade et on garde la position de scan pour le prochain appel.
+    if (start > 0) {
+      this.buffer = buf.slice(start);
+      this._scanPos = buf.length - start;
+    } else {
+      // start === -1 : aucune accolade vue, tout est du bruit à oublier.
+      // start === 0  : objet en cours depuis le début, rien à tronquer.
+      this._scanPos = start === -1 ? 0 : buf.length;
+      if (start === -1) this.buffer = '';
+    }
     return null;
   }
 
@@ -224,8 +264,10 @@ class RLStatsAPI extends EventEmitter {
     const raw = data.Players || data.players || game.Players || game.players;
     if (!raw) return [];
     const list = Array.isArray(raw) ? raw : Object.values(raw);
+    // Borne anti-abus : un match RL compte 8 joueurs au maximum ; les noms
+    // sont tronqués pour éviter qu'une source hostile gonfle les snapshots.
     return list.map((p) => ({
-      name: p.Name || p.name || '',
+      name: String(p.Name || p.name || '').slice(0, MAX_NAME_LEN),
       team: numOr(p.TeamNum ?? p.Team ?? p.team, 0),
       goals: numOr(p.Goals ?? p.goals, 0),
       saves: numOr(p.Saves ?? p.saves, 0),
@@ -233,7 +275,7 @@ class RLStatsAPI extends EventEmitter {
       shots: numOr(p.Shots ?? p.shots, 0),
       score: numOr(p.Score ?? p.score, 0),
       id: p.PrimaryId || p.primaryID || p.Id || p.id || '',
-    })).filter((p) => p.name);
+    })).filter((p) => p.name).slice(0, MAX_PLAYERS);
   }
 
   _goal(data) {
