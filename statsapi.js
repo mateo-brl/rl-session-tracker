@@ -6,11 +6,8 @@
 // brut sur 127.0.0.1:49123 qui diffuse du JSON concaténé pendant un match.
 //
 // Ici on s'en sert comme déclencheur et vue live : elle signale à la seconde
-// le début / la fin d'un match (fini le délai de 5 min de tracker.gg pour
-// l'évènement lui-même) et expose le score en direct. Le MMR et le résultat
-// W/L font toujours autorité via tracker.gg — mais on va le rafraîchir
-// PILE au moment où ce connecteur dit « match terminé », au lieu de poller
-// à l'aveugle toutes les 15 s.
+// le début / la fin d'un match et expose le score en direct. Le MMR et le
+// résultat W/L font toujours autorité via tracker.gg.
 
 const net = require('net');
 const EventEmitter = require('events');
@@ -30,27 +27,31 @@ function modeFromCount(n) {
   return t + 'v' + t;
 }
 
-// Plafond du buffer de réception. Un évènement de la Stats API est petit
-// (quelques Ko au plus) : au-delà de cette taille, c'est qu'on s'est
-// désynchronisé sur du bruit — on coupe et on laisse la reconnexion
-// resynchroniser proprement.
+// Plafond du buffer de réception. Un évènement de la Stats API est petit :
+// au-delà, c'est qu'on s'est désynchronisé — on coupe et on resynchronise.
 const MAX_BUFFER = 65536;
 // Bornes anti-abus sur les données joueurs.
 const MAX_PLAYERS = 8;
 const MAX_NAME_LEN = 64;
+// Diffusion de l'état limitée à 1/s (la Stats API peut envoyer jusqu'à 120/s).
+const STATE_INTERVAL = 1000;
 
 class RLStatsAPI extends EventEmitter {
   constructor() {
     super();
     this.socket = null;
     this.connected = false;
-    this.buffer = '';
-    // Position de scan déjà atteinte dans `buffer` : `_nextObject` ne
-    // ré-examine pas les octets déjà parcourus à l'appel précédent.
-    this._scanPos = 0;
-    this.reconnectDelay = 2000;
     this.match = null;        // snapshot du match en cours, ou null
+    this.reconnectDelay = 2000;
     this._lastStateEmit = 0;
+    this._stateTimer = null;  // timer du « trailing edge » de la diffusion
+    // ── État du parseur de flux (persistant entre deux paquets TCP) ──
+    this.buffer = '';
+    this._scanPos = 0;        // prochain octet à examiner dans `buffer`
+    this._objStart = -1;      // index du début de l'objet en cours, ou -1
+    this._depth = 0;          // profondeur d'accolades
+    this._inStr = false;      // dans une chaîne JSON ?
+    this._esc = false;        // caractère d'échappement en cours ?
   }
 
   start() {
@@ -73,6 +74,21 @@ class RLStatsAPI extends EventEmitter {
     };
   }
 
+  // Réinitialise complètement le parseur (à la connexion, ou après une
+  // désynchronisation).
+  _resetParser() {
+    this.buffer = '';
+    this._scanPos = 0;
+    this._objStart = -1;
+    this._depth = 0;
+    this._inStr = false;
+    this._esc = false;
+  }
+
+  _clearStateTimer() {
+    if (this._stateTimer) { clearTimeout(this._stateTimer); this._stateTimer = null; }
+  }
+
   // ───────── Connexion TCP + reconnexion automatique ─────────
   _connect() {
     const sock = net.createConnection({ host: HOST, port: PORT });
@@ -82,8 +98,7 @@ class RLStatsAPI extends EventEmitter {
     sock.on('connect', () => {
       this.connected = true;
       this.reconnectDelay = 2000;
-      this.buffer = '';
-      this._scanPos = 0;
+      this._resetParser();
       if (DEBUG) console.log('[statsapi] connecté à ' + HOST + ':' + PORT);
       this.emit('connection', { connected: true });
     });
@@ -91,19 +106,19 @@ class RLStatsAPI extends EventEmitter {
     sock.on('data', (chunk) => this._onData(chunk));
 
     // L'erreur est suivie d'un évènement 'close' qui gère la reconnexion ;
-    // on se contente de la tracer en mode debug au lieu de l'avaler.
+    // on se contente de la tracer en mode debug.
     sock.on('error', (err) => {
       if (DEBUG) console.log('[statsapi] erreur socket:', err && err.message);
     });
 
     sock.on('close', () => {
+      this._clearStateTimer();
       if (this.connected) {
         this.connected = false;
         this.emit('connection', { connected: false });
       }
       this.socket = null;
-      // Jitter ±20 % : évite que plusieurs agents/relances se reconnectent
-      // tous à la même milliseconde après une coupure commune.
+      // Jitter ±20 % : évite des reconnexions toutes synchronisées.
       const jitter = 1 + (Math.random() * 0.4 - 0.2);
       setTimeout(() => this._connect(), Math.round(this.reconnectDelay * jitter));
       this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, 15000);
@@ -111,71 +126,71 @@ class RLStatsAPI extends EventEmitter {
   }
 
   // ───────── Découpage du flux JSON concaténé ─────────
-  // La Stats API n'utilise pas de délimiteur fiable : on extrait chaque objet
-  // {...} en comptant les accolades, en respectant les chaînes et échappements.
+  // La Stats API n'utilise pas de délimiteur fiable. On compte les accolades
+  // (en respectant chaînes et échappements). CRUCIAL : l'état du parseur
+  // (`_objStart`, `_depth`, `_inStr`, `_esc`, `_scanPos`) est conservé entre
+  // les paquets TCP — un objet à cheval sur deux `data` est donc correctement
+  // assemblé, et on ne ré-examine jamais deux fois le même octet.
   _onData(chunk) {
     this.buffer += chunk;
-    let raw;
-    while ((raw = this._nextObject()) !== null) {
+    const buf = this.buffer;
+    const objects = [];
+
+    for (let i = this._scanPos; i < buf.length; i++) {
+      const c = buf[i];
+      if (this._objStart === -1) {
+        // Hors objet : on cherche une accolade ouvrante, le reste est du bruit.
+        if (c === '{') {
+          this._objStart = i;
+          this._depth = 1;
+          this._inStr = false;
+          this._esc = false;
+        }
+        continue;
+      }
+      if (this._inStr) {
+        if (this._esc) this._esc = false;
+        else if (c === '\\') this._esc = true;
+        else if (c === '"') this._inStr = false;
+      } else if (c === '"') {
+        this._inStr = true;
+      } else if (c === '{') {
+        this._depth++;
+      } else if (c === '}') {
+        this._depth--;
+        if (this._depth === 0) {
+          objects.push(buf.slice(this._objStart, i + 1));
+          this._objStart = -1;
+        }
+      }
+    }
+
+    // Compactage du buffer : on retire tout ce qui précède l'objet en cours
+    // (ou tout, si aucun objet n'est en cours). L'état du parseur survit.
+    if (this._objStart === -1) {
+      this.buffer = '';
+      this._scanPos = 0;
+    } else {
+      this.buffer = buf.slice(this._objStart);
+      this._objStart = 0;
+      this._scanPos = this.buffer.length;
+    }
+
+    // Garde-fou : un objet en cours qui dépasse le plafond = flux corrompu.
+    if (this.buffer.length > MAX_BUFFER) {
+      if (DEBUG) console.log('[statsapi] buffer saturé — fermeture pour resync');
+      this._resetParser();
+      if (this.socket) this.socket.destroy();
+      return;
+    }
+
+    for (const raw of objects) {
       try {
         this._handle(JSON.parse(raw));
       } catch (e) {
         if (DEBUG) console.log('[statsapi] JSON invalide ignoré:', e.message);
       }
     }
-    // Garde-fou : un évènement RL est petit. Si le buffer dépasse le plafond
-    // sans qu'on ait pu en extraire un objet complet, c'est qu'on est
-    // désynchronisé. On ferme le socket : la reconnexion repartira sur un
-    // buffer vide et resynchronisera (plutôt que de vider en place, ce qui
-    // pourrait couper un objet valide en deux).
-    if (this.buffer.length > MAX_BUFFER) {
-      if (DEBUG) console.log('[statsapi] buffer saturé (' + this.buffer.length +
-        ' o) — fermeture pour resynchronisation');
-      if (this.socket) this.socket.destroy();
-    }
-  }
-
-  _nextObject() {
-    const buf = this.buffer;
-    // `_scanPos` mémorise l'avancée du scan entre deux appels : on ne
-    // ré-examine pas les octets déjà parcourus (sinon coût O(n²) global).
-    let i = this._scanPos;
-    let start = -1, depth = 0, inStr = false, esc = false;
-    for (; i < buf.length; i++) {
-      const c = buf[i];
-      if (start === -1) {
-        if (c === '{') { start = i; depth = 1; }
-        continue;
-      }
-      if (inStr) {
-        if (esc) esc = false;
-        else if (c === '\\') esc = true;
-        else if (c === '"') inStr = false;
-      } else if (c === '"') {
-        inStr = true;
-      } else if (c === '{') {
-        depth++;
-      } else if (c === '}') {
-        depth--;
-        if (depth === 0) {
-          this.buffer = buf.slice(i + 1);
-          this._scanPos = 0;   // le buffer est tronqué : on repart de 0
-          return buf.slice(start, i + 1);
-        }
-      }
-    }
-    // Pas d'objet complet sur ce passage. On jette le bruit éventuel avant
-    // la 1re accolade et on garde la position de scan pour le prochain appel.
-    if (start > 0) {
-      this.buffer = buf.slice(start);
-      this._scanPos = buf.length - start;
-    } else {
-      // start === -1 : aucune accolade vue, tout est du bruit à oublier.
-      // start === 0  : objet en cours depuis le début, rien à tronquer.
-      this._scanPos = start === -1 ? 0 : buf.length;
-      if (start === -1) this.buffer = '';
-    }
-    return null;
   }
 
   // ───────── Routage des évènements ─────────
@@ -207,6 +222,7 @@ class RLStatsAPI extends EventEmitter {
         this._onMatchEnd(data);
         break;
       case 'matchdestroyed':
+        this._clearStateTimer();
         this.match = null;
         this.emit('match', { phase: 'destroyed' });
         break;
@@ -252,11 +268,23 @@ class RLStatsAPI extends EventEmitter {
       if (!m.mode) m.mode = modeFromCount(players.length);
     }
 
-    // On limite la diffusion à ~1/s : la Stats API peut envoyer jusqu'à 120/s.
+    this._scheduleStateEmit();
+  }
+
+  // Diffuse `state` à ~1/s, AVEC trailing edge : le dernier état d'une rafale
+  // est garanti d'être émis (sinon le score final reste figé jusqu'à `ended`).
+  _scheduleStateEmit() {
     const now = Date.now();
-    if (now - this._lastStateEmit > 1000) {
+    const since = now - this._lastStateEmit;
+    if (since >= STATE_INTERVAL) {
       this._lastStateEmit = now;
       this.emit('state', this.snapshot());
+    } else if (!this._stateTimer) {
+      this._stateTimer = setTimeout(() => {
+        this._stateTimer = null;
+        this._lastStateEmit = Date.now();
+        if (this.match) this.emit('state', this.snapshot());
+      }, STATE_INTERVAL - since);
     }
   }
 
@@ -264,8 +292,7 @@ class RLStatsAPI extends EventEmitter {
     const raw = data.Players || data.players || game.Players || game.players;
     if (!raw) return [];
     const list = Array.isArray(raw) ? raw : Object.values(raw);
-    // Borne anti-abus : un match RL compte 8 joueurs au maximum ; les noms
-    // sont tronqués pour éviter qu'une source hostile gonfle les snapshots.
+    // Borne anti-abus : 8 joueurs max, noms tronqués.
     return list.map((p) => ({
       name: String(p.Name || p.name || '').slice(0, MAX_NAME_LEN),
       team: numOr(p.TeamNum ?? p.Team ?? p.team, 0),
@@ -287,6 +314,12 @@ class RLStatsAPI extends EventEmitter {
   }
 
   _onMatchEnd(data) {
+    // Si une diffusion d'état était en attente (trailing edge), on la flushe
+    // maintenant : le score final doit partir avant l'évènement 'ended'.
+    const hadPending = !!this._stateTimer;
+    this._clearStateTimer();
+    if (hadPending && this.match) this.emit('state', this.snapshot());
+
     const winner = data.Winner ?? data.WinnerTeamNum ?? data.winner_team_num
       ?? data.winner ?? data.WinningTeam;
     let winnerTeam = null;
