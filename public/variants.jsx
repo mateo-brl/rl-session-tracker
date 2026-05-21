@@ -117,6 +117,7 @@ function TopBar({ active, onChange, onOpenSettings }) {
         </div>
       </div>
       <div className="rl-topbar-r">
+        <DataSourceBadge />
         <span>
           <span className="rl-clock-label">{window.t('brand.session')}</span>
           <span className="rl-clock">{window.RL.fmtDuration(elapsed)}</span>
@@ -357,3 +358,338 @@ function StatBarLite({ label, you, avg, max }) {
 }
 
 Object.assign(window, { AppShell, CommandCenter, Sidekick, FocusVariant });
+
+/* ============================================================
+   App bootstrap — point d'entrée du dashboard
+   (anciennement le <script type="text/babel"> inline d'index.html ;
+    déplacé ici pour permettre une CSP stricte sans <script> inline)
+============================================================ */
+
+const TWEAK_DEFAULTS = {
+  "accent": "#00e5ff",
+  "dark": true,
+  "density": "spacious",
+  "font": "Inter",
+  "lang": "fr",
+  "showMMR": true,
+  "showMatches": true,
+  "showTilt": true,
+  "showStats": true,
+  "showModes": true,
+  "showOpponents": true,
+  "rightOrder": "tilt-stats-modes-opps",
+  "liveDemo": false
+};
+
+const ACCENT_OPTIONS = [
+  { hex: '#00e5ff', ink: '#04181e' },
+  { hex: '#b6ec3d', ink: '#0e1f02' },
+  { hex: '#ff3d71', ink: '#280611' },
+  { hex: '#f59e0b', ink: '#2a1800' },
+  { hex: '#8b5cf6', ink: '#150626' },
+];
+
+const FONT_OPTIONS = ['Geist', 'Inter', 'IBM Plex Sans', 'JetBrains Mono'];
+
+const RIGHT_ORDERS = [
+  'tilt-stats-modes-opps',
+  'stats-tilt-opps-modes',
+  'modes-opps-tilt-stats',
+];
+
+function inkFor(hex) {
+  const o = ACCENT_OPTIONS.find(a => a.hex.toLowerCase() === hex.toLowerCase());
+  return o ? o.ink : '#04181e';
+}
+
+function applyTweaks(t) {
+  const r = document.documentElement;
+  r.style.setProperty('--accent', t.accent);
+  r.style.setProperty('--accent-ink', inkFor(t.accent));
+  r.setAttribute('data-theme', t.dark ? 'dark' : 'light');
+  r.setAttribute('data-density', t.density);
+
+  const fontMap = {
+    'Geist': "'Geist', system-ui, sans-serif",
+    'Inter': "'Inter', system-ui, sans-serif",
+    'IBM Plex Sans': "'IBM Plex Sans', system-ui, sans-serif",
+    'JetBrains Mono': "'JetBrains Mono', ui-monospace, monospace",
+  };
+  r.style.setProperty('--font-sans', fontMap[t.font] || fontMap.Inter);
+
+  document.body.classList.toggle('rl-hide-mmr',       !t.showMMR);
+  document.body.classList.toggle('rl-hide-matches',   !t.showMatches);
+  document.body.classList.toggle('rl-hide-tilt',      !t.showTilt);
+  document.body.classList.toggle('rl-hide-stats',     !t.showStats);
+  document.body.classList.toggle('rl-hide-modes',     !t.showModes);
+  document.body.classList.toggle('rl-hide-opponents', !t.showOpponents);
+
+  const parts = t.rightOrder.split('-');
+  parts.forEach((key, i) => {
+    const cssVar = key === 'opps' ? '--ord-opponents' : '--ord-' + key;
+    r.style.setProperty(cssVar, String(i + 1));
+  });
+}
+
+function SettingsPanel({ open, onClose, t, setTweak }) {
+  if (!open) return null;
+  return (
+    <div style={{
+      position:'fixed', right:16, bottom:16, zIndex:2147483646, width:290,
+      maxHeight:'calc(100vh - 32px)', display:'flex', flexDirection:'column',
+      background:'rgba(15,18,22,0.92)', color:'var(--fg)',
+      backdropFilter:'blur(24px) saturate(160%)',
+      border:'1px solid var(--border-2)', borderRadius:10,
+      boxShadow:'0 12px 40px rgba(0,0,0,.5)',
+      font:'12px/1.4 var(--font-sans)', overflow:'hidden'
+    }}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',borderBottom:'1px solid var(--border)'}}>
+        <b style={{fontSize:13,letterSpacing:'0.04em',textTransform:'uppercase',fontFamily:'var(--font-mono)'}}>Options</b>
+        <button onClick={onClose} style={{background:'none',border:0,color:'var(--fg-muted)',cursor:'pointer',fontSize:16}}>&times;</button>
+      </div>
+      <div style={{padding:'12px 16px',display:'flex',flexDirection:'column',gap:12,overflowY:'auto',scrollbarWidth:'thin'}}>
+        <SettingsSection label="Theme" />
+        <SettingsRow label="Langue">
+          <SettingsSeg value={t.lang} options={['fr','en']} onChange={v => setTweak('lang', v)} />
+        </SettingsRow>
+        <SettingsRow label="Accent">
+          <div style={{display:'flex',gap:6}}>
+            {ACCENT_OPTIONS.map(o => (
+              <button key={o.hex} onClick={() => setTweak('accent', o.hex)} style={{
+                width:28,height:28,borderRadius:4,border: t.accent === o.hex ? '2px solid var(--fg)' : '1px solid var(--border)',
+                background:o.hex,cursor:'pointer',padding:0
+              }} />
+            ))}
+          </div>
+        </SettingsRow>
+        <SettingsRow label="Mode sombre">
+          <SettingsToggle value={t.dark} onChange={v => setTweak('dark', v)} />
+        </SettingsRow>
+        <SettingsRow label="Densité">
+          <SettingsSeg value={t.density} options={['compact','regular','spacious']} onChange={v => setTweak('density', v)} />
+        </SettingsRow>
+        <SettingsRow label="Police">
+          <select value={t.font} onChange={e => setTweak('font', e.target.value)} style={{
+            background:'var(--bg-2)',color:'var(--fg)',border:'1px solid var(--border)',borderRadius:4,
+            padding:'4px 8px',font:'12px var(--font-mono)',cursor:'pointer'
+          }}>
+            {FONT_OPTIONS.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </SettingsRow>
+
+        <SettingsSection label="Modules" />
+        <SettingsRow label="Graph MMR"><SettingsToggle value={t.showMMR} onChange={v => setTweak('showMMR', v)} /></SettingsRow>
+        <SettingsRow label="Historique"><SettingsToggle value={t.showMatches} onChange={v => setTweak('showMatches', v)} /></SettingsRow>
+        <SettingsRow label="Tiltomètre"><SettingsToggle value={t.showTilt} onChange={v => setTweak('showTilt', v)} /></SettingsRow>
+        <SettingsRow label="Stats"><SettingsToggle value={t.showStats} onChange={v => setTweak('showStats', v)} /></SettingsRow>
+        <SettingsRow label="Modes"><SettingsToggle value={t.showModes} onChange={v => setTweak('showModes', v)} /></SettingsRow>
+      </div>
+    </div>
+  );
+}
+
+function SettingsSection({ label }) {
+  return <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase',color:'var(--fg-faint)',paddingTop:8}}>{label}</div>;
+}
+
+function SettingsRow({ label, children }) {
+  return (
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}>
+      <span style={{color:'var(--fg-2)',fontSize:12,fontWeight:500}}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function SettingsToggle({ value, onChange }) {
+  return (
+    <button onClick={() => onChange(!value)} style={{
+      width:36,height:20,borderRadius:10,border:0,padding:0,cursor:'pointer',
+      background: value ? 'var(--accent)' : 'var(--surface-2)',
+      position:'relative',transition:'background 0.15s'
+    }}>
+      <span style={{
+        position:'absolute',top:2,left: value ? 18 : 2,
+        width:16,height:16,borderRadius:8,background:'#fff',
+        transition:'left 0.15s',boxShadow:'0 1px 3px rgba(0,0,0,0.3)'
+      }} />
+    </button>
+  );
+}
+
+function SettingsSeg({ value, options, onChange }) {
+  return (
+    <div style={{display:'flex',background:'var(--bg-2)',borderRadius:4,padding:2,border:'1px solid var(--border)'}}>
+      {options.map(o => (
+        <button key={o} onClick={() => onChange(o)} style={{
+          flex:1,border:0,borderRadius:3,padding:'5px 8px',cursor:'pointer',
+          font:'500 10px var(--font-mono)',letterSpacing:'0.1em',textTransform:'uppercase',
+          background: value === o ? 'var(--surface-2)' : 'transparent',
+          color: value === o ? 'var(--fg)' : 'var(--fg-muted)',
+        }}>{o}</button>
+      ))}
+    </div>
+  );
+}
+
+// Bannière de match en direct — alimentée par la Stats API native du jeu.
+// Visible uniquement quand un match est réellement en cours (score live).
+function LiveMatchBanner() {
+  const s = useRLState();
+  const live = s && s.live;
+  if (!live || !live.active) return null;
+  const score = live.score || [0, 0];
+  const ts = live.timeSeconds;
+  const clock = (typeof ts === 'number')
+    ? Math.floor(ts / 60) + ':' + String(Math.floor(ts % 60)).padStart(2, '0')
+    : null;
+  return (
+    <div style={{
+      position:'fixed', top:14, left:'50%', transform:'translateX(-50%)',
+      zIndex:2147483645, display:'flex', alignItems:'center', gap:12,
+      padding:'7px 16px', borderRadius:999, whiteSpace:'nowrap',
+      background:'rgba(15,18,22,0.94)', backdropFilter:'blur(20px) saturate(160%)',
+      border:'1px solid var(--border-2)', boxShadow:'0 8px 30px rgba(0,0,0,.45)',
+      font:'600 13px var(--font-mono, monospace)', color:'var(--fg)',
+    }}>
+      <span style={{
+        width:7, height:7, borderRadius:4, background:'#ff3d71',
+        boxShadow:'0 0 8px #ff3d71',
+        animation:'rl-live-pulse 1.4s ease-in-out infinite',
+      }} />
+      <span style={{fontSize:9, letterSpacing:'0.16em', color:'var(--fg-faint)'}}>LIVE</span>
+      <span style={{color:'#4ea3ff', fontSize:16}}>{score[0]}</span>
+      <span style={{color:'var(--fg-faint)'}}>&ndash;</span>
+      <span style={{color:'#ff8c42', fontSize:16}}>{score[1]}</span>
+      <span style={{color:'var(--fg-muted)'}}>{live.isOT ? 'PROL.' : (clock || '—')}</span>
+      {live.mode && (
+        <span style={{
+          fontSize:9, letterSpacing:'0.12em', color:'var(--fg-faint)',
+          borderLeft:'1px solid var(--border)', paddingLeft:10,
+        }}>{String(live.mode).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+// Route déduite de l'URL : / = accueil, /u/:id = dashboard d'un joueur.
+function getRoute() {
+  const m = location.pathname.match(/^\/u\/([^/]+)\/?$/);
+  return m ? { mode: 'dashboard', id: decodeURIComponent(m[1]) } : { mode: 'home' };
+}
+
+// Message plein écran centré (chargement / erreur).
+function CenterMsg({ title, detail }) {
+  return (
+    <div style={{
+      position:'fixed', inset:0, display:'flex', flexDirection:'column',
+      alignItems:'center', justifyContent:'center', gap:8, textAlign:'center',
+      background:'var(--bg)', color:'var(--fg)', padding:24,
+      fontFamily:'var(--font-sans)',
+    }}>
+      <div style={{fontSize:18, fontWeight:600}}>{title}</div>
+      {detail && <div style={{fontSize:13, color:'var(--fg-muted)'}}>{detail}</div>}
+    </div>
+  );
+}
+
+// Page d'accueil publique — liste des joueurs et leur statut live.
+function HostedHome() {
+  const [players, setPlayers] = React.useState(null);
+  React.useEffect(() => {
+    let alive = true;
+    const tick = () => fetch('/api/players')
+      .then(r => r.json())
+      .then(d => { if (alive) setPlayers(d.players || []); })
+      .catch(() => { if (alive) setPlayers([]); });
+    tick();
+    const iv = setInterval(tick, 10000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  return (
+    <div style={{
+      position:'fixed', inset:0, overflowY:'auto',
+      background:'var(--bg)', color:'var(--fg)',
+      fontFamily:'var(--font-sans)', padding:'48px 20px',
+    }}>
+      <div style={{maxWidth:560, margin:'0 auto'}}>
+        <div style={{
+          fontFamily:'var(--font-mono)', fontSize:11, letterSpacing:'0.22em',
+          textTransform:'uppercase', color:'var(--accent)', marginBottom:6,
+        }}>Rocket League</div>
+        <h1 style={{fontSize:28, fontWeight:700, margin:'0 0 24px'}}>Session Tracker</h1>
+        {players === null && <div style={{color:'var(--fg-muted)'}}>Chargement…</div>}
+        {players && players.length === 0 &&
+          <div style={{color:'var(--fg-muted)'}}>Aucun joueur configuré.</div>}
+        {players && players.map(p => {
+          const online = p.live && p.live.connected;
+          const inMatch = online && p.live.match && p.live.match.active;
+          return (
+            <a key={p.id} href={'/u/' + encodeURIComponent(p.id)} style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'14px 18px', marginBottom:10, borderRadius:10,
+              background:'var(--surface-2, rgba(255,255,255,0.04))',
+              border:'1px solid var(--border)', textDecoration:'none',
+              color:'var(--fg)',
+            }}>
+              <span style={{display:'flex', flexDirection:'column'}}>
+                <span style={{fontWeight:600, fontSize:15}}>{p.name}</span>
+                <span style={{
+                  fontSize:11, color:'var(--fg-faint)', fontFamily:'var(--font-mono)',
+                }}>{String(p.platform || '').toUpperCase()}</span>
+              </span>
+              <span style={{
+                display:'flex', alignItems:'center', gap:7, fontSize:10,
+                letterSpacing:'0.12em', fontFamily:'var(--font-mono)',
+                color: online ? 'var(--accent)' : 'var(--fg-faint)',
+              }}>
+                <span style={{
+                  width:7, height:7, borderRadius:4,
+                  background: online ? (inMatch ? '#ff3d71' : 'var(--accent)') : 'var(--fg-faint)',
+                  boxShadow: online ? '0 0 8px currentColor' : 'none',
+                }} />
+                {inMatch ? 'EN MATCH' : online ? 'EN LIGNE' : 'HORS LIGNE'}
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  const [loadError, setLoadError] = React.useState(null);
+  const rlState = useRLState();
+  const route = getRoute();
+
+  React.useEffect(() => { applyTweaks(t); }, [t]);
+  React.useEffect(() => { window.setLang(t.lang); }, [t.lang]);
+
+  // Chargement du joueur hébergé. La route est dérivée de location.pathname,
+  // qui ne change pas sans rechargement complet de la page : route.id est donc
+  // stable pour toute la vie du composant. On déclenche le chargement une
+  // seule fois, et on liste route.id en dépendance pour rester correct si la
+  // route venait à devenir dynamique.
+  React.useEffect(() => {
+    if (route.mode !== 'dashboard') return;
+    window.RL.loadHostedPlayer(route.id)
+      .catch(e => setLoadError(e && e.message ? e.message : 'Joueur introuvable'));
+  }, [route.mode, route.id]);
+
+  if (route.mode === 'home') return <HostedHome />;
+  if (loadError) return <CenterMsg title="Joueur introuvable" detail={loadError} />;
+  if (!rlState) return <CenterMsg title="Chargement…" detail={route.id} />;
+
+  return (
+    <React.Fragment>
+      <AppShell onOpenSettings={() => setSettingsOpen(s => !s)} />
+      <LiveMatchBanner />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} t={t} setTweak={setTweak} />
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);

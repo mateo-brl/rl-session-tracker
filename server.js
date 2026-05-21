@@ -1,10 +1,10 @@
 require('dotenv').config();
 const express = require('express');
-const puppeteer = require('puppeteer-core');
 const path = require('path');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const players = require('./lib/players');
+const tracker = require('./lib/tracker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,142 +18,94 @@ players.watch();
 // Le serveur tourne DERRIÈRE le reverse proxy / WAF SafeLine : il n'écoute
 // que sur 127.0.0.1, le TLS et le filtrage WAF sont gérés en amont.
 app.disable('x-powered-by');
-// CSP désactivée : l'app charge React/Babel depuis un CDN et utilise du JSX
-// in-browser (eval). Le rendu passe par React (échappement auto) → surface
-// XSS faible. Le reste des en-têtes Helmet est conservé.
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
-// Une seule couche de proxy de confiance (SafeLine) pour obtenir la vraie IP.
-app.set('trust proxy', process.env.TRUST_PROXY || 1);
 
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
-});
+// CSP stricte : le front est désormais pré-compilé (plus de Babel ni de CDN),
+// donc tous les scripts viennent de notre origine.
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      // Les styles inline de React passent par la propriété DOM .style (non
+      // concernée par la CSP). 'unsafe-inline' ne couvre ici que d'éventuels
+      // attributs style ; les polices Google nécessitent leur domaine.
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'https:', 'data:'],
+      connectSrc: ["'self'"],
+      baseUri: ["'self'"],
+      frameAncestors: ["'none'"],
+      objectSrc: ["'none'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Nombre de proxys de confiance devant le serveur (SafeLine = 1).
+// IMPORTANT : SafeLine doit ÉCRASER l'en-tête X-Forwarded-For entrant, sinon
+// un client peut usurper son IP. Ne jamais mettre `true` ici.
+app.set('trust proxy', Number(process.env.TRUST_PROXY) || 1);
+
+// ───────── Limiteurs de débit (par IP) ─────────
 const ingestLimiter = rateLimit({
   windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false,
-  // Limite par token d'agent plutôt que par IP (plusieurs PC peuvent partager
-  // une IP, et un PC garde sa limite propre).
-  keyGenerator: (req) => {
-    const m = (req.get('authorization') || '').match(/Bearer\s+(.+)/i);
-    return m ? 'tok:' + m[1].slice(0, 24) : req.ip;
-  },
+  message: { error: 'rate limited' },
+});
+const scrapeLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'rate limited' },
+});
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'rate limited' },
+});
+const streamLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
 });
 
+// Fichiers statiques du dashboard (public/dist/app.js, styles.css, …).
 app.use(express.static(path.join(__dirname, 'public')));
-// Corps JSON borné : un agent n'envoie que de petits paquets.
-app.use(express.json({ limit: '64kb' }));
-// Corps JSON malformé / trop gros → 400 propre.
-app.use((err, _req, res, next) => {
-  if (err && err.type) return res.status(400).json({ error: 'bad request' });
-  next(err);
-});
 
-// ───────── Navigateur headless (scraping tracker.gg) ─────────
-const PLATFORM_MAP = { epic: 'epic', steam: 'steam', psn: 'psn', xbox: 'xbl' };
-let browser = null;
-
-async function getBrowser() {
-  if (browser && browser.connected) return browser;
-  browser = await puppeteer.launch({
-    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
-    headless: 'new',
-    args: [
-      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-      '--disable-gpu', '--disable-extensions',
-    ],
-  });
-  return browser;
-}
-
-// Page « warm » : un profil chargé une fois lève la protection Cloudflare
-// pour api.tracker.gg ; les requêtes suivantes réutilisent ses cookies.
-const WARMUP_URL = 'https://rocketleague.tracker.network/rocket-league/profile/epic/FairyPeak/overview';
-let warmPage = null;
-let warmPagePromise = null;
-
-async function getWarmPage() {
-  try { if (warmPage && !warmPage.isClosed()) return warmPage; } catch (e) { warmPage = null; }
-  if (warmPagePromise) return warmPagePromise;
-  warmPagePromise = (async () => {
-    const b = await getBrowser();
-    const page = await b.newPage();
-    await page.goto(WARMUP_URL, { waitUntil: 'networkidle2', timeout: 35000 });
-    warmPage = page;
-    return page;
-  })();
-  try { return await warmPagePromise; }
-  finally { warmPagePromise = null; }
-}
-
-async function rewarmPage() {
-  try { if (warmPage && !warmPage.isClosed()) await warmPage.close(); } catch (e) {}
-  warmPage = null;
-  return getWarmPage();
-}
-
-// ───────── Profil + sessions depuis api.tracker.gg ─────────
-async function scrapeAll(platform, username) {
-  const plat = PLATFORM_MAP[platform] || platform;
-  const user = encodeURIComponent(username);
-  const profileUrl  = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${plat}/${user}`;
-  const sessionsUrl = `https://api.tracker.gg/api/v2/rocket-league/standard/profile/${plat}/${user}/sessions`;
-
-  async function fetchBoth() {
-    const page = await getWarmPage();
-    return page.evaluate(async (pUrl, sUrl) => {
-      async function get(u) {
-        try {
-          const r = await fetch(u, { headers: { Accept: 'application/json' }, credentials: 'include' });
-          return { status: r.status, body: await r.text() };
-        } catch (e) { return { status: 0, body: String(e) }; }
-      }
-      const [p, s] = await Promise.all([get(pUrl), get(sUrl)]);
-      return { p, s };
-    }, profileUrl, sessionsUrl);
-  }
-
-  let res;
-  try {
-    res = await fetchBoth();
-  } catch (e) {
-    await rewarmPage();
-    res = await fetchBoth();
-  }
-  if ([0, 403, 429, 503].includes(res.p.status)) {
-    await rewarmPage();
-    res = await fetchBoth();
-  }
-
-  let profile = null, sessions = null;
-  try { profile = JSON.parse(res.p.body); } catch (e) {}
-  if (res.s.status === 200) { try { sessions = JSON.parse(res.s.body); } catch (e) {} }
-  return { profile, sessions };
-}
-
-// Cache de scraping par joueur : plusieurs spectateurs ne déclenchent qu'un
-// seul appel tracker.gg, et les requêtes concurrentes sont mutualisées.
-const PROFILE_TTL = 12 * 1000;
+// ───────── Cache de scraping tracker.gg, par joueur ─────────
+// Plusieurs spectateurs ne déclenchent qu'un seul appel ; les requêtes
+// concurrentes sont mutualisées via `inflight`.
+const PROFILE_TTL = 45 * 1000;
+const MAX_CONCURRENT_SCRAPES = 6;
 const profileCache = new Map(); // id → { at, data, inflight }
+let activeScrapes = 0;
 
 async function getPlayerData(player) {
   const now = Date.now();
   const c = profileCache.get(player.id);
-  if (c && c.data && now - c.at < PROFILE_TTL) return c.data;
-  if (c && c.inflight) return c.inflight;
+  if (c && c.data && now - c.at < PROFILE_TTL) return c.data;   // cache frais
+  if (c && c.inflight) return c.inflight;                        // déjà en cours
+
+  // Surcharge : on sert le cache périmé si on en a un, sinon on refuse (503).
+  if (activeScrapes >= MAX_CONCURRENT_SCRAPES) {
+    if (c && c.data) return c.data;
+    const busy = new Error('server busy');
+    busy.busy = true;
+    throw busy;
+  }
 
   const inflight = (async () => {
-    const data = await scrapeAll(player.platform, player.username);
+    activeScrapes++;
+    try {
+      return await tracker.scrapeProfile(player.platform, player.username);
+    } finally {
+      activeScrapes--;
+    }
+  })();
+  profileCache.set(player.id, { at: c ? c.at : 0, data: c ? c.data : null, inflight });
+  try {
+    const data = await inflight;
     profileCache.set(player.id, { at: Date.now(), data, inflight: null });
     return data;
-  })();
-  profileCache.set(player.id, {
-    at: c ? c.at : 0, data: c ? c.data : null, inflight,
-  });
-  try {
-    return await inflight;
   } catch (e) {
-    profileCache.set(player.id, {
-      at: c ? c.at : 0, data: c ? c.data : null, inflight: null,
-    });
+    // On garde la donnée précédente si on en avait une, mais on libère le lock.
+    profileCache.set(player.id, { at: c ? c.at : 0, data: c ? c.data : null, inflight: null });
     throw e;
   }
 }
@@ -170,32 +122,25 @@ function getLive(id) {
   return { connected: s.connected, match: s.match || { active: false } };
 }
 
-// Un agent qui ne donne plus signe de vie passe « hors ligne » et ses
-// spectateurs en sont notifiés.
-setInterval(() => {
-  const now = Date.now();
-  for (const [id, s] of liveState) {
-    if (s.connected && now - s.lastSeen > OFFLINE_MS) {
-      s.connected = false;
-      s.match = { active: false };
-      sseBroadcast(id, 'connection', { connected: false });
-      sseBroadcast(id, 'state', { active: false });
-    }
-  }
-}, 10 * 1000);
-
 // ───────── Flux temps réel vers les navigateurs (SSE), par joueur ─────────
 const sseClients = new Map(); // id → Set<res>
+const SSE_MAX_TOTAL = 500;
+const SSE_MAX_PER_IP = 8;
+let sseTotal = 0;
+const sseByIp = new Map(); // ip → nombre de connexions
 
-function sseSend(res, event, data) {
-  res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
+function sseFrame(event, data) {
+  return 'event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n';
 }
 
+// Diffuse à tous les spectateurs d'un joueur. La trame n'est sérialisée
+// qu'UNE fois, pas par client.
 function sseBroadcast(id, event, data) {
   const set = sseClients.get(id);
-  if (!set) return;
+  if (!set || set.size === 0) return;
+  const frame = sseFrame(event, data);
   for (const res of set) {
-    try { sseSend(res, event, data); } catch (e) { set.delete(res); }
+    try { res.write(frame); } catch (e) { set.delete(res); }
   }
 }
 
@@ -234,7 +179,7 @@ function sanitizeMatch(m) {
   };
 }
 
-const EVENT_TYPES = new Set(['match-start', 'match-end', 'goal']);
+const EVENT_TYPES = new Set(['match-start', 'match-end', 'match-destroyed', 'goal']);
 
 function sanitizeEvents(evs) {
   if (!Array.isArray(evs)) return [];
@@ -260,14 +205,15 @@ function sanitizeEvents(evs) {
           : [],
       };
     }
-    return { type: 'match-start' };
+    return { type: e.type };
   }).filter(Boolean);
 }
 
 // ───────── Routes API ─────────
 
 // Réception des stats d'un agent. Authentifié par token Bearer.
-app.post('/api/ingest', ingestLimiter, (req, res) => {
+// Le corps JSON est borné à 32 ko et n'est parsé QUE pour cette route.
+app.post('/api/ingest', ingestLimiter, express.json({ limit: '32kb' }), (req, res) => {
   const auth = (req.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
   const player = auth ? players.resolveToken(auth[1].trim()) : null;
   if (!player) return res.status(401).json({ error: 'unauthorized' });
@@ -281,15 +227,23 @@ app.post('/api/ingest', ingestLimiter, (req, res) => {
   const wasConnected = prev ? prev.connected : false;
   liveState.set(player.id, { connected, match, lastSeen: Date.now() });
 
-  // Rediffusion immédiate vers les spectateurs de CE joueur.
   sseBroadcast(player.id, 'state', match.active ? match : { active: false });
   if (connected !== wasConnected) {
     sseBroadcast(player.id, 'connection', { connected });
   }
   for (const ev of events) {
-    if (ev.type === 'goal') sseBroadcast(player.id, 'goal', ev);
-    else if (ev.type === 'match-start') sseBroadcast(player.id, 'match', { phase: 'start' });
-    else if (ev.type === 'match-end') sseBroadcast(player.id, 'ended', ev);
+    if (ev.type === 'goal') {
+      sseBroadcast(player.id, 'goal', ev);
+    } else if (ev.type === 'match-start') {
+      sseBroadcast(player.id, 'match', { phase: 'start' });
+    } else if (ev.type === 'match-destroyed') {
+      sseBroadcast(player.id, 'match', { phase: 'destroyed' });
+    } else if (ev.type === 'match-end') {
+      sseBroadcast(player.id, 'ended', ev);
+      // Un match vient de se terminer → le MMR tracker.gg va changer :
+      // on invalide le cache pour que le prochain poll récupère du frais.
+      profileCache.delete(player.id);
+    }
   }
   res.json({ ok: true });
 });
@@ -305,15 +259,20 @@ app.get('/api/players', apiLimiter, (_req, res) => {
 
 // Profil + sessions d'un joueur connu (tracker.gg, mis en cache).
 // Aucun scraping de profil arbitraire : seuls les joueurs déclarés.
-app.get('/api/player/:id/live', apiLimiter, async (req, res) => {
+app.get('/api/player/:id/live', scrapeLimiter, async (req, res) => {
   const player = players.getPlayer(req.params.id);
   if (!player) return res.status(404).json({ error: 'unknown player' });
   try {
     const data = await getPlayerData(player);
-    if (!data.profile) return res.status(502).json({ error: 'tracker.gg unavailable' });
-    if (data.profile.errors) return res.status(404).json({ error: 'profile not found' });
+    const profile = data && data.profile;
+    if (profile && profile.errors) {
+      return res.status(404).json({ error: 'profile not found' });
+    }
+    if (!profile || !profile.data || !Array.isArray(profile.data.segments)) {
+      return res.status(502).json({ error: 'tracker.gg unavailable' });
+    }
     res.json({
-      profile: data.profile,
+      profile,
       sessions: data.sessions,
       player: {
         id: player.id, name: player.name,
@@ -322,15 +281,22 @@ app.get('/api/player/:id/live', apiLimiter, async (req, res) => {
       live: getLive(player.id),
     });
   } catch (err) {
+    if (err && err.busy) return res.status(503).json({ error: 'server busy' });
     console.error('Scrape error:', err.message);
     res.status(502).json({ error: 'scraping failed' });
   }
 });
 
 // Flux SSE temps réel d'un joueur donné.
-app.get('/api/stats/stream/:id', apiLimiter, (req, res) => {
+app.get('/api/stats/stream/:id', streamLimiter, (req, res) => {
   const player = players.getPlayer(req.params.id);
   if (!player) return res.status(404).end();
+
+  // Plafonds anti-épuisement de ressources.
+  const ip = req.ip || 'unknown';
+  if (sseTotal >= SSE_MAX_TOTAL || (sseByIp.get(ip) || 0) >= SSE_MAX_PER_IP) {
+    return res.status(503).end();
+  }
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -343,46 +309,98 @@ app.get('/api/stats/stream/:id', apiLimiter, (req, res) => {
   let set = sseClients.get(player.id);
   if (!set) { set = new Set(); sseClients.set(player.id, set); }
   set.add(res);
+  sseTotal++;
+  sseByIp.set(ip, (sseByIp.get(ip) || 0) + 1);
 
   // État courant immédiat.
   const l = getLive(player.id);
-  sseSend(res, 'connection', { connected: l.connected });
-  if (l.match && l.match.active) sseSend(res, 'state', l.match);
+  res.write(sseFrame('connection', { connected: l.connected }));
+  if (l.match && l.match.active) res.write(sseFrame('state', l.match));
 
-  const ping = setInterval(() => {
-    try { res.write(': ping\n\n'); } catch (e) {}
-  }, 25 * 1000);
-
+  let closed = false;
   req.on('close', () => {
-    clearInterval(ping);
+    if (closed) return;
+    closed = true;
     set.delete(res);
+    if (set.size === 0) sseClients.delete(player.id);
+    sseTotal--;
+    const n = (sseByIp.get(ip) || 1) - 1;
+    if (n <= 0) sseByIp.delete(ip); else sseByIp.set(ip, n);
   });
 });
 
+// Toute autre route /api/* inconnue → 404 JSON (et non la page du SPA).
+app.all('/api/*', (_req, res) => res.status(404).json({ error: 'not found' }));
+
 // ───────── Dashboard (SPA) ─────────
-// `/` = accueil (liste des joueurs), `/u/:id` = dashboard d'un joueur.
+// Seules les routes connues servent la page ; le reste est un vrai 404.
 app.get(['/', '/u/:id'], (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+app.use((_req, res) => res.status(404).send('Not found'));
 
-// Repli SPA pour toute autre route.
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Corps JSON malformé / trop gros → 400 propre.
+app.use((err, _req, res, _next) => {
+  if (err && (err.type === 'entity.too.large' || err.type === 'entity.parse.failed')) {
+    return res.status(400).json({ error: 'bad request' });
+  }
+  console.error('Unhandled error:', err && err.message);
+  res.status(500).json({ error: 'internal error' });
 });
 
-process.on('SIGINT', async () => { if (browser) await browser.close(); process.exit(0); });
-process.on('SIGTERM', async () => { if (browser) await browser.close(); process.exit(0); });
+// ───────── Tâche de fond : hors-ligne + purge mémoire ─────────
+setInterval(() => {
+  const now = Date.now();
+  const validIds = new Set(players.listPlayers().map((p) => p.id));
 
-app.listen(PORT, HOST, async () => {
+  for (const [id, s] of liveState) {
+    if (!validIds.has(id)) { liveState.delete(id); continue; } // joueur retiré
+    if (s.connected && now - s.lastSeen > OFFLINE_MS) {
+      s.connected = false;
+      s.match = { active: false };
+      sseBroadcast(id, 'connection', { connected: false });
+      sseBroadcast(id, 'state', { active: false });
+    }
+  }
+  for (const id of profileCache.keys()) {
+    if (!validIds.has(id)) profileCache.delete(id);
+  }
+  for (const [id, set] of sseClients) {
+    if (set.size === 0) sseClients.delete(id);
+  }
+}, 10 * 1000);
+
+// Ping SSE global (une seule boucle, pas un timer par connexion).
+setInterval(() => {
+  for (const set of sseClients.values()) {
+    for (const res of set) {
+      try { res.write(': ping\n\n'); } catch (e) { set.delete(res); }
+    }
+  }
+}, 25 * 1000);
+
+// ───────── Démarrage / arrêt ─────────
+const server = app.listen(PORT, HOST, async () => {
   console.log(`\n  RL Session Tracker (multi-joueurs) — http://${HOST}:${PORT}`);
   console.log('  Joueurs configurés : ' + players.listPlayers().length);
   try {
-    await getBrowser();
-    console.log('  Chromium : prêt');
-    getWarmPage()
-      .then(() => console.log('  Page warm tracker.gg : prête\n'))
-      .catch(() => console.log('  Page warm : sera réessayée à la 1re requête\n'));
+    await tracker.warmup();
+    console.log('  tracker.gg : clearance Cloudflare prête\n');
   } catch (e) {
-    console.log('  Chromium : échec -', e.message, '\n');
+    console.log('  tracker.gg : warmup différé (' + e.message + ')\n');
   }
 });
+// Les connexions SSE sont longues : pas de timeout global de requête.
+server.requestTimeout = 0;
+server.headersTimeout = 60 * 1000;
+
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  server.close();
+  try { await tracker.close(); } catch (e) {}
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
