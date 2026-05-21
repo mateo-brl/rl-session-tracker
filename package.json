@@ -1,16 +1,25 @@
 {
   "name": "rl-session-tracker",
-  "version": "1.0.0",
-  "description": "Rocket League live session tracker",
+  "version": "2.0.0",
+  "description": "Rocket League session tracker — multi-joueurs, temps réel",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "agent": "node agent/agent.js",
+    "add-agent": "node scripts/add-agent.js",
+    "build:agent": "node scripts/build-agent.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
     "express": "^4.21.0",
-    "node-fetch": "^2.7.0",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
     "puppeteer-core": "^24.43.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6",
+    "resedit": "^2.0.3"
   }
 }

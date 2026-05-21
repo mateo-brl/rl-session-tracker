@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<base href="/" />
 <title>Rocket League &middot; Session Tracker</title>
 <link rel="icon" href="favicon.ico" sizes="any" />
 
@@ -11,6 +12,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,wght@1,300;1,400;1,500;1,600&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="styles.css" />
+<style>
+@keyframes rl-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
@@ -198,31 +202,156 @@ function SettingsSeg({ value, options, onChange }) {
   );
 }
 
+// Bannière de match en direct — alimentée par la Stats API native du jeu.
+// Visible uniquement quand un match est réellement en cours (score live).
+function LiveMatchBanner() {
+  const s = useRLState();
+  const live = s && s.live;
+  if (!live || !live.active) return null;
+  const score = live.score || [0, 0];
+  const ts = live.timeSeconds;
+  const clock = (typeof ts === 'number')
+    ? Math.floor(ts / 60) + ':' + String(Math.floor(ts % 60)).padStart(2, '0')
+    : null;
+  return (
+    <div style={{
+      position:'fixed', top:14, left:'50%', transform:'translateX(-50%)',
+      zIndex:2147483645, display:'flex', alignItems:'center', gap:12,
+      padding:'7px 16px', borderRadius:999, whiteSpace:'nowrap',
+      background:'rgba(15,18,22,0.94)', backdropFilter:'blur(20px) saturate(160%)',
+      border:'1px solid var(--border-2)', boxShadow:'0 8px 30px rgba(0,0,0,.45)',
+      font:'600 13px var(--font-mono, monospace)', color:'var(--fg)',
+    }}>
+      <span style={{
+        width:7, height:7, borderRadius:4, background:'#ff3d71',
+        boxShadow:'0 0 8px #ff3d71',
+        animation:'rl-live-pulse 1.4s ease-in-out infinite',
+      }} />
+      <span style={{fontSize:9, letterSpacing:'0.16em', color:'var(--fg-faint)'}}>LIVE</span>
+      <span style={{color:'#4ea3ff', fontSize:16}}>{score[0]}</span>
+      <span style={{color:'var(--fg-faint)'}}>&ndash;</span>
+      <span style={{color:'#ff8c42', fontSize:16}}>{score[1]}</span>
+      <span style={{color:'var(--fg-muted)'}}>{live.isOT ? 'PROL.' : (clock || '—')}</span>
+      {live.mode && (
+        <span style={{
+          fontSize:9, letterSpacing:'0.12em', color:'var(--fg-faint)',
+          borderLeft:'1px solid var(--border)', paddingLeft:10,
+        }}>{String(live.mode).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+// Route déduite de l'URL : / = accueil, /u/:id = dashboard d'un joueur.
+function getRoute() {
+  const m = location.pathname.match(/^\/u\/([^/]+)\/?$/);
+  return m ? { mode: 'dashboard', id: decodeURIComponent(m[1]) } : { mode: 'home' };
+}
+
+// Message plein écran centré (chargement / erreur).
+function CenterMsg({ title, detail }) {
+  return (
+    <div style={{
+      position:'fixed', inset:0, display:'flex', flexDirection:'column',
+      alignItems:'center', justifyContent:'center', gap:8, textAlign:'center',
+      background:'var(--bg)', color:'var(--fg)', padding:24,
+      fontFamily:'var(--font-sans)',
+    }}>
+      <div style={{fontSize:18, fontWeight:600}}>{title}</div>
+      {detail && <div style={{fontSize:13, color:'var(--fg-muted)'}}>{detail}</div>}
+    </div>
+  );
+}
+
+// Page d'accueil publique — liste des joueurs et leur statut live.
+function HostedHome() {
+  const [players, setPlayers] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const tick = () => fetch('/api/players')
+      .then(r => r.json())
+      .then(d => { if (alive) setPlayers(d.players || []); })
+      .catch(() => { if (alive) setPlayers([]); });
+    tick();
+    const iv = setInterval(tick, 10000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+  return (
+    <div style={{
+      position:'fixed', inset:0, overflowY:'auto',
+      background:'var(--bg)', color:'var(--fg)',
+      fontFamily:'var(--font-sans)', padding:'48px 20px',
+    }}>
+      <div style={{maxWidth:560, margin:'0 auto'}}>
+        <div style={{
+          fontFamily:'var(--font-mono)', fontSize:11, letterSpacing:'0.22em',
+          textTransform:'uppercase', color:'var(--accent)', marginBottom:6,
+        }}>Rocket League</div>
+        <h1 style={{fontSize:28, fontWeight:700, margin:'0 0 24px'}}>Session Tracker</h1>
+        {players === null && <div style={{color:'var(--fg-muted)'}}>Chargement…</div>}
+        {players && players.length === 0 &&
+          <div style={{color:'var(--fg-muted)'}}>Aucun joueur configuré.</div>}
+        {players && players.map(p => {
+          const online = p.live && p.live.connected;
+          const inMatch = online && p.live.match && p.live.match.active;
+          return (
+            <a key={p.id} href={'/u/' + encodeURIComponent(p.id)} style={{
+              display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'14px 18px', marginBottom:10, borderRadius:10,
+              background:'var(--surface-2, rgba(255,255,255,0.04))',
+              border:'1px solid var(--border)', textDecoration:'none',
+              color:'var(--fg)',
+            }}>
+              <span style={{display:'flex', flexDirection:'column'}}>
+                <span style={{fontWeight:600, fontSize:15}}>{p.name}</span>
+                <span style={{
+                  fontSize:11, color:'var(--fg-faint)', fontFamily:'var(--font-mono)',
+                }}>{String(p.platform || '').toUpperCase()}</span>
+              </span>
+              <span style={{
+                display:'flex', alignItems:'center', gap:7, fontSize:10,
+                letterSpacing:'0.12em', fontFamily:'var(--font-mono)',
+                color: online ? 'var(--accent)' : 'var(--fg-faint)',
+              }}>
+                <span style={{
+                  width:7, height:7, borderRadius:4,
+                  background: online ? (inMatch ? '#ff3d71' : 'var(--accent)') : 'var(--fg-faint)',
+                  boxShadow: online ? '0 0 8px currentColor' : 'none',
+                }} />
+                {inMatch ? 'EN MATCH' : online ? 'EN LIGNE' : 'HORS LIGNE'}
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const [screen, setScreen] = useState('search');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const rlState = useRLState();
-
-  useEffect(() => {
-    if (!rlState && screen === 'dashboard') setScreen('search');
-  }, [rlState, screen]);
+  const route = getRoute();
 
   useEffect(() => { applyTweaks(t); }, [t]);
   useEffect(() => { window.setLang(t.lang); }, [t.lang]);
 
   useEffect(() => {
-    if (t.liveDemo && rlState) window.RL.kickLiveLoop();
-    else window.RL.stopLiveLoop();
-  }, [t.liveDemo, rlState]);
+    if (route.mode !== 'dashboard') return;
+    window.RL.loadHostedPlayer(route.id)
+      .catch(e => setLoadError(e && e.message ? e.message : 'Joueur introuvable'));
+  }, []);
 
-  if (screen === 'search') {
-    return <SearchScreen onFound={() => setScreen('dashboard')} />;
-  }
+  if (route.mode === 'home') return <HostedHome />;
+  if (loadError) return <CenterMsg title="Joueur introuvable" detail={loadError} />;
+  if (!rlState) return <CenterMsg title="Chargement…" detail={route.id} />;
 
   return (
     <React.Fragment>
       <AppShell onOpenSettings={() => setSettingsOpen(s => !s)} />
+      <LiveMatchBanner />
       <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} t={t} setTweak={setTweak} />
     </React.Fragment>
   );

@@ -76,6 +76,12 @@
   // Which playlist's MMR drives the headline. 'auto' = most-played ranked
   // playlist; otherwise a specific MODES id chosen by the user.
   let selectedPlaylistId = 'auto';
+  // Live Stats API — état du flux temps réel issu du jeu (voir plus bas).
+  let liveMatch = null;          // snapshot du match en cours, ou null
+  let statsApiConnected = false; // Rocket League est-il joignable ?
+  let statsES = null;            // EventSource vers /api/stats/stream
+  let acceleratedTimer = null;   // polling rapide après une fin de match
+  let acceleratedActive = false;
   const listeners = new Set();
   function emit() { listeners.forEach(fn => { try { fn(state); } catch(e) {} }); }
   function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
@@ -273,6 +279,8 @@
       selectedId: selectedId || 'auto',
       lastPolledAt: lastPolledAt || Date.now(),
       toasts: toasts || [],
+      live: liveMatch,
+      statsApi: { connected: statsApiConnected },
     };
   }
 
@@ -455,6 +463,7 @@
   // ───────── API calls ─────────
   let currentPlatform = null;
   let currentUsername = null;
+  let currentPlayerId = null;
 
   function isValidProfile(p) {
     return p && p.data && Array.isArray(p.data.segments);
@@ -481,17 +490,39 @@
     return state;
   }
 
+  // Charge un joueur en mode hébergé (URL /u/:id). Le serveur connaît déjà la
+  // plateforme et le pseudo tracker.gg liés à cet identifiant.
+  async function loadHostedPlayer(id) {
+    currentPlayerId = id;
+    selectedPlaylistId = 'auto';
+    const resp = await fetch('/api/player/' + encodeURIComponent(id) + '/live');
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      const e = new Error(err.error || ('HTTP ' + resp.status));
+      e.status = resp.status;
+      throw e;
+    }
+    const d = await resp.json();
+    if (!isValidProfile(d.profile)) throw new Error('Profil tracker.gg invalide');
+    currentPlatform = d.player ? d.player.platform : null;
+    currentUsername = d.player ? d.player.username : null;
+    state = buildState(d.profile, d.sessions, null);
+    emit();
+    startPolling();
+    return state;
+  }
+
   async function pollUpdate() {
-    if (!currentPlatform || !currentUsername) return;
+    if (!currentPlayerId) return;
     try {
-      const resp = await fetch(`/api/live/${currentPlatform}/${encodeURIComponent(currentUsername)}`);
+      const resp = await fetch('/api/player/' + encodeURIComponent(currentPlayerId) + '/live');
       if (!resp.ok) return;
-      const liveData = await resp.json();
-      if (!isValidProfile(liveData.profile)) return;
-      state = buildState(liveData.profile, liveData.sessions, state);
+      const d = await resp.json();
+      if (!isValidProfile(d.profile)) return;
+      state = buildState(d.profile, d.sessions, state);
       emit();
     } catch (e) {
-      // Silently fail on poll — will retry next interval.
+      // Échec silencieux — nouvel essai au prochain intervalle.
     }
   }
 
@@ -524,10 +555,129 @@
   function startPolling() {
     stopPolling();
     pollTimer = setInterval(pollUpdate, POLL_INTERVAL);
+    connectStatsStream();
   }
 
   function stopPolling() {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    stopAcceleratedPoll();
+    disconnectStatsStream();
+  }
+
+  // ───────── Live Stats API — flux temps réel du jeu ─────────
+  // On s'abonne au SSE du serveur, lui-même branché sur le socket local de
+  // Rocket League. Le tracker.gg garde le délai d'Epic ; mais ici on sait à
+  // la seconde quand un match démarre/finit, et on déclenche le rafraîchissement
+  // tracker.gg PILE à la fin du match au lieu de poller à l'aveugle.
+  function refreshLive() {
+    if (!state) return;
+    state = { ...state, live: liveMatch, statsApi: { connected: statsApiConnected } };
+    emit();
+  }
+
+  function connectStatsStream() {
+    if (statsES || typeof EventSource === 'undefined' || !currentPlayerId) return;
+    try { statsES = new EventSource('/api/stats/stream/' + encodeURIComponent(currentPlayerId)); }
+    catch (e) { statsES = null; return; }
+
+    statsES.addEventListener('connection', (e) => {
+      try { statsApiConnected = !!JSON.parse(e.data).connected; } catch (x) {}
+      if (!statsApiConnected) liveMatch = null;
+      refreshLive();
+    });
+
+    statsES.addEventListener('match', (e) => {
+      let d = {}; try { d = JSON.parse(e.data); } catch (x) {}
+      if (d.phase === 'start') {
+        if (!liveMatch) liveMatch = { active: true, score: [0, 0] };
+        if (state) setStatus('in-match');
+      } else if (d.phase === 'destroyed') {
+        liveMatch = null;
+        if (state && state.player.status === 'in-match') setStatus('menu');
+      }
+      refreshLive();
+    });
+
+    statsES.addEventListener('state', (e) => {
+      try { liveMatch = JSON.parse(e.data); } catch (x) { return; }
+      if (liveMatch && liveMatch.active && state &&
+          (state.player.status !== 'in-match' ||
+           (liveMatch.mode && state.player.statusModeId !== liveMatch.mode))) {
+        setStatus('in-match', liveMatch.mode || undefined);
+      }
+      refreshLive();
+    });
+
+    statsES.addEventListener('ended', (e) => {
+      let snap = {}; try { snap = JSON.parse(e.data); } catch (x) {}
+      liveMatch = null;
+      if (state) setStatus('menu');
+      onMatchEnded(snap);
+      refreshLive();
+    });
+  }
+
+  function disconnectStatsStream() {
+    if (statsES) { try { statsES.close(); } catch (e) {} statsES = null; }
+    liveMatch = null;
+    statsApiConnected = false;
+  }
+
+  // Fin de match signalée par le jeu : toast immédiat, puis rafraîchissement
+  // accéléré de tracker.gg pour récupérer le MMR réel au plus vite.
+  function onMatchEnded(snap) {
+    // On identifie notre joueur par son pseudo pour annoncer le résultat tout
+    // de suite ; si on n'y arrive pas, tracker.gg tranchera dans quelques s.
+    let result = null;
+    const uname = (currentUsername || '').toLowerCase();
+    if (snap && Array.isArray(snap.players) && snap.winnerTeam != null) {
+      const me = snap.players.find(p => (p.name || '').toLowerCase() === uname);
+      if (me) result = me.team === snap.winnerTeam ? 'W' : 'L';
+    }
+    pushToast({
+      kind: result === 'L' ? 'loss' : 'win',
+      title: result === 'W' ? 'Victoire'
+           : result === 'L' ? 'Défaite' : 'Match terminé',
+      detail: 'MMR en cours de mise à jour…',
+      mode: (snap && snap.mode) || undefined,
+    });
+    startAcceleratedPoll();
+  }
+
+  // Poll tracker.gg en accéléré jusqu'à ce que le nouveau match y apparaisse
+  // (la source a son propre délai d'ingestion côté Epic).
+  function startAcceleratedPoll() {
+    stopAcceleratedPoll();
+    acceleratedActive = true;
+    const known = new Set();
+    if (state && state.playlists) {
+      for (const p of state.playlists)
+        for (const m of p.matches) known.add(m.id);
+    }
+    const startedAt = Date.now();
+    const tick = async () => {
+      acceleratedTimer = null;
+      if (!acceleratedActive) return;
+      await pollUpdate();
+      if (!acceleratedActive) return;
+      let foundNew = false;
+      if (state && state.playlists) {
+        for (const p of state.playlists)
+          for (const m of p.matches)
+            if (!known.has(m.id)) foundNew = true;
+      }
+      if (foundNew || Date.now() - startedAt > 5 * 60 * 1000) {
+        stopAcceleratedPoll();
+        return;
+      }
+      acceleratedTimer = setTimeout(tick, 8000);
+    };
+    acceleratedTimer = setTimeout(tick, 4000);
+  }
+
+  function stopAcceleratedPoll() {
+    acceleratedActive = false;
+    if (acceleratedTimer) { clearTimeout(acceleratedTimer); acceleratedTimer = null; }
   }
 
   // ───────── Demo-only helpers ─────────
@@ -617,6 +767,7 @@
     stopLiveLoop();
     currentPlatform = null;
     currentUsername = null;
+    currentPlayerId = null;
     selectedPlaylistId = 'auto';
     state = null;
     emit();
@@ -626,6 +777,7 @@
     get state() { return state; },
     subscribe,
     searchPlayer,
+    loadHostedPlayer,
     bootstrapDemo,
     startPolling,
     stopPolling,

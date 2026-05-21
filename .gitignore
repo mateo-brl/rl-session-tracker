@@ -1,2 +1,15 @@
 node_modules/
 .env
+
+# Registre des agents — contient les hachages de tokens
+players.json
+
+# Config et tokens des agents — ne jamais committer
+config.json
+agent-config*.json
+
+# Exécutable agent packagé
+dist/
+
+# Sauvegardes
+*.bak
