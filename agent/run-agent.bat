@@ -7,7 +7,8 @@ REM  juste Node.js qui execute un script. A privilegier si rl-agent.exe
 REM  est bloque par Windows Defender.
 REM
 REM  Prerequis : Node.js 20+  ->  https://nodejs.org
-REM  Place config.json a cote de ce fichier (dans le dossier agent\).
+REM  Au premier lancement, l'agent demande ton code de configuration
+REM  (obtenu apres l'inscription en ligne) et se configure tout seul.
 REM ───────────────────────────────────────────────────────────────
 chcp 65001 >nul
 cd /d "%~dp0"
