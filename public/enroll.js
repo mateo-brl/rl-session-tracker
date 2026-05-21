@@ -77,10 +77,18 @@
   });
 
   function showSuccess(data) {
+    // Le code voyage dans le nom du fichier téléchargé : l'agent le lira
+    // dans son propre nom et se configurera sans aucune saisie.
+    var dl = document.getElementById('downloadLink');
+    dl.href = '/download/agent?code=' + encodeURIComponent(data.setupCode);
+
+    // Code affiché aussi en clair (repli si le fichier est renommé).
     document.getElementById('setupCode').textContent = data.setupCode;
+
     var link = document.getElementById('pageLink');
     link.textContent = location.host + '/u/' + data.id;
     link.href = data.pageUrl || ('/u/' + data.id);
+
     document.getElementById('step-form').classList.add('hidden');
     document.getElementById('step-done').classList.remove('hidden');
     window.scrollTo(0, 0);
