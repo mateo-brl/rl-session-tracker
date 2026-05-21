@@ -1,103 +1,150 @@
-# RL Session Tracker
+<div align="center">
 
-Dashboard web pour tracker tes sessions Rocket League en direct. Entre ton pseudo, et le tracker suit ta progression MMR, tes victoires/defaites, et tes stats en temps reel.
+# 🚀 RL Session Tracker
 
-## Fonctionnalites
+**Suis tes sessions Rocket League en direct — MMR, victoires, stats de match — sur un dashboard web moderne.**
 
-**Live tracking**
-- Detecte automatiquement les matchs en cours via [tracker.network](https://rocketleague.tracker.network)
-- Polling toutes les 15 secondes pour capter les changements de MMR
-- Notifications animees (banner Win/Loss) a chaque match detecte
-- Alerte tilt apres 3 defaites d'affilee
+Plusieurs PC envoient leurs stats. Chaque joueur a sa page. Le tout en **temps réel**, sans le délai habituel des sites de stats.
 
-**Dashboard**
-- 3 layouts au choix : **Command Center** (paysage), **Sidekick** (portrait), **Focus** (minimaliste)
-- Rang actuel avec icone officielle + barre de progression vers le rang suivant
-- Graphique MMR session et saison (donnees reelles)
-- Tiltometre avec jauge animee
-- Stats de la session vs moyenne globale (buts, arrets, passes, tirs)
-- Repartition par mode (2v2, 3v3, 1v1, etc.)
-- Ticker bar live en bas de l'ecran
+</div>
 
-**Personnalisation**
-- 5 couleurs d'accent (cyan, lime, pink, amber, violet)
-- Mode sombre / clair
-- 3 niveaux de densite (compact, regular, spacious)
-- 4 polices au choix
-- Modules activables/desactivables
-- Bilingue FR / EN
+---
 
-## Installation
+## ✨ Ce que ça fait
 
-```bash
-git clone https://github.com/ton-user/rl-session-tracker.git
-cd rl-session-tracker
-npm install
+| | |
+|---|---|
+| ⚡ **Temps réel** | Début/fin de match et score détectés **à la seconde**, via la Stats API native de Rocket League. |
+| 📊 **Stats complètes** | MMR, rang, victoires/défaites, série en cours, buts · arrêts · passes · tirs. |
+| 👥 **Multi-joueurs** | Plusieurs PC envoient leurs stats ; chacun a sa page `/u/pseudo`. |
+| 🎨 **Dashboard soigné** | 3 layouts, thème clair/sombre, couleurs d'accent, bilingue FR/EN. |
+| 🔥 **Tiltomètre** | Alerte sympa après 3 défaites d'affilée. |
+| 🔒 **Sécurisé** | Conçu pour être exposé sur internet (tokens, anti-abus, validation). |
+
+## 🧩 Comment ça marche
+
+Le projet a **deux morceaux** :
+
+```
+   🎮 PC gaming                          🌐 Serveur (rl.mateobrl.fr)
+  ┌──────────────┐                      ┌────────────────────────────┐
+  │ Rocket League│                      │  Dashboard web             │
+  │   Stats API  │   ── HTTPS ──>       │  reçoit · agrège · affiche │
+  │      ↓       │   (token sécurisé)   │                            │
+  │  rl-agent    │ ───────────────────> │  /u/pseudo  ←── 👀 public  │
+  └──────────────┘                      └────────────────────────────┘
 ```
 
-## Utilisation
+- **Le serveur** — c'est le dashboard. Il tourne sur une machine accessible depuis internet.
+- **L'agent** — un petit programme sur chaque PC. Il lit les stats *dans le jeu* et les envoie au serveur.
+
+> 💡 Pourquoi un agent ? Les sites de stats classiques (tracker.gg…) ont plusieurs minutes de retard. La Stats API intégrée à Rocket League, elle, est instantanée — mais uniquement en local. L'agent fait le pont.
+
+---
+
+## 🚀 Démarrage rapide
+
+### 👀 Je veux juste regarder
+
+Ouvre le site (ex. **`https://rl.mateobrl.fr`**) et clique sur un joueur. Rien à installer.
+
+### 🖥️ J'héberge le serveur
 
 ```bash
+git clone https://github.com/mateo-brl/rl-session-tracker.git
+cd rl-session-tracker
+npm install
+
+# Déclare un joueur (génère son token + son fichier config)
+npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "Mateo"
+
 npm start
 ```
 
-Puis ouvre **http://localhost:3000** dans ton navigateur.
+Le dashboard tourne sur `http://127.0.0.1:3000`. Pour le mettre en ligne proprement (HTTPS, nom de domaine, pare-feu) → **[DEPLOY.md](DEPLOY.md)**.
 
-1. Entre ton pseudo Rocket League (Epic, Steam, PSN ou Xbox)
-2. Le dashboard se charge avec tes stats
-3. Lance Rocket League et joue — le tracker detecte tes matchs automatiquement
-4. Clique sur l'engrenage en haut a droite pour personnaliser
+### 🎮 Je veux envoyer les stats de mon PC
 
-## Comment ca marche
+1. **Active la Stats API du jeu** — double-clique sur **`enable-statsapi.bat`**, puis redémarre Rocket League.
+2. Récupère **`rl-agent.exe`** et ton **`config.json`** (fournis par l'hébergeur du serveur).
+3. Mets les deux fichiers dans un même dossier et lance **`rl-agent.exe`**.
 
-Le serveur utilise un navigateur headless (Chromium via Puppeteer) pour acceder a tracker.network. Ca permet de passer la protection Cloudflare sans avoir besoin d'une cle API.
+Ta page s'affiche alors sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
 
+> 🛡️ `rl-agent.exe` bloqué par l'antivirus ? C'est un faux positif courant des exécutables auto-portants. Solutions et méthode sans `.exe` → **[BUILD-AGENT.md](BUILD-AGENT.md)**.
+
+---
+
+## 🎯 Activer la Stats API de Rocket League
+
+L'agent a besoin de la **Stats API native** du jeu (intégrée depuis la mise à jour
+anti-triche d'avril 2026). Pour l'activer, une seule fois :
+
+> Double-clique sur **`enable-statsapi.bat`** → il détecte Rocket League (Epic ou
+> Steam) et configure le jeu. **Redémarre Rocket League** ensuite.
+
+<details>
+<summary>Activation manuelle</summary>
+
+Édite `…\Rocket League\TAGame\Config\DefaultStatsAPI.ini` :
+
+```ini
+[TAGame.MatchStatsExporter_TA]
+Port=49123
+PacketSendRate=10
 ```
-Navigateur  -->  localhost:3000  -->  Chromium headless  -->  tracker.network
-   (toi)          (Express)           (Puppeteer)             (donnees RL)
-```
+</details>
 
-Le polling compare le MMR entre chaque requete. Quand il detecte un changement, il ajoute le match a la session et declenche l'animation.
+> ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). Sur console, ce tracker ne peut pas remonter les données en direct.
 
-## Prerequis
+## 🔒 Sécurité
 
-- **Node.js** 18+
-- **Chromium** installe sur le systeme (`/usr/bin/chromium`)
-  - Debian/Ubuntu : `sudo apt install chromium-browser`
-  - Arch : `sudo pacman -S chromium`
-  - macOS : `brew install chromium`
+Le serveur est pensé pour vivre sur internet :
 
-## Structure du projet
+- 🔑 **Tokens par PC** — chaque agent a un token unique, stocké **haché** (un fichier volé ne donne aucun token utilisable).
+- 🚦 **Anti-abus** — limitation de débit sur toutes les routes sensibles.
+- 🧹 **Données validées** — tout ce qui entre est vérifié, typé et borné.
+- 🛡️ **Pas de proxy ouvert** — le serveur n'interroge les sites de stats que pour les joueurs déclarés.
+- 🧱 **Derrière un WAF** — prévu pour tourner derrière un reverse proxy + pare-feu applicatif (SafeLine).
+
+Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
+
+## 📚 Documentation
+
+| Document | Pour quoi |
+|---|---|
+| **[DEPLOY.md](DEPLOY.md)** | Mettre le serveur en ligne : HTTPS, reverse proxy, WAF, gestion des joueurs. |
+| **[BUILD-AGENT.md](BUILD-AGENT.md)** | Construire `rl-agent.exe` et éviter les faux positifs antivirus. |
+
+<details>
+<summary>🗂️ Structure du projet</summary>
 
 ```
 rl-session-tracker/
-├── server.js              # Serveur Express + scraping headless
-├── package.json
-├── .env                   # Cle API TRN (optionnel)
-├── .gitignore
-└── public/
-    ├── index.html          # App React + panneau options
-    ├── styles.css          # Design broadcast/editorial
-    ├── data.js             # Couche donnees + polling live
-    ├── i18n.js             # Traductions FR/EN
-    ├── modules.jsx         # Composants UI du dashboard
-    ├── variants.jsx        # 3 layouts (Command/Sidekick/Focus)
-    └── tweaks-panel.jsx    # Panel de configuration
+├── server.js            # Serveur : API, dashboard, ingestion
+├── statsapi.js          # Connecteur Stats API de Rocket League
+├── lib/players.js       # Registre des joueurs / tokens
+├── scripts/
+│   ├── add-agent.js     # Déclarer un nouveau PC
+│   └── build-agent.mjs  # Construire rl-agent.exe
+├── agent/
+│   ├── agent.js         # L'agent (tourne sur le PC gaming)
+│   └── run-agent.bat    # Lancer l'agent sans .exe (via Node)
+├── enable-statsapi.bat  # Activer la Stats API du jeu
+└── public/              # Dashboard web (interface)
 ```
+</details>
 
-## Configuration avancee
+<details>
+<summary>⚙️ Prérequis</summary>
 
-**Port personnalise**
-```bash
-PORT=8080 npm start
-```
+**Serveur** — Node.js 18+, et Chromium installé (`/usr/bin/chromium`) :
+- Debian/Ubuntu : `sudo apt install chromium`
+- Arch : `sudo pacman -S chromium`
 
-**Cle API TRN (optionnel)**
-Si tu as une cle API tracker.gg approuvee, cree un fichier `.env` :
-```
-TRN_API_KEY=ta-cle-ici
-```
+**PC gaming** — Rocket League sur PC (Epic ou Steam). Rien d'autre avec `rl-agent.exe`.
+</details>
 
-## Licence
+## 📄 Licence
 
-MIT
+MIT — fais-en ce que tu veux.

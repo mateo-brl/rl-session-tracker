@@ -2,21 +2,53 @@ require('dotenv').config();
 const express = require('express');
 const puppeteer = require('puppeteer-core');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const players = require('./lib/players');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '127.0.0.1';
+
+// Registre des joueurs autorisés (rechargé à chaud si players.json change).
+players.load();
+players.watch();
+
+// ───────── Sécurité de base ─────────
+// Le serveur tourne DERRIÈRE le reverse proxy / WAF SafeLine : il n'écoute
+// que sur 127.0.0.1, le TLS et le filtrage WAF sont gérés en amont.
+app.disable('x-powered-by');
+// CSP désactivée : l'app charge React/Babel depuis un CDN et utilise du JSX
+// in-browser (eval). Le rendu passe par React (échappement auto) → surface
+// XSS faible. Le reste des en-têtes Helmet est conservé.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// Une seule couche de proxy de confiance (SafeLine) pour obtenir la vraie IP.
+app.set('trust proxy', process.env.TRUST_PROXY || 1);
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false,
+});
+const ingestLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false,
+  // Limite par token d'agent plutôt que par IP (plusieurs PC peuvent partager
+  // une IP, et un PC garde sa limite propre).
+  keyGenerator: (req) => {
+    const m = (req.get('authorization') || '').match(/Bearer\s+(.+)/i);
+    return m ? 'tok:' + m[1].slice(0, 24) : req.ip;
+  },
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
+// Corps JSON borné : un agent n'envoie que de petits paquets.
+app.use(express.json({ limit: '64kb' }));
+// Corps JSON malformé / trop gros → 400 propre.
+app.use((err, _req, res, next) => {
+  if (err && err.type) return res.status(400).json({ error: 'bad request' });
+  next(err);
+});
 
-const PLATFORM_MAP = {
-  epic: 'epic',
-  steam: 'steam',
-  psn: 'psn',
-  xbox: 'xbl',
-};
-
-// ───────── Headless browser singleton ─────────
+// ───────── Navigateur headless (scraping tracker.gg) ─────────
+const PLATFORM_MAP = { epic: 'epic', steam: 'steam', psn: 'psn', xbox: 'xbl' };
 let browser = null;
 
 async function getBrowser() {
@@ -25,21 +57,15 @@ async function getBrowser() {
     executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
     headless: 'new',
     args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-extensions',
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+      '--disable-gpu', '--disable-extensions',
     ],
   });
   return browser;
 }
 
-// ───────── Warm page for fast username search ─────────
-// The search endpoint needs Cloudflare clearance just like profiles. Opening
-// a fresh page per keystroke would be far too slow, so we keep one page warm:
-// loading a real profile once clears CF for api.tracker.gg, and the search
-// fetches run inside that page to reuse its cookies.
+// Page « warm » : un profil chargé une fois lève la protection Cloudflare
+// pour api.tracker.gg ; les requêtes suivantes réutilisent ses cookies.
 const WARMUP_URL = 'https://rocketleague.tracker.network/rocket-league/profile/epic/FairyPeak/overview';
 let warmPage = null;
 let warmPagePromise = null;
@@ -64,83 +90,7 @@ async function rewarmPage() {
   return getWarmPage();
 }
 
-// ───────── Username search across every platform ─────────
-const SEARCH_PLATFORMS = ['epic', 'steam', 'psn', 'xbl'];
-// tracker.gg slug → the platform id our frontend / live route expects.
-const SLUG_TO_ID = { epic: 'epic', steam: 'steam', psn: 'psn', xbl: 'xbox', playstation: 'psn', xbox: 'xbox' };
-
-// Fan out one search request per platform from inside the warm page.
-// `blocked` flags a Cloudflare/non-JSON response so the caller can re-warm.
-async function runSearch(query) {
-  const page = await getWarmPage();
-  return page.evaluate(async (q, plats) => {
-    const items = [];
-    let blocked = false;
-    await Promise.all(plats.map(async (p) => {
-      try {
-        const resp = await fetch(
-          'https://api.tracker.gg/api/v2/rocket-league/standard/search?platform=' +
-          p + '&query=' + encodeURIComponent(q),
-          { headers: { Accept: 'application/json' }, credentials: 'include' }
-        );
-        if (resp.status === 403 || resp.status === 429 || resp.status === 503) { blocked = true; return; }
-        if (resp.status !== 200) return;
-        if (!(resp.headers.get('content-type') || '').includes('json')) { blocked = true; return; }
-        const data = await resp.json();
-        if (data && Array.isArray(data.data)) data.data.forEach(it => items.push(it));
-      } catch (e) { blocked = true; }
-    }));
-    return { items, blocked };
-  }, query, SEARCH_PLATFORMS);
-}
-
-async function searchAllPlatforms(query) {
-  let raw;
-  try {
-    raw = await runSearch(query);
-  } catch (e) {
-    // Page or browser died — rebuild it and try once more.
-    await rewarmPage();
-    raw = await runSearch(query);
-  }
-  // Empty results + a blocked signal usually means CF clearance lapsed.
-  if (raw.blocked && raw.items.length === 0) {
-    await rewarmPage();
-    raw = await runSearch(query);
-  }
-
-  const seen = new Set();
-  const results = [];
-  for (const it of raw.items) {
-    const platform = SLUG_TO_ID[it.platformSlug] || it.platformSlug;
-    const identifier = it.platformUserIdentifier || it.platformUserId;
-    if (!platform || !identifier) continue;
-    const key = platform + ':' + identifier;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    results.push({
-      platform,
-      identifier: String(identifier),
-      handle: it.platformUserHandle || String(identifier),
-      avatar: it.avatarUrl || null,
-    });
-  }
-  // Exact handle matches first, then a stable platform order.
-  const lc = query.toLowerCase();
-  const order = { epic: 0, steam: 1, psn: 2, xbox: 3 };
-  results.sort((a, b) => {
-    const ax = a.handle.toLowerCase() === lc ? 0 : 1;
-    const bx = b.handle.toLowerCase() === lc ? 0 : 1;
-    if (ax !== bx) return ax - bx;
-    return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
-  });
-  return results.slice(0, 12);
-}
-
-// ───────── Fetch profile + sessions ─────────
-// Both come straight from api.tracker.gg, fetched inside the warm page so its
-// Cloudflare cookies are reused — no slow full-page navigation per request.
-// This takes ~1-2s instead of ~20s for a full page load.
+// ───────── Profil + sessions depuis api.tracker.gg ─────────
 async function scrapeAll(platform, username) {
   const plat = PLATFORM_MAP[platform] || platform;
   const user = encodeURIComponent(username);
@@ -168,7 +118,6 @@ async function scrapeAll(platform, username) {
     await rewarmPage();
     res = await fetchBoth();
   }
-  // A blocked/empty profile response means Cloudflare clearance lapsed.
   if ([0, 403, 429, 503].includes(res.p.status)) {
     await rewarmPage();
     res = await fetchBoth();
@@ -180,60 +129,243 @@ async function scrapeAll(platform, username) {
   return { profile, sessions };
 }
 
-// ───────── Routes ─────────
+// Cache de scraping par joueur : plusieurs spectateurs ne déclenchent qu'un
+// seul appel tracker.gg, et les requêtes concurrentes sont mutualisées.
+const PROFILE_TTL = 12 * 1000;
+const profileCache = new Map(); // id → { at, data, inflight }
 
-app.get('/api/config', (_req, res) => {
-  res.json({ mode: 'headless' });
+async function getPlayerData(player) {
+  const now = Date.now();
+  const c = profileCache.get(player.id);
+  if (c && c.data && now - c.at < PROFILE_TTL) return c.data;
+  if (c && c.inflight) return c.inflight;
+
+  const inflight = (async () => {
+    const data = await scrapeAll(player.platform, player.username);
+    profileCache.set(player.id, { at: Date.now(), data, inflight: null });
+    return data;
+  })();
+  profileCache.set(player.id, {
+    at: c ? c.at : 0, data: c ? c.data : null, inflight,
+  });
+  try {
+    return await inflight;
+  } catch (e) {
+    profileCache.set(player.id, {
+      at: c ? c.at : 0, data: c ? c.data : null, inflight: null,
+    });
+    throw e;
+  }
+}
+
+// ───────── État live multi-joueurs (alimenté par les agents) ─────────
+const OFFLINE_MS = 60 * 1000;
+const liveState = new Map(); // id → { connected, match, lastSeen }
+
+function getLive(id) {
+  const s = liveState.get(id);
+  if (!s || Date.now() - s.lastSeen > OFFLINE_MS) {
+    return { connected: false, match: { active: false } };
+  }
+  return { connected: s.connected, match: s.match || { active: false } };
+}
+
+// Un agent qui ne donne plus signe de vie passe « hors ligne » et ses
+// spectateurs en sont notifiés.
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, s] of liveState) {
+    if (s.connected && now - s.lastSeen > OFFLINE_MS) {
+      s.connected = false;
+      s.match = { active: false };
+      sseBroadcast(id, 'connection', { connected: false });
+      sseBroadcast(id, 'state', { active: false });
+    }
+  }
+}, 10 * 1000);
+
+// ───────── Flux temps réel vers les navigateurs (SSE), par joueur ─────────
+const sseClients = new Map(); // id → Set<res>
+
+function sseSend(res, event, data) {
+  res.write('event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n');
+}
+
+function sseBroadcast(id, event, data) {
+  const set = sseClients.get(id);
+  if (!set) return;
+  for (const res of set) {
+    try { sseSend(res, event, data); } catch (e) { set.delete(res); }
+  }
+}
+
+// ───────── Validation des données reçues d'un agent ─────────
+// Les agents sont authentifiés, mais leurs données restent non fiables :
+// on borne, on type et on tronque tout avant de les rediffuser.
+const MODES_OK = new Set(['1v1', '2v2', '3v3']);
+
+function clampNum(v, def, lo, hi) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return def;
+  return Math.min(hi, Math.max(lo, n));
+}
+
+function sanitizeMatch(m) {
+  if (!m || typeof m !== 'object' || !m.active) return { active: false };
+  const score = Array.isArray(m.score)
+    ? [clampNum(m.score[0], 0, 0, 99), clampNum(m.score[1], 0, 0, 99)]
+    : [0, 0];
+  const list = Array.isArray(m.players) ? m.players.slice(0, 8) : [];
+  return {
+    active: true,
+    mode: MODES_OK.has(m.mode) ? m.mode : null,
+    score,
+    timeSeconds: m.timeSeconds == null ? null : clampNum(m.timeSeconds, null, 0, 3600),
+    isOT: !!m.isOT,
+    players: list.map((p) => ({
+      name: String((p && p.name) || '').slice(0, 48),
+      team: clampNum(p && p.team, 0, 0, 1),
+      goals: clampNum(p && p.goals, 0, 0, 99),
+      saves: clampNum(p && p.saves, 0, 0, 99),
+      assists: clampNum(p && p.assists, 0, 0, 99),
+      shots: clampNum(p && p.shots, 0, 0, 99),
+      score: clampNum(p && p.score, 0, 0, 99999),
+    })).filter((p) => p.name),
+  };
+}
+
+const EVENT_TYPES = new Set(['match-start', 'match-end', 'goal']);
+
+function sanitizeEvents(evs) {
+  if (!Array.isArray(evs)) return [];
+  return evs.slice(0, 32).map((e) => {
+    if (!e || !EVENT_TYPES.has(e.type)) return null;
+    if (e.type === 'goal') {
+      return {
+        type: 'goal',
+        scorer: String(e.scorer || '').slice(0, 48),
+        team: e.team === 0 || e.team === 1 ? e.team : -1,
+      };
+    }
+    if (e.type === 'match-end') {
+      return {
+        type: 'match-end',
+        winnerTeam: e.winnerTeam === 0 || e.winnerTeam === 1 ? e.winnerTeam : null,
+        mode: MODES_OK.has(e.mode) ? e.mode : null,
+        players: Array.isArray(e.players)
+          ? e.players.slice(0, 8).map((p) => ({
+              name: String((p && p.name) || '').slice(0, 48),
+              team: p && p.team === 1 ? 1 : 0,
+            })).filter((p) => p.name)
+          : [],
+      };
+    }
+    return { type: 'match-start' };
+  }).filter(Boolean);
+}
+
+// ───────── Routes API ─────────
+
+// Réception des stats d'un agent. Authentifié par token Bearer.
+app.post('/api/ingest', ingestLimiter, (req, res) => {
+  const auth = (req.get('authorization') || '').match(/^Bearer\s+(.+)$/i);
+  const player = auth ? players.resolveToken(auth[1].trim()) : null;
+  if (!player) return res.status(401).json({ error: 'unauthorized' });
+
+  const body = req.body || {};
+  const connected = !!body.connected;
+  const match = sanitizeMatch(body.match);
+  const events = sanitizeEvents(body.events);
+
+  const prev = liveState.get(player.id);
+  const wasConnected = prev ? prev.connected : false;
+  liveState.set(player.id, { connected, match, lastSeen: Date.now() });
+
+  // Rediffusion immédiate vers les spectateurs de CE joueur.
+  sseBroadcast(player.id, 'state', match.active ? match : { active: false });
+  if (connected !== wasConnected) {
+    sseBroadcast(player.id, 'connection', { connected });
+  }
+  for (const ev of events) {
+    if (ev.type === 'goal') sseBroadcast(player.id, 'goal', ev);
+    else if (ev.type === 'match-start') sseBroadcast(player.id, 'match', { phase: 'start' });
+    else if (ev.type === 'match-end') sseBroadcast(player.id, 'ended', ev);
+  }
+  res.json({ ok: true });
 });
 
-// Profile + sessions (initial search)
-app.get('/api/live/:platform/:username', async (req, res) => {
-  const { platform, username } = req.params;
+// Liste publique des joueurs configurés + leur statut live.
+app.get('/api/players', apiLimiter, (_req, res) => {
+  res.json({
+    players: players.listPlayers().map((p) => ({
+      id: p.id, name: p.name, platform: p.platform, live: getLive(p.id),
+    })),
+  });
+});
+
+// Profil + sessions d'un joueur connu (tracker.gg, mis en cache).
+// Aucun scraping de profil arbitraire : seuls les joueurs déclarés.
+app.get('/api/player/:id/live', apiLimiter, async (req, res) => {
+  const player = players.getPlayer(req.params.id);
+  if (!player) return res.status(404).json({ error: 'unknown player' });
   try {
-    const data = await scrapeAll(platform, username);
-    if (!data.profile) {
-      return res.status(404).json({ error: 'Player not found' });
-    }
-    if (data.profile.errors) {
-      return res.status(404).json({ error: data.profile.errors[0]?.message || 'Player not found' });
-    }
-    res.json(data);
+    const data = await getPlayerData(player);
+    if (!data.profile) return res.status(502).json({ error: 'tracker.gg unavailable' });
+    if (data.profile.errors) return res.status(404).json({ error: 'profile not found' });
+    res.json({
+      profile: data.profile,
+      sessions: data.sessions,
+      player: {
+        id: player.id, name: player.name,
+        platform: player.platform, username: player.username,
+      },
+      live: getLive(player.id),
+    });
   } catch (err) {
     console.error('Scrape error:', err.message);
-    res.status(502).json({ error: 'Scraping failed', detail: err.message });
+    res.status(502).json({ error: 'scraping failed' });
   }
 });
 
-// Profile only (for polling)
-app.get('/api/profile/:platform/:username', async (req, res) => {
-  const { platform, username } = req.params;
-  try {
-    const data = await scrapeAll(platform, username);
-    if (!data.profile) return res.status(502).json({ error: 'No response captured' });
-    if (data.profile.errors) {
-      return res.status(404).json({ error: data.profile.errors[0]?.message || 'Player not found' });
-    }
-    res.json(data.profile);
-  } catch (err) {
-    console.error('Profile scrape error:', err.message);
-    res.status(502).json({ error: 'Scraping failed', detail: err.message });
-  }
+// Flux SSE temps réel d'un joueur donné.
+app.get('/api/stats/stream/:id', apiLimiter, (req, res) => {
+  const player = players.getPlayer(req.params.id);
+  if (!player) return res.status(404).end();
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+
+  let set = sseClients.get(player.id);
+  if (!set) { set = new Set(); sseClients.set(player.id, set); }
+  set.add(res);
+
+  // État courant immédiat.
+  const l = getLive(player.id);
+  sseSend(res, 'connection', { connected: l.connected });
+  if (l.match && l.match.active) sseSend(res, 'state', l.match);
+
+  const ping = setInterval(() => {
+    try { res.write(': ping\n\n'); } catch (e) {}
+  }, 25 * 1000);
+
+  req.on('close', () => {
+    clearInterval(ping);
+    set.delete(res);
+  });
 });
 
-// Username search / autocomplete across all platforms
-app.get('/api/search', async (req, res) => {
-  const q = (req.query.q || '').toString().trim();
-  if (q.length < 3 || q.length > 64) return res.json({ results: [] });
-  try {
-    const results = await searchAllPlatforms(q);
-    res.json({ results });
-  } catch (err) {
-    console.error('Search error:', err.message);
-    res.status(502).json({ error: 'Search failed', detail: err.message });
-  }
+// ───────── Dashboard (SPA) ─────────
+// `/` = accueil (liste des joueurs), `/u/:id` = dashboard d'un joueur.
+app.get(['/', '/u/:id'], (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Fallback
+// Repli SPA pour toute autre route.
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -241,17 +373,16 @@ app.get('*', (_req, res) => {
 process.on('SIGINT', async () => { if (browser) await browser.close(); process.exit(0); });
 process.on('SIGTERM', async () => { if (browser) await browser.close(); process.exit(0); });
 
-app.listen(PORT, process.env.HOST || '127.0.0.1', async () => {
-  console.log(`\n  RL Session Tracker running at http://localhost:${PORT}`);
-  console.log('  Mode: headless Chromium + live sessions');
+app.listen(PORT, HOST, async () => {
+  console.log(`\n  RL Session Tracker (multi-joueurs) — http://${HOST}:${PORT}`);
+  console.log('  Joueurs configurés : ' + players.listPlayers().length);
   try {
     await getBrowser();
-    console.log('  Chromium: ready');
-    // Warm the Cloudflare page up front so the first request is already fast.
+    console.log('  Chromium : prêt');
     getWarmPage()
-      .then(() => console.log('  Warm page: ready\n'))
-      .catch(() => console.log('  Warm page: will retry on first request\n'));
+      .then(() => console.log('  Page warm tracker.gg : prête\n'))
+      .catch(() => console.log('  Page warm : sera réessayée à la 1re requête\n'));
   } catch (e) {
-    console.log('  Chromium: failed -', e.message, '\n');
+    console.log('  Chromium : échec -', e.message, '\n');
   }
 });
