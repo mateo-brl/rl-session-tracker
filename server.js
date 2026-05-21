@@ -18,8 +18,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://rl.mateobrl.fr').replace(/\/+$/, '');
 // Durée de validité d'un code de configuration (défaut : 7 jours = 168 h).
 const SETUP_TTL_MS = (Number(process.env.SETUP_CODE_TTL_HOURS) || 168) * 3600 * 1000;
-// Exécutable de l'agent proposé au téléchargement (produit par build:agent).
-const AGENT_EXE = path.join(__dirname, 'dist', 'rl-agent.exe');
+// Archive de l'application agent proposée au téléchargement (build:agent).
+const AGENT_ZIP = path.join(__dirname, 'dist', 'rl-agent.zip');
 
 // Registre des joueurs autorisés (rechargé à chaud si players.json change).
 players.load();
@@ -271,7 +271,9 @@ app.post('/api/ingest', ingestLimiter, express.json({ limit: '32kb' }), (req, re
       profileCache.delete(player.id);
     }
   }
-  res.json({ ok: true });
+  // On renvoie l'identité : l'agent peut ainsi afficher le nom du joueur et le
+  // lien vers sa page même si son config.json ne contient pas encore l'id.
+  res.json({ ok: true, player: { id: player.id, name: player.name } });
 });
 
 // Liste publique des joueurs configurés + leur statut live.
@@ -418,23 +420,22 @@ app.post('/api/enroll/claim', claimLimiter, express.json({ limit: '2kb' }), (req
   res.json({ serverUrl: PUBLIC_URL, token: r.token, id: r.player.id, name: r.player.name });
 });
 
-// Téléchargement de l'agent. Le binaire est produit par `npm run build:agent`.
-// Le code de configuration peut voyager dans le NOM du fichier téléchargé :
-// l'agent le lit dans son propre nom et se configure SANS aucune saisie. Le
-// binaire, lui, reste strictement identique pour tous (bon pour la réputation
-// antivirus et la signature de code).
+// Téléchargement de l'agent (archive ZIP produite par `npm run build:agent`).
+// Le code de configuration peut voyager dans le NOM de l'archive : une fois
+// extraite, l'agent retrouve le code dans le chemin du dossier et se configure
+// SANS aucune saisie. L'archive, elle, reste identique pour tous.
 app.get('/download/agent', downloadLimiter, (req, res) => {
-  if (!fs.existsSync(AGENT_EXE)) {
+  if (!fs.existsSync(AGENT_ZIP)) {
     return res.status(503).type('text/plain; charset=utf-8').send(
       "L'agent n'est pas encore disponible au téléchargement.\n"
       + "L'administrateur du serveur doit lancer « npm run build:agent ».");
   }
-  let filename = 'rl-agent.exe';
+  let filename = 'rl-agent.zip';
   const code = String(req.query.code || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
   if (/^RLST-[0-9A-Z]{5}-[0-9A-Z]{5}$/.test(code)) {
-    filename = 'rl-agent-' + code + '.exe';
+    filename = 'rl-agent-' + code + '.zip';
   }
-  res.download(AGENT_EXE, filename);
+  res.download(AGENT_ZIP, filename);
 });
 
 // Toute autre route /api/* inconnue → 404 JSON (et non la page du SPA).

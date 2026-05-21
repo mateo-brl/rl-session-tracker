@@ -10,7 +10,7 @@ git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 npm run build:web      # pré-compile le dashboard (public/dist/app.js)
-npm run build:agent    # construit l'agent téléchargeable (dist/rl-agent.exe)
+npm run build:agent    # construit l'application agent (dist/rl-agent.zip)
 ```
 
 Prérequis : **Node.js 18+** et **Chromium** (`sudo apt install chromium`).
@@ -19,10 +19,10 @@ Prérequis : **Node.js 18+** et **Chromium** (`sudo apt install chromium`).
 > `prestart`). L'étape `build:web` ci-dessus n'est donc nécessaire que si tu
 > démarres le serveur autrement (ex. systemd avec `node server.js`).
 >
-> `build:agent` produit le `rl-agent.exe` proposé sur la page d'inscription
-> (`/download/agent`). À relancer après chaque mise à jour de l'agent pour que
-> les joueurs téléchargent la dernière version. Le build télécharge le `node.exe`
-> officiel et vérifie son empreinte SHA-256 — voir **[BUILD-AGENT.md](BUILD-AGENT.md)**.
+> `build:agent` produit l'archive `rl-agent.zip` (application Electron) proposée
+> au téléchargement sur la page d'inscription (`/download/agent`). À relancer
+> après chaque mise à jour de l'agent. Le build télécharge Electron (~100 Mo) —
+> voir **[BUILD-AGENT.md](BUILD-AGENT.md)**.
 
 ## 2. Configuration
 
@@ -79,8 +79,14 @@ npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "M
 - `--platform` : `epic`, `steam`, `psn` ou `xbox`.
 - `--username` : le pseudo exact tel qu'il apparaît sur tracker.gg.
 
-Le fichier `agent-config-mateo.json` est créé. **Renomme-le `config.json`** et
-place-le à côté de `rl-agent.exe` sur le PC du joueur.
+Pour un **profil console** (affichage tracker.gg, sans agent), c'est terminé —
+la page `/u/mateo` est créée.
+
+Pour un **PC**, le mieux reste l'inscription self-service ci-dessus. Si tu dois
+vraiment livrer la config à la main : le fichier `agent-config-mateo.json` créé
+contient le token — renomme-le `config.json` et place-le dans le dossier de
+données de l'application sur le PC du joueur :
+`%APPDATA%\RL Session Tracker\config.json`.
 
 ```bash
 npm run add-agent -- --list      # voir les joueurs déclarés
