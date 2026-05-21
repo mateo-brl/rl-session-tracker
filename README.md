@@ -56,8 +56,9 @@ Le projet a **deux morceaux** :
 
 > 💡 **Pourquoi ce découpage ?** La Stats API du jeu est instantanée mais
 > *locale*. tracker.gg est *distant* mais en retard. On combine les deux :
-> l'agent donne le live, tracker.gg donne le MMR exact — rafraîchi pile à la
-> fin de chaque match.
+> l'agent fournit **tout le détail des matchs** (résultats, stats, série) en
+> direct, tracker.gg ne fournit plus que le **MMR et le rang** — rafraîchis
+> pile à la fin de chaque match.
 
 ## 🚀 Démarrage rapide
 
@@ -175,7 +176,8 @@ rl-session-tracker/
 │   ├── invites.js         # Registre des codes d'invitation (hachés)
 │   ├── codes.js           # Génération et hachage des codes lisibles
 │   ├── validate.js        # Validations partagées (id, pseudo, plateforme)
-│   └── tracker.js         # Scraping tracker.gg — pool de pages Chromium
+│   ├── matchlog.js        # Journal des matchs — détail venu de l'agent
+│   └── tracker.js         # Scraping tracker.gg — MMR et rang uniquement
 ├── agent/                 # Application agent (Electron)
 │   ├── main.js            # Processus principal : enrôlement + envoi des stats
 │   ├── preload.js         # Pont IPC sécurisé interface ↔ agent

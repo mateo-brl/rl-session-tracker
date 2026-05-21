@@ -1,6 +1,6 @@
 {
   "name": "rl-session-tracker",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Rocket League session tracker — multi-joueurs, temps réel",
   "main": "server.js",
   "scripts": {

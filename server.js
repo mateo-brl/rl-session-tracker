@@ -9,6 +9,7 @@ const invites = require('./lib/invites');
 const tracker = require('./lib/tracker');
 const validate = require('./lib/validate');
 const codes = require('./lib/codes');
+const matchlog = require('./lib/matchlog');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,6 +28,8 @@ players.watch();
 // Registre des codes d'invitation (rechargé à chaud).
 invites.load();
 invites.watch();
+// Journal des matchs (détail des parties, alimenté par les agents).
+matchlog.load();
 
 // ───────── Sécurité de base ─────────
 // Le serveur tourne DERRIÈRE le reverse proxy / WAF SafeLine : il n'écoute
@@ -223,16 +226,78 @@ function sanitizeEvents(evs) {
         type: 'match-end',
         winnerTeam: e.winnerTeam === 0 || e.winnerTeam === 1 ? e.winnerTeam : null,
         mode: MODES_OK.has(e.mode) ? e.mode : null,
+        // Stats complètes par joueur : elles alimentent le journal des matchs.
         players: Array.isArray(e.players)
           ? e.players.slice(0, 8).map((p) => ({
               name: String((p && p.name) || '').slice(0, 48),
               team: p && p.team === 1 ? 1 : 0,
+              goals: clampNum(p && p.goals, 0, 0, 99),
+              saves: clampNum(p && p.saves, 0, 0, 99),
+              assists: clampNum(p && p.assists, 0, 0, 99),
+              shots: clampNum(p && p.shots, 0, 0, 99),
+              score: clampNum(p && p.score, 0, 0, 99999),
             })).filter((p) => p.name)
           : [],
       };
     }
     return { type: e.type };
   }).filter(Boolean);
+}
+
+// ───────── Journal des matchs (détail des parties) ─────────
+// Le détail des matchs vient de l'API du jeu (via l'agent) ; tracker.gg ne
+// sert plus que pour le MMR et le rang.
+
+// Correspondance id de playlist tracker.gg → mode interne.
+const PLAYLIST_TO_MODE = {
+  10: '1v1', 11: '2v2', 13: '3v3', 27: 'hoops', 28: 'rumble',
+  29: 'dropshot', 30: 'snowday', 34: 'tourney', 63: 'heatseeker', 0: 'casual',
+};
+
+// Extrait le MMR courant par mode d'un profil tracker.gg.
+function modeMMRFromProfile(profile) {
+  const out = {};
+  const segments = (profile && profile.data && profile.data.segments) || [];
+  for (const seg of segments) {
+    if (seg.type !== 'playlist') continue;
+    const pid = seg.attributes && seg.attributes.playlistId;
+    const mode = PLAYLIST_TO_MODE[pid];
+    if (mode && seg.stats && seg.stats.rating
+        && typeof seg.stats.rating.value === 'number') {
+      out[mode] = seg.stats.rating.value;
+    }
+  }
+  return out;
+}
+
+// Enregistre un match terminé dans le journal à partir d'un évènement
+// match-end. Le résultat et les stats sont ceux du joueur déclaré, identifié
+// par son pseudo dans la liste des joueurs de la partie.
+function recordMatch(player, ev) {
+  if (ev.winnerTeam !== 0 && ev.winnerTeam !== 1) return;  // pas de résultat net
+  if (!ev.mode) return;                                    // mode inconnu
+  const uname = String(player.username || '').trim().toLowerCase();
+  const me = (ev.players || []).find(
+    (p) => p.name.trim().toLowerCase() === uname);
+  if (!me) {
+    console.warn('[matchlog] joueur « ' + player.username
+      + ' » introuvable dans le match — non journalisé');
+    return;
+  }
+  // MVP = meilleur score de l'équipe gagnante.
+  let mvp = false;
+  const winners = (ev.players || []).filter((p) => p.team === ev.winnerTeam);
+  if (winners.length) {
+    const top = winners.reduce((a, b) => (b.score > a.score ? b : a));
+    mvp = top === me;
+  }
+  matchlog.addMatch(player.id, {
+    mode: ev.mode,
+    result: me.team === ev.winnerTeam ? 'W' : 'L',
+    goals: me.goals, saves: me.saves, assists: me.assists, shots: me.shots,
+    mvp: mvp,
+    endedAt: Date.now(),
+  });
 }
 
 // ───────── Routes API ─────────
@@ -266,8 +331,9 @@ app.post('/api/ingest', ingestLimiter, express.json({ limit: '32kb' }), (req, re
       sseBroadcast(player.id, 'match', { phase: 'destroyed' });
     } else if (ev.type === 'match-end') {
       sseBroadcast(player.id, 'ended', ev);
-      // Un match vient de se terminer → le MMR tracker.gg va changer :
-      // on invalide le cache pour que le prochain poll récupère du frais.
+      // Détail du match → journal (résultat, buts, arrêts… venus du jeu).
+      recordMatch(player, ev);
+      // Le MMR tracker.gg va changer → on invalide le cache de profil.
       profileCache.delete(player.id);
     }
   }
@@ -299,9 +365,13 @@ app.get('/api/player/:id/live', scrapeLimiter, async (req, res) => {
     if (!profile || !profile.data || !Array.isArray(profile.data.segments)) {
       return res.status(502).json({ error: 'tracker.gg unavailable' });
     }
+    // tracker.gg ne fournit plus que le MMR / le rang : on en tire le MMR
+    // courant par mode pour dater les matchs du journal, puis on RECONSTRUIT
+    // le flux « sessions » à partir du journal alimenté par l'agent.
+    matchlog.stampMMR(player.id, modeMMRFromProfile(profile));
     res.json({
       profile,
-      sessions: data.sessions,
+      sessions: matchlog.toSessionsPayload(player.id),
       player: {
         id: player.id, name: player.name,
         platform: player.platform, username: player.username,
@@ -476,6 +546,8 @@ setInterval(() => {
   for (const id of profileCache.keys()) {
     if (!validIds.has(id)) profileCache.delete(id);
   }
+  // Journaux de matchs des joueurs retirés.
+  matchlog.prune(validIds);
   for (const [id, set] of sseClients) {
     if (set.size === 0) sseClients.delete(id);
   }
