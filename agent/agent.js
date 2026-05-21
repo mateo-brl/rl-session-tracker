@@ -6,10 +6,21 @@
 // (ex. https://rl.mateobrl.fr) via des requêtes POST authentifiées.
 //
 // Aucune connexion entrante : c'est l'agent qui contacte le serveur.
-// Se configure avec un fichier config.json placé à côté de l'exécutable.
+//
+// PREMIER LANCEMENT : si aucun config.json n'est trouvé, l'agent demande un
+// CODE DE CONFIGURATION (obtenu à l'inscription self-service), récupère son
+// token tout seul, écrit config.json, et active la Stats API. L'utilisateur
+// n'a donc qu'un seul fichier à manipuler : l'exécutable.
 
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
+const { enableStatsApi } = require('./enable-statsapi');
+
+// Serveur par défaut, figé dans le binaire au build (scripts/build-agent.mjs).
+// Sert uniquement à l'enrôlement initial ; ensuite config.json fait foi.
+const DEFAULT_SERVER = String(process.env.AGENT_DEFAULT_SERVER
+  || 'https://rl.mateobrl.fr').replace(/\/+$/, '');
 
 // ───────── Garde la fenêtre console ouverte en cas d'erreur ─────────
 function holdOpen(code) {
@@ -20,11 +31,11 @@ function holdOpen(code) {
   } catch (e) { process.exit(code || 0); }
 }
 
-// ───────── Chargement de la configuration ─────────
+// ───────── Localisation de la configuration ─────────
 // On cherche config.json à côté de l'exécutable puis dans le répertoire du
-// module. On NE cherche PAS dans process.cwd() : un attaquant pourrait sinon
-// déposer un config.json malveillant dans un dossier quelconque et détourner
-// l'agent (serverUrl/token pirates) selon l'endroit d'où il est lancé.
+// module. On NE cherche PAS dans process.cwd() en priorité : un attaquant
+// pourrait sinon déposer un config.json malveillant dans un dossier quelconque
+// et détourner l'agent (serverUrl/token pirates) selon l'endroit du lancement.
 function findConfig() {
   const dirs = [];
   try { dirs.push(path.dirname(process.execPath)); } catch (e) {} // à côté du .exe
@@ -48,14 +59,8 @@ function findConfig() {
   return null;
 }
 
-function loadConfig() {
-  const p = findConfig();
-  if (!p) {
-    console.error('\n  config.json introuvable.');
-    console.error('  Place le fichier config.json (fourni avec ton token) à côté');
-    console.error("  de l'agent, puis relance.");
-    return null;
-  }
+// Lit et valide un config.json existant. Retourne la config ou null.
+function parseConfig(p) {
   try {
     const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
     if (!cfg.serverUrl || !cfg.token) throw new Error('serverUrl ou token manquant');
@@ -81,13 +86,162 @@ function loadConfig() {
   }
 }
 
-// ───────── Démarrage ─────────
-const config = loadConfig();
-if (!config) {
-  holdOpen(1);
-} else {
-  startAgent(config);
+// ───────── Premier lancement : enrôlement ─────────
+
+// Détecte si l'agent tourne en tant qu'exécutable SEA (rl-agent.exe) ou en
+// simple script Node (node agent.js).
+function isSeaBuild() {
+  try { return require('node:sea').isSea(); } catch (e) { return false; }
 }
+
+// Dossier où écrire config.json : à côté de rl-agent.exe pour le binaire,
+// sinon le dossier du module — exactement là où findConfig() le relira.
+function configWriteDir() {
+  if (isSeaBuild()) {
+    try { return path.dirname(process.execPath); } catch (e) {}
+  }
+  return __dirname;
+}
+
+// Lit une ligne au clavier.
+function ask(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, (answer) => { rl.close(); resolve(answer || ''); });
+  });
+}
+
+// Échange un code de configuration contre la config de l'agent.
+async function claimCode(code) {
+  const resp = await fetch(DEFAULT_SERVER + '/api/enroll/claim', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+    signal: AbortSignal.timeout(15000),
+  });
+  let data = {};
+  try { data = await resp.json(); } catch (e) { /* réponse non JSON */ }
+  if (!resp.ok) {
+    return { ok: false, error: (data && data.error) || ('Erreur serveur ' + resp.status) };
+  }
+  if (!data.token || !data.serverUrl) {
+    return { ok: false, error: 'Réponse du serveur incomplète.' };
+  }
+  return { ok: true, serverUrl: data.serverUrl, token: data.token, name: data.name };
+}
+
+// Écrit config.json. Retourne son chemin, ou null si l'écriture échoue (auquel
+// cas on affiche le contenu pour une création manuelle de secours).
+function saveConfig(serverUrl, token) {
+  const cfg = {
+    serverUrl: String(serverUrl).replace(/\/+$/, ''),
+    token,
+    statsApiPort: 49123,
+  };
+  const p = path.join(configWriteDir(), 'config.json');
+  try {
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+    return p;
+  } catch (e) {
+    console.error('\n  ⚠  Impossible d\'écrire config.json (' + e.message + ').');
+    console.error('     Crée à la main, à côté de cet agent, un fichier nommé');
+    console.error('     « config.json » contenant exactement :');
+    console.error('');
+    console.error('     ' + JSON.stringify(cfg));
+    console.error('');
+    return null;
+  }
+}
+
+// Active la Stats API (best-effort). N'interrompt jamais l'agent en cas d'échec.
+async function tryEnableStatsApi() {
+  if (process.platform !== 'win32') return;
+  console.log('');
+  console.log('  Activation de la Stats API de Rocket League…');
+  console.log('  → Une fenêtre d\'autorisation Windows peut s\'ouvrir : clique « Oui ».');
+  let r;
+  try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+  if (r.skipped) return;
+  if (r.ok) {
+    console.log('  ✓ Stats API configurée.');
+  } else {
+    console.log('  ⚠  Activation automatique impossible (' + (r.reason || 'inconnue') + ').');
+    console.log('     Si le live ne fonctionne pas, lance enable-statsapi.bat à la main.');
+  }
+}
+
+// Déroule l'enrôlement. Retourne le chemin du config.json écrit, ou null.
+async function firstRunEnroll() {
+  console.log('');
+  console.log('  ┌─ RL Session Tracker — Agent ────────────────────┐');
+  console.log('  │  Premier lancement : configuration de l\'agent.  │');
+  console.log('  └─────────────────────────────────────────────────┘');
+  console.log('');
+  console.log('  Saisis le CODE DE CONFIGURATION affiché après ton inscription');
+  console.log('  sur le dashboard (format : RLST-XXXXX-XXXXX).');
+  console.log('');
+
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const code = (await ask('  Code de configuration : ')).trim();
+    if (!code) {
+      console.log('\n  Aucun code saisi. Relance l\'agent avec ton code en main.');
+      return null;
+    }
+    console.log('  Vérification du code…');
+
+    let result;
+    try {
+      result = await claimCode(code);
+    } catch (e) {
+      console.log('\n  ⚠  Serveur injoignable (' + (e.name === 'TimeoutError'
+        ? 'délai dépassé' : (e.code || e.message)) + ').');
+      console.log('     Vérifie ta connexion Internet, puis réessaie.\n');
+      continue;
+    }
+
+    if (!result.ok) {
+      console.log('\n  ✖  ' + result.error + '\n');
+      continue;
+    }
+
+    const written = saveConfig(result.serverUrl, result.token);
+    if (!written) return null;
+    console.log('');
+    console.log('  ✓ Agent configuré'
+      + (result.name ? ' pour « ' + result.name + ' »' : '') + '.');
+    await tryEnableStatsApi();
+    console.log('');
+    console.log('  → Si Rocket League est ouvert, ferme-le et rouvre-le.');
+    console.log('');
+    return written;
+  }
+  console.log('\n  Trop de tentatives. Relance l\'agent avec un code valide.');
+  return null;
+}
+
+// ───────── Point d'entrée ─────────
+async function main() {
+  const existing = findConfig();
+  if (existing) {
+    const cfg = parseConfig(existing);
+    if (!cfg) return holdOpen(1);
+    return startAgent(cfg);
+  }
+  // Aucune config : premier lancement → enrôlement.
+  let cfgPath;
+  try {
+    cfgPath = await firstRunEnroll();
+  } catch (e) {
+    console.error('\n  Échec de la configuration : ' + (e && e.message));
+    return holdOpen(1);
+  }
+  if (!cfgPath) return holdOpen(1);
+  const cfg = parseConfig(cfgPath);
+  if (!cfg) return holdOpen(1);
+  startAgent(cfg);
+}
+
+main();
 
 function startAgent(cfg) {
   // La Stats API lit son port via une variable d'environnement : il faut la
@@ -205,12 +359,14 @@ function startAgent(cfg) {
   api.start();
   logStatus();
 
-  // Astuce si la Stats API ne répond pas (souvent : .ini non activé).
+  // Astuce si la Stats API ne répond pas (souvent : .ini non activé, ou
+  // Rocket League pas encore redémarré après l'activation).
   setTimeout(() => {
     if (!latest.connected) {
       console.log('');
       console.log('  ⚠  Stats API injoignable sur le port ' + cfg.statsApiPort + '.');
-      console.log('     Lance enable-statsapi.bat puis redémarre Rocket League.');
+      console.log('     Redémarre Rocket League. Si le problème persiste, lance');
+      console.log('     enable-statsapi.bat puis redémarre le jeu.');
       console.log('');
     }
   }, 20 * 1000);
