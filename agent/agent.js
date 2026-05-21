@@ -7,15 +7,18 @@
 //
 // Aucune connexion entrante : c'est l'agent qui contacte le serveur.
 //
-// PREMIER LANCEMENT : si aucun config.json n'est trouvé, l'agent demande un
-// CODE DE CONFIGURATION (obtenu à l'inscription self-service), récupère son
-// token tout seul, écrit config.json, et active la Stats API. L'utilisateur
-// n'a donc qu'un seul fichier à manipuler : l'exécutable.
+// EXPÉRIENCE UTILISATEUR — tout est automatique :
+//  • le code de configuration peut voyager dans le NOM du fichier téléchargé
+//    (rl-agent-RLST-XXXXX-XXXXX.exe) → l'agent se configure sans aucune saisie ;
+//  • à défaut, il le demande une seule fois et le mémorise (config.json) ;
+//  • il active la Stats API du jeu tout seul ;
+//  • il s'installe en démarrage automatique avec Windows.
 
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { enableStatsApi } = require('./enable-statsapi');
+const autostart = require('./autostart');
 
 // Serveur par défaut, figé dans le binaire au build (scripts/build-agent.mjs).
 // Sert uniquement à l'enrôlement initial ; ensuite config.json fait foi.
@@ -88,19 +91,27 @@ function parseConfig(p) {
 
 // ───────── Premier lancement : enrôlement ─────────
 
-// Détecte si l'agent tourne en tant qu'exécutable SEA (rl-agent.exe) ou en
-// simple script Node (node agent.js).
+// Dossier où écrire config.json : à côté de rl-agent.exe pour le binaire,
+// sinon le dossier du module — exactement là où findConfig() le relira.
 function isSeaBuild() {
   try { return require('node:sea').isSea(); } catch (e) { return false; }
 }
-
-// Dossier où écrire config.json : à côté de rl-agent.exe pour le binaire,
-// sinon le dossier du module — exactement là où findConfig() le relira.
 function configWriteDir() {
   if (isSeaBuild()) {
     try { return path.dirname(process.execPath); } catch (e) {}
   }
   return __dirname;
+}
+
+// Cherche un code de configuration dans le NOM du fichier de l'agent
+// (ex. rl-agent-RLST-XXXXX-XXXXX.exe) : c'est ce que sert le téléchargement
+// depuis la page d'inscription → enrôlement sans aucune saisie.
+function codeFromFilename() {
+  try {
+    const m = path.basename(process.execPath)
+      .match(/RLST-[0-9A-Z]{5}-[0-9A-Z]{5}/i);
+    return m ? m[0].toUpperCase() : null;
+  } catch (e) { return null; }
 }
 
 // Lit une ligne au clavier.
@@ -170,12 +181,60 @@ async function tryEnableStatsApi() {
   }
 }
 
+// Installe le démarrage automatique avec Windows (sans rien demander).
+function setupAutostart() {
+  if (!autostart.isWindows()) return;
+  if (autostart.isInstalled()) {
+    console.log('  ✓ Démarrage automatique : déjà actif.');
+    return;
+  }
+  const r = autostart.install();
+  if (r.ok) {
+    console.log('  ✓ Démarrage automatique activé — l\'agent se relancera tout');
+    console.log('    seul (fenêtre cachée) à chaque ouverture de session Windows.');
+  } else {
+    console.log('  ⚠  Démarrage automatique non configuré (' + r.reason + ').');
+  }
+}
+
+// Finalise l'enrôlement : écrit la config, active la Stats API, installe le
+// démarrage auto. Retourne le chemin de config.json, ou null.
+async function finishEnroll(result) {
+  const written = saveConfig(result.serverUrl, result.token);
+  if (!written) return null;
+  console.log('');
+  console.log('  ✓ Agent configuré'
+    + (result.name ? ' pour « ' + result.name + ' »' : '') + '.');
+  await tryEnableStatsApi();
+  setupAutostart();
+  console.log('');
+  console.log('  → Dernière étape : si Rocket League est ouvert, ferme-le et rouvre-le.');
+  console.log('');
+  return written;
+}
+
 // Déroule l'enrôlement. Retourne le chemin du config.json écrit, ou null.
 async function firstRunEnroll() {
   console.log('');
   console.log('  ┌─ RL Session Tracker — Agent ────────────────────┐');
   console.log('  │  Premier lancement : configuration de l\'agent.  │');
   console.log('  └─────────────────────────────────────────────────┘');
+
+  // 1) Code présent dans le nom du fichier → configuration 100 % automatique.
+  const embedded = codeFromFilename();
+  if (embedded) {
+    console.log('');
+    console.log('  Code de configuration détecté : ' + embedded);
+    console.log('  Configuration automatique en cours…');
+    let result = null;
+    try { result = await claimCode(embedded); }
+    catch (e) { result = { ok: false, error: 'serveur injoignable' }; }
+    if (result.ok) return finishEnroll(result);
+    console.log('  ⚠  ' + result.error);
+    console.log('     Saisie manuelle du code requise.');
+  }
+
+  // 2) Saisie manuelle (pas de code dans le nom, ou échec de l'automatique).
   console.log('');
   console.log('  Saisis le CODE DE CONFIGURATION affiché après ton inscription');
   console.log('  sur le dashboard (format : RLST-XXXXX-XXXXX).');
@@ -203,24 +262,36 @@ async function firstRunEnroll() {
       console.log('\n  ✖  ' + result.error + '\n');
       continue;
     }
-
-    const written = saveConfig(result.serverUrl, result.token);
-    if (!written) return null;
-    console.log('');
-    console.log('  ✓ Agent configuré'
-      + (result.name ? ' pour « ' + result.name + ' »' : '') + '.');
-    await tryEnableStatsApi();
-    console.log('');
-    console.log('  → Si Rocket League est ouvert, ferme-le et rouvre-le.');
-    console.log('');
-    return written;
+    return finishEnroll(result);
   }
   console.log('\n  Trop de tentatives. Relance l\'agent avec un code valide.');
   return null;
 }
 
+// ───────── Sous-commandes (gestion du démarrage automatique) ─────────
+function runAutostartCli(flag) {
+  if (!autostart.isWindows()) {
+    console.log('\n  Le démarrage automatique n\'est disponible que sur Windows.');
+    return holdOpen(1);
+  }
+  const install = flag === '--install-autostart';
+  const r = install ? autostart.install() : autostart.uninstall();
+  if (r.ok) {
+    console.log('\n  ✓ Démarrage automatique '
+      + (install ? 'activé.' : 'désactivé.'));
+  } else {
+    console.log('\n  ⚠  Échec : ' + r.reason);
+  }
+  return holdOpen(r.ok ? 0 : 1);
+}
+
 // ───────── Point d'entrée ─────────
 async function main() {
+  const flag = (process.argv[2] || '').toLowerCase();
+  if (flag === '--install-autostart' || flag === '--uninstall-autostart') {
+    return runAutostartCli(flag);
+  }
+
   const existing = findConfig();
   if (existing) {
     const cfg = parseConfig(existing);
@@ -244,6 +315,15 @@ async function main() {
 main();
 
 function startAgent(cfg) {
+  // Agent de fond : une erreur isolée ne doit pas faire tomber tout l'agent
+  // (il tourne souvent fenêtre cachée — personne ne le relancerait).
+  process.on('uncaughtException', (e) => {
+    console.error('  [erreur non gérée] ' + (e && e.message));
+  });
+  process.on('unhandledRejection', (e) => {
+    console.error('  [rejet non géré] ' + (e && (e.message || e)));
+  });
+
   // La Stats API lit son port via une variable d'environnement : il faut la
   // poser AVANT de charger le connecteur.
   process.env.STATSAPI_PORT = String(cfg.statsApiPort);

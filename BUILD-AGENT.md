@@ -27,9 +27,11 @@ avant le build :
 AGENT_DEFAULT_SERVER=https://stats.exemple.fr npm run build:agent
 ```
 
-> Le joueur n'a donc jamais à saisir d'URL : il ne tape que son code de
-> configuration. L'agent écrit ensuite son propre `config.json` et active la
-> Stats API du jeu tout seul.
+> Le joueur n'a donc jamais à saisir d'URL. Mieux : le code de configuration
+> voyage dans le **nom du fichier téléchargé** (`/download/agent?code=…`),
+> donc l'agent se configure **sans aucune saisie**, active la Stats API et
+> s'installe en **démarrage automatique** avec Windows. Sous-commandes :
+> `--install-autostart` / `--uninstall-autostart`.
 
 La construction utilise **Node SEA** (Single Executable Application) :
 1. `esbuild` regroupe `agent/agent.js` + `statsapi.js` en un seul fichier ;
