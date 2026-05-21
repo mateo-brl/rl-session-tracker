@@ -7,6 +7,9 @@ players.json
 # Registre des codes d'invitation — contient les hachages de codes
 invites.json
 
+# Journal des matchs (détail des parties, alimenté par les agents)
+matchlog.json
+
 # Config et tokens des agents — ne jamais committer
 config.json
 agent-config*.json
