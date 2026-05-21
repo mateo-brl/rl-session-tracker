@@ -419,13 +419,22 @@ app.post('/api/enroll/claim', claimLimiter, express.json({ limit: '2kb' }), (req
 });
 
 // Téléchargement de l'agent. Le binaire est produit par `npm run build:agent`.
-app.get('/download/agent', downloadLimiter, (_req, res) => {
+// Le code de configuration peut voyager dans le NOM du fichier téléchargé :
+// l'agent le lit dans son propre nom et se configure SANS aucune saisie. Le
+// binaire, lui, reste strictement identique pour tous (bon pour la réputation
+// antivirus et la signature de code).
+app.get('/download/agent', downloadLimiter, (req, res) => {
   if (!fs.existsSync(AGENT_EXE)) {
     return res.status(503).type('text/plain; charset=utf-8').send(
       "L'agent n'est pas encore disponible au téléchargement.\n"
       + "L'administrateur du serveur doit lancer « npm run build:agent ».");
   }
-  res.download(AGENT_EXE, 'rl-agent.exe');
+  let filename = 'rl-agent.exe';
+  const code = String(req.query.code || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  if (/^RLST-[0-9A-Z]{5}-[0-9A-Z]{5}$/.test(code)) {
+    filename = 'rl-agent-' + code + '.exe';
+  }
+  res.download(AGENT_EXE, filename);
 });
 
 // Toute autre route /api/* inconnue → 404 JSON (et non la page du SPA).

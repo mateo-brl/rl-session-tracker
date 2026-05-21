@@ -84,17 +84,22 @@ ligne (HTTPS, domaine, pare-feu, WAF) → **[DEPLOY.md](DEPLOY.md)**.
 
 ### 🎮 Je veux envoyer les stats de mon PC
 
-Tu as reçu un **code d'invitation** ? Tout se passe en ligne, aucun fichier à
-manipuler :
+Tu as reçu un **code d'invitation** ? Tout se passe en ligne — **rien à
+configurer** :
 
 1. Va sur **`https://rl.mateobrl.fr/enroll`** et remplis le formulaire
    (code d'invitation, pseudo Rocket League, plateforme…).
 2. **Télécharge l'agent** depuis la page, puis lance **`rl-agent.exe`**.
-3. Quand il le demande, **colle ton code de configuration**. L'agent se règle
-   tout seul et active la Stats API du jeu.
+3. Clique **« Oui »** à la fenêtre d'autorisation Windows.
 4. **Redémarre Rocket League.**
 
-Ta page s'affiche sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
+L'agent fait le reste tout seul : il **se configure** (le code voyage dans le
+nom du fichier téléchargé — aucune saisie), **active la Stats API** du jeu, et
+**s'installe en démarrage automatique** avec Windows. Ta page s'affiche sur
+`https://rl.mateobrl.fr/u/tonpseudo` 🎉
+
+> ⚙️ Pour gérer le démarrage automatique : `rl-agent.exe --uninstall-autostart`
+> pour le retirer, `--install-autostart` pour le remettre.
 
 > 🛡️ `rl-agent.exe` bloqué par l'antivirus ? C'est un faux positif courant des
 > exécutables auto-portants. Solutions + méthode sans `.exe` →
@@ -178,6 +183,7 @@ rl-session-tracker/
 ├── agent/
 │   ├── agent.js           # L'agent — enrôlement + envoi des stats
 │   ├── enable-statsapi.js # Active la Stats API du jeu automatiquement
+│   ├── autostart.js       # Démarrage automatique avec Windows
 │   ├── config.example.json
 │   └── run-agent.bat      # Lancer l'agent sans .exe (via Node)
 ├── scripts/
