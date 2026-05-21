@@ -29,6 +29,7 @@ chacun a sa page.
 | ⚡ **Temps réel** | Match et score détectés à la seconde via la Stats API du jeu. |
 | 📊 **Stats complètes** | MMR, rang, victoires/défaites, série en cours, buts · arrêts · passes · tirs. |
 | 👥 **Multi-joueurs** | Plusieurs PC envoient leurs stats ; chacun a sa page `/u/pseudo`. |
+| 🪄 **Inscription self-service** | Un code d'invitation suffit : le joueur s'inscrit en ligne, l'agent se configure seul. Aucun fichier à transférer. |
 | 🟢 **Source transparente** | Un badge indique si les données viennent de l'agent (live) ou de tracker.gg (différé). |
 | 🎨 **Dashboard soigné** | 3 layouts, thème clair/sombre, couleurs d'accent, bilingue FR/EN. |
 | 🔥 **Tiltomètre** | Alerte sympa après 3 défaites d'affilée. |
@@ -72,8 +73,8 @@ git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 
-# Déclare un joueur — génère son token + son fichier de config
-npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "Mateo"
+# Génère un code d'invitation à donner à un joueur
+npm run add-invite -- --label "Mes amis" --uses 5
 
 npm start
 ```
@@ -83,11 +84,15 @@ ligne (HTTPS, domaine, pare-feu, WAF) → **[DEPLOY.md](DEPLOY.md)**.
 
 ### 🎮 Je veux envoyer les stats de mon PC
 
-1. **Active la Stats API du jeu** — double-clique sur **`enable-statsapi.bat`**,
-   puis redémarre Rocket League.
-2. Récupère **`rl-agent.exe`** et ton **`config.json`** (fournis par
-   l'hébergeur du serveur).
-3. Place les deux dans un même dossier et lance **`rl-agent.exe`**.
+Tu as reçu un **code d'invitation** ? Tout se passe en ligne, aucun fichier à
+manipuler :
+
+1. Va sur **`https://rl.mateobrl.fr/enroll`** et remplis le formulaire
+   (code d'invitation, pseudo Rocket League, plateforme…).
+2. **Télécharge l'agent** depuis la page, puis lance **`rl-agent.exe`**.
+3. Quand il le demande, **colle ton code de configuration**. L'agent se règle
+   tout seul et active la Stats API du jeu.
+4. **Redémarre Rocket League.**
 
 Ta page s'affiche sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
 
@@ -98,15 +103,17 @@ Ta page s'affiche sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
 ## 🎯 Activer la Stats API de Rocket League
 
 L'agent a besoin de la **Stats API native** du jeu (intégrée avec la mise à
-jour anti-triche d'avril 2026). Une seule fois :
-
-> Double-clique sur **`enable-statsapi.bat`** → il détecte Rocket League
-> (Epic ou Steam) et configure le jeu. **Redémarre Rocket League** ensuite.
+jour anti-triche d'avril 2026). **Bonne nouvelle : l'agent l'active tout seul**
+à son premier lancement — une fenêtre d'autorisation Windows s'ouvre, clique
+« Oui ». Tu n'as rien d'autre à faire que de redémarrer Rocket League.
 
 <details>
-<summary>Activation manuelle</summary>
+<summary>Activation manuelle (secours)</summary>
 
-Édite `…\Rocket League\TAGame\Config\DefaultStatsAPI.ini` :
+Si l'activation automatique échoue, double-clique sur
+**`enable-statsapi.bat`** → il détecte Rocket League (Epic ou Steam) et
+configure le jeu. Ou édite à la main
+`…\Rocket League\TAGame\Config\DefaultStatsAPI.ini` :
 
 ```ini
 [TAGame.MatchStatsExporter_TA]
@@ -124,8 +131,11 @@ Le serveur est pensé pour vivre sur internet :
 
 - 🔑 **Tokens par PC** — chaque agent a un token unique, stocké **haché**
   (SHA-256). Un `players.json` volé ne donne aucun token réutilisable.
-- 🚦 **Anti-abus** — limitation de débit sur l'ingestion, le scraping et le SSE
-  (avec plafonds de connexions).
+- 🎟️ **Inscription gardée** — l'inscription self-service exige un code
+  d'invitation émis par l'admin. Codes d'invitation et de configuration sont
+  eux aussi stockés **hachés**, jamais en clair.
+- 🚦 **Anti-abus** — limitation de débit sur l'ingestion, le scraping, le SSE
+  et l'enrôlement (avec plafonds de connexions).
 - 🧹 **Données validées** — tout ce qu'un agent envoie est vérifié, typé et
   borné avant d'être rediffusé.
 - 🛡️ **Pas de proxy ouvert** — le serveur n'interroge tracker.gg que pour les
@@ -157,21 +167,26 @@ Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
 
 ```
 rl-session-tracker/
-├── server.js              # Serveur Express : API, ingestion, SSE, dashboard
+├── server.js              # Serveur Express : API, ingestion, SSE, enrôlement
 ├── statsapi.js            # Connecteur de la Stats API du jeu (utilisé par l'agent)
 ├── lib/
 │   ├── players.js         # Registre des joueurs + tokens (hachés)
+│   ├── invites.js         # Registre des codes d'invitation (hachés)
+│   ├── codes.js           # Génération et hachage des codes lisibles
+│   ├── validate.js        # Validations partagées (id, pseudo, plateforme)
 │   └── tracker.js         # Scraping tracker.gg — pool de pages Chromium
 ├── agent/
-│   ├── agent.js           # L'agent — tourne sur le PC gaming
+│   ├── agent.js           # L'agent — enrôlement + envoi des stats
+│   ├── enable-statsapi.js # Active la Stats API du jeu automatiquement
 │   ├── config.example.json
 │   └── run-agent.bat      # Lancer l'agent sans .exe (via Node)
 ├── scripts/
-│   ├── add-agent.js       # CLI : déclarer un nouveau PC
+│   ├── add-agent.js       # CLI : déclarer un joueur manuellement
+│   ├── add-invite.js      # CLI : générer un code d'invitation
 │   ├── build-agent.mjs    # Construire rl-agent.exe (Node SEA)
 │   └── build-web.mjs      # Pré-compiler le dashboard (esbuild)
-├── public/                # Dashboard web (React, pré-compilé)
-├── enable-statsapi.bat    # Activer la Stats API du jeu (Windows)
+├── public/                # Dashboard web (React) + page d'inscription /enroll
+├── enable-statsapi.bat    # Activer la Stats API à la main (secours)
 └── enable-statsapi.ps1
 ```
 </details>

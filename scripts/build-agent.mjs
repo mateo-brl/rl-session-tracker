@@ -31,6 +31,10 @@ const FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const NODE_VERSION = process.version; // ex. v22.22.2
 
+// Serveur figé dans le binaire : l'agent l'utilise pour l'enrôlement initial
+// (échange du code de configuration). Surchargeable via AGENT_DEFAULT_SERVER.
+const DEFAULT_SERVER = process.env.AGENT_DEFAULT_SERVER || 'https://rl.mateobrl.fr';
+
 fs.mkdirSync(dist, { recursive: true });
 
 // ───────── 1) Bundle agent + statsapi en un seul fichier ─────────
@@ -43,8 +47,13 @@ await build({
   format: 'cjs',
   outfile: bundlePath,
   legalComments: 'none',
+  // Le serveur d'enrôlement est figé à la compilation : l'utilisateur final
+  // n'a jamais à le saisir, il ne tape que son code de configuration.
+  define: {
+    'process.env.AGENT_DEFAULT_SERVER': JSON.stringify(DEFAULT_SERVER),
+  },
 });
-console.log('  [1/5] Bundle créé');
+console.log('  [1/5] Bundle créé (serveur : ' + DEFAULT_SERVER + ')');
 
 // ───────── 2) Génération du blob SEA ─────────
 const seaConfig = path.join(dist, 'sea-config.json');

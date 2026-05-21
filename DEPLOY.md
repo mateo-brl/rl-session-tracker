@@ -10,13 +10,19 @@ git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 npm run build:web      # pré-compile le dashboard (public/dist/app.js)
+npm run build:agent    # construit l'agent téléchargeable (dist/rl-agent.exe)
 ```
 
 Prérequis : **Node.js 18+** et **Chromium** (`sudo apt install chromium`).
 
 > `npm start` lance automatiquement `build:web` avant le serveur (script
-> `prestart`). L'étape ci-dessus n'est nécessaire que si tu démarres le
-> serveur autrement (ex. systemd avec `node server.js`).
+> `prestart`). L'étape `build:web` ci-dessus n'est donc nécessaire que si tu
+> démarres le serveur autrement (ex. systemd avec `node server.js`).
+>
+> `build:agent` produit le `rl-agent.exe` proposé sur la page d'inscription
+> (`/download/agent`). À relancer après chaque mise à jour de l'agent pour que
+> les joueurs téléchargent la dernière version. Le build télécharge le `node.exe`
+> officiel et vérifie son empreinte SHA-256 — voir **[BUILD-AGENT.md](BUILD-AGENT.md)**.
 
 ## 2. Configuration
 
@@ -27,20 +33,46 @@ Le serveur se règle par variables d'environnement (ou un fichier `.env`) :
 | `PORT` | `3000` | Port d'écoute. |
 | `HOST` | `127.0.0.1` | **À laisser sur `127.0.0.1`** : seul le reverse proxy doit joindre Node. |
 | `TRUST_PROXY` | `1` | Nombre de proxys de confiance devant le serveur (pour lire la vraie IP client). |
+| `PUBLIC_URL` | `https://rl.mateobrl.fr` | URL publique du dashboard, communiquée aux agents lors de l'enrôlement. |
 | `CHROMIUM_PATH` | `/usr/bin/chromium` | Chemin du binaire Chromium. |
 | `PLAYERS_FILE` | `./players.json` | Emplacement du registre des joueurs. |
+| `INVITES_FILE` | `./invites.json` | Emplacement du registre des codes d'invitation. |
+| `SETUP_CODE_TTL_HOURS` | `168` | Durée de validité d'un code de configuration (défaut : 7 jours). |
 | `SCRAPE_POOL` | `4` | Pages Chromium pour scraper tracker.gg en parallèle. |
 | `SCRAPE_TIMEOUT` | `15000` | Délai max d'un scrape tracker.gg, en ms. |
 | `SCRAPE_RECYCLE_MS` | `2700000` | Intervalle de recyclage des pages Chromium (anti-dérive mémoire), en ms. |
 
-## 3. Déclarer les joueurs
+## 3. Inscrire les joueurs
 
-Chaque PC autorisé à envoyer ses stats doit être déclaré. Cela génère un
-**token** et un **fichier de config** prêt à donner au joueur.
+### Méthode recommandée — inscription self-service
+
+Tu génères un **code d'invitation**, le joueur s'inscrit lui-même en ligne :
+aucun fichier ni token à transférer.
 
 ```bash
-npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "Mateo" \
-                     --server https://rl.mateobrl.fr
+npm run add-invite -- --label "Mes amis" --uses 5 --days 30
+```
+
+- `--label` : libellé interne (pour t'y retrouver dans la liste).
+- `--uses` : nombre d'inscriptions autorisées avec ce code (défaut : `1`).
+- `--days` : durée de validité en jours (`0` = sans expiration).
+
+Le code (ex. `RLINV-XXXXX-XXXXX`) s'affiche **une seule fois**. Donne-le au
+joueur : il va sur `https://rl.mateobrl.fr/enroll`, remplit le formulaire,
+télécharge l'agent et colle le **code de configuration** affiché. Son agent
+récupère son token tout seul — aucun secret ne transite par toi.
+
+```bash
+npm run add-invite -- --list     # voir les codes et leur usage
+```
+
+### Méthode manuelle — déclarer un joueur toi-même
+
+Utile pour un profil console (affichage tracker.gg sans agent) ou pour
+pré-créer un compte.
+
+```bash
+npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "Mateo"
 ```
 
 - `--id` : identifiant de la page (`/u/mateo`). Minuscules, chiffres, `-`, `_`.
@@ -48,14 +80,15 @@ npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "M
 - `--username` : le pseudo exact tel qu'il apparaît sur tracker.gg.
 
 Le fichier `agent-config-mateo.json` est créé. **Renomme-le `config.json`** et
-donne-le au joueur, avec `rl-agent.exe`.
+place-le à côté de `rl-agent.exe` sur le PC du joueur.
 
 ```bash
 npm run add-agent -- --list      # voir les joueurs déclarés
 ```
 
-> Pour retirer un joueur : supprime son entrée dans `players.json`.
-> Le serveur recharge le fichier automatiquement.
+> Pour retirer un joueur : supprime son entrée dans `players.json` — le serveur
+> recharge le fichier automatiquement. Les inscriptions jamais finalisées (code
+> de configuration non utilisé) sont purgées seules à l'expiration du code.
 
 ## 4. Lancer en service (systemd)
 
@@ -73,6 +106,7 @@ WorkingDirectory=/opt/rl-session-tracker
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
 Environment=TRUST_PROXY=1
+Environment=PUBLIC_URL=https://rl.mateobrl.fr
 ExecStartPre=/usr/bin/node scripts/build-web.mjs
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
@@ -130,8 +164,8 @@ sudo ufw enable
 - [ ] HTTPS actif via SafeLine.
 - [ ] WAF SafeLine en mode interception.
 - [ ] `TRUST_PROXY` réglé sur le nombre réel de proxys (1 avec SafeLine seul).
-- [ ] `players.json` et les `config.json`/`agent-config-*.json` **non commités**
-      (déjà dans `.gitignore`).
+- [ ] `players.json`, `invites.json` et les `config.json`/`agent-config-*.json`
+      **non commités** (déjà dans `.gitignore`).
 - [ ] Le serveur tourne sous un utilisateur dédié, non-root.
 
 ## Couches de sécurité applicatives (déjà incluses)
@@ -140,7 +174,11 @@ En plus du WAF, le serveur applique :
 
 - **Authentification par token** sur `/api/ingest` — tokens hachés en SHA-256,
   comparaison à temps constant.
-- **Limitation de débit** (`express-rate-limit`) sur l'ingestion et l'API.
+- **Inscription gardée** — l'enrôlement self-service exige un code d'invitation.
+  Codes d'invitation et de configuration sont hachés (SHA-256), jamais en clair ;
+  un code de configuration est à usage unique et expire (7 jours par défaut).
+- **Limitation de débit** (`express-rate-limit`) sur l'ingestion, l'API,
+  l'enrôlement et le téléchargement de l'agent.
 - **Validation stricte** des données envoyées par les agents (taille, types,
   bornes) — un agent reste une source non fiable.
 - **En-têtes de sécurité** via Helmet, `x-powered-by` désactivé.

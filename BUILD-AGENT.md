@@ -5,15 +5,31 @@ locale de Rocket League et pousse les stats vers le serveur.
 
 ## Construire le .exe
 
-> À faire **sur Windows** (le `.exe` produit est une copie du `node.exe` local).
-> Prérequis : **Node.js 20 ou plus**.
-
 ```bash
 npm install
 npm run build:agent
 ```
 
 Résultat : `dist/rl-agent.exe`.
+
+> Le build fonctionne **depuis Windows, Linux ou macOS** : il télécharge le
+> `node.exe` Windows officiel et vérifie son empreinte SHA-256. Tu peux donc le
+> lancer directement sur le serveur de déploiement. Prérequis : **Node.js 20+**.
+
+### Serveur d'enrôlement figé dans le binaire
+
+L'agent embarque l'URL du serveur pour pouvoir s'enrôler au premier lancement
+(échanger le code de configuration contre son token). Par défaut
+`https://rl.mateobrl.fr`. Pour un autre domaine, définis `AGENT_DEFAULT_SERVER`
+avant le build :
+
+```bash
+AGENT_DEFAULT_SERVER=https://stats.exemple.fr npm run build:agent
+```
+
+> Le joueur n'a donc jamais à saisir d'URL : il ne tape que son code de
+> configuration. L'agent écrit ensuite son propre `config.json` et active la
+> Stats API du jeu tout seul.
 
 La construction utilise **Node SEA** (Single Executable Application) :
 1. `esbuild` regroupe `agent/agent.js` + `statsapi.js` en un seul fichier ;
@@ -77,9 +93,9 @@ signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist\rl-ag
 Si un PC a (ou peut installer) **Node.js**, il n'y a pas besoin du `.exe` du
 tout — donc aucun antivirus à contourner :
 
-1. Copier le dépôt sur le PC, `npm install` (ou juste les dossiers `agent/`,
-   `statsapi.js` et `node_modules`) ;
-2. placer `config.json` dans le dossier `agent/` ;
-3. double-cliquer **`agent/run-agent.bat`**.
+1. Copier le dépôt sur le PC, `npm install` ;
+2. double-cliquer **`agent/run-agent.bat`** ;
+3. coller le **code de configuration** quand l'agent le demande (exactement
+   comme avec le `.exe`).
 
 C'est strictement Node.js qui exécute un script — invisible pour les antivirus.

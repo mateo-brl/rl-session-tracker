@@ -1,18 +1,32 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const players = require('./lib/players');
+const invites = require('./lib/invites');
 const tracker = require('./lib/tracker');
+const validate = require('./lib/validate');
+const codes = require('./lib/codes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 
+// URL publique du dashboard — communiquée aux agents lors de l'enrôlement.
+const PUBLIC_URL = (process.env.PUBLIC_URL || 'https://rl.mateobrl.fr').replace(/\/+$/, '');
+// Durée de validité d'un code de configuration (défaut : 7 jours = 168 h).
+const SETUP_TTL_MS = (Number(process.env.SETUP_CODE_TTL_HOURS) || 168) * 3600 * 1000;
+// Exécutable de l'agent proposé au téléchargement (produit par build:agent).
+const AGENT_EXE = path.join(__dirname, 'dist', 'rl-agent.exe');
+
 // Registre des joueurs autorisés (rechargé à chaud si players.json change).
 players.load();
 players.watch();
+// Registre des codes d'invitation (rechargé à chaud).
+invites.load();
+invites.watch();
 
 // ───────── Sécurité de base ─────────
 // Le serveur tourne DERRIÈRE le reverse proxy / WAF SafeLine : il n'écoute
@@ -63,6 +77,18 @@ const apiLimiter = rateLimit({
 });
 const streamLimiter = rateLimit({
   windowMs: 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false,
+});
+// Enrôlement : création de page joueur → limites strictes, à l'heure.
+const enrollLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Trop de tentatives. Réessaie dans une heure.' },
+});
+const claimLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
+  message: { error: 'Trop de tentatives. Réessaie dans une heure.' },
+});
+const downloadLimiter = rateLimit({
+  windowMs: 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false,
 });
 
 // Fichiers statiques du dashboard (public/dist/app.js, styles.css, …).
@@ -329,6 +355,79 @@ app.get('/api/stats/stream/:id', streamLimiter, (req, res) => {
   });
 });
 
+// ───────── Inscription self-service ─────────
+
+// Page d'inscription (formulaire HTML). Servie sur une URL propre.
+app.get('/enroll', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'enroll.html'));
+});
+
+// Crée une page joueur « en attente ». Gardée par un code d'invitation.
+// Aucun token n'est créé ici : on renvoie un code de configuration à coller
+// dans l'agent, et c'est l'agent qui obtiendra le token (route /claim).
+app.post('/api/enroll/register', enrollLimiter, express.json({ limit: '4kb' }), (req, res) => {
+  const b = req.body || {};
+  const id = String(b.id || '').trim().toLowerCase();
+  const name = String(b.name || '').trim();
+  const platform = String(b.platform || '').trim();
+  const username = String(b.username || '').trim();
+  const inviteCode = String(b.inviteCode || '').trim();
+
+  if (validate.badId(id)) {
+    return res.status(400).json({ error: 'Identifiant invalide (2 à 32 caractères : minuscules, chiffres, - et _).' });
+  }
+  if (validate.badName(name)) {
+    return res.status(400).json({ error: 'Nom d’affichage invalide (1 à 32 caractères).' });
+  }
+  // L'agent ne tourne que sur PC : l'inscription self-service est limitée à
+  // epic/steam. Les profils console restent ajoutables par l'admin (add-agent).
+  if (platform !== 'epic' && platform !== 'steam') {
+    return res.status(400).json({ error: 'Plateforme invalide (epic ou steam).' });
+  }
+  if (validate.badUsername(username)) {
+    return res.status(400).json({ error: 'Pseudo Rocket League invalide.' });
+  }
+  if (!inviteCode) {
+    return res.status(400).json({ error: 'Code d’invitation requis.' });
+  }
+  if (players.getPlayer(id)) {
+    return res.status(409).json({ error: 'Cet identifiant est déjà pris, choisis-en un autre.' });
+  }
+
+  // Le code d'invitation n'est consommé qu'APRÈS toutes les autres validations :
+  // une faute de frappe sur le pseudo ne doit pas gaspiller une invitation.
+  const r = invites.redeem(inviteCode);
+  if (!r.ok) {
+    return res.status(403).json({ error: 'Code d’invitation ' + r.reason + '.' });
+  }
+
+  const setupCode = codes.genCode('RLST');
+  players.createPending({ id, name, platform, username, setupCode, ttlMs: SETUP_TTL_MS });
+  res.json({ ok: true, id, setupCode, pageUrl: PUBLIC_URL + '/u/' + id });
+});
+
+// Échange un code de configuration contre la config de l'agent. Appelé par
+// l'agent lui-même à son premier lancement.
+app.post('/api/enroll/claim', claimLimiter, express.json({ limit: '2kb' }), (req, res) => {
+  const code = String((req.body && req.body.code) || '').trim();
+  if (!code) return res.status(400).json({ error: 'Code de configuration manquant.' });
+  const r = players.claimSetup(code);
+  if (!r.ok) {
+    return res.status(400).json({ error: 'Code de configuration ' + r.reason + '.' });
+  }
+  res.json({ serverUrl: PUBLIC_URL, token: r.token, id: r.player.id, name: r.player.name });
+});
+
+// Téléchargement de l'agent. Le binaire est produit par `npm run build:agent`.
+app.get('/download/agent', downloadLimiter, (_req, res) => {
+  if (!fs.existsSync(AGENT_EXE)) {
+    return res.status(503).type('text/plain; charset=utf-8').send(
+      "L'agent n'est pas encore disponible au téléchargement.\n"
+      + "L'administrateur du serveur doit lancer « npm run build:agent ».");
+  }
+  res.download(AGENT_EXE, 'rl-agent.exe');
+});
+
 // Toute autre route /api/* inconnue → 404 JSON (et non la page du SPA).
 app.all('/api/*', (_req, res) => res.status(404).json({ error: 'not found' }));
 
@@ -351,6 +450,8 @@ app.use((err, _req, res, _next) => {
 // ───────── Tâche de fond : hors-ligne + purge mémoire ─────────
 setInterval(() => {
   const now = Date.now();
+  // Joueurs « pending » dont le code de configuration a expiré sans enrôlement.
+  players.purgeExpiredPending();
   const validIds = new Set(players.listPlayers().map((p) => p.id));
 
   for (const [id, s] of liveState) {

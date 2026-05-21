@@ -4,6 +4,9 @@ node_modules/
 # Registre des agents — contient les hachages de tokens
 players.json
 
+# Registre des codes d'invitation — contient les hachages de codes
+invites.json
+
 # Config et tokens des agents — ne jamais committer
 config.json
 agent-config*.json

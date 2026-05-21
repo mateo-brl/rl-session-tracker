@@ -14,6 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const players = require('../lib/players');
+const validate = require('../lib/validate');
 
 function arg(name, def) {
   const i = process.argv.indexOf('--' + name);
@@ -25,19 +26,6 @@ function has(name) { return process.argv.includes('--' + name); }
 function fail(msg) {
   console.error('\n  Erreur : ' + msg + '\n');
   process.exit(1);
-}
-
-// Le username est réinjecté dans une URL de scraping et affiché dans le
-// dashboard : on refuse les caractères de contrôle, la barre oblique et
-// l'antislash. Les caractères usuels d'un pseudo (lettres, chiffres, . - _)
-// restent autorisés.
-function badUsername(u) {
-  if (u.length < 1 || u.length > 64) return true;
-  for (let i = 0; i < u.length; i++) {
-    const c = u.charCodeAt(i);
-    if (c < 0x20 || c === 0x7f || c === 0x2f || c === 0x5c) return true;
-  }
-  return false;
 }
 
 players.load();
@@ -68,13 +56,13 @@ if (!id || !platform || !username) {
   console.log('    npm run add-agent -- --list\n');
   process.exit(1);
 }
-if (!/^[a-z0-9_-]{2,32}$/.test(id)) {
+if (validate.badId(id)) {
   fail('--id doit être un slug (minuscules, chiffres, - et _, 2 à 32 caractères).');
 }
-if (!['epic', 'steam', 'psn', 'xbox'].includes(platform)) {
+if (validate.badPlatform(platform)) {
   fail('--platform doit valoir epic, steam, psn ou xbox.');
 }
-if (badUsername(username)) {
+if (validate.badUsername(username)) {
   fail('--username invalide (1 à 64 caractères, sans / \\ ni caractères de contrôle).');
 }
 if (players.getPlayer(id)) {
