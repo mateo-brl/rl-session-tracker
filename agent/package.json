@@ -1,0 +1,9 @@
+{
+  "name": "rl-session-tracker-agent",
+  "productName": "RL Session Tracker",
+  "version": "2.2.0",
+  "description": "Agent RL Session Tracker — stats Rocket League en temps réel",
+  "main": "main.js",
+  "author": "RL Session Tracker",
+  "license": "MIT"
+}

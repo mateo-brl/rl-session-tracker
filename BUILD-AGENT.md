@@ -1,103 +1,79 @@
-# Construire l'agent (rl-agent.exe)
+# Construire l'application agent
 
-L'agent est l'exécutable installé sur chaque PC gaming. Il lit la Stats API
-locale de Rocket League et pousse les stats vers le serveur.
+L'agent est une **application de bureau Electron** : fenêtre native sur mesure
+et icône dans la barre des tâches. Installée sur chaque PC gaming, elle lit la
+Stats API locale de Rocket League et pousse les stats vers le serveur.
 
-## Construire le .exe
+## Construire
 
 ```bash
 npm install
 npm run build:agent
 ```
 
-Résultat : `dist/rl-agent.exe`.
+Résultat : **`dist/rl-agent.zip`** — l'archive proposée au téléchargement sur la
+page d'inscription (`/download/agent`).
 
-> Le build fonctionne **depuis Windows, Linux ou macOS** : il télécharge le
-> `node.exe` Windows officiel et vérifie son empreinte SHA-256. Tu peux donc le
-> lancer directement sur le serveur de déploiement. Prérequis : **Node.js 20+**.
+Le build :
 
-### Serveur d'enrôlement figé dans le binaire
+1. fige le serveur d'enrôlement dans l'application ;
+2. empaquette l'app pour Windows x64 via `@electron/packager` ;
+3. produit l'archive ZIP.
 
-L'agent embarque l'URL du serveur pour pouvoir s'enrôler au premier lancement
-(échanger le code de configuration contre son token). Par défaut
-`https://rl.mateobrl.fr`. Pour un autre domaine, définis `AGENT_DEFAULT_SERVER`
-avant le build :
+> Le build fonctionne **depuis Windows, Linux ou macOS** : `@electron/packager`
+> télécharge l'Electron Windows. Tu peux donc lancer `build:agent` directement
+> sur le serveur de déploiement. Le premier build télécharge Electron
+> (~100 Mo), ensuite c'est mis en cache.
+
+### Choisir le serveur d'enrôlement
+
+Par défaut l'application pointe sur `https://rl.mateobrl.fr`. Pour un autre
+domaine, définis `AGENT_DEFAULT_SERVER` avant le build :
 
 ```bash
 AGENT_DEFAULT_SERVER=https://stats.exemple.fr npm run build:agent
 ```
 
-> Le joueur n'a donc jamais à saisir d'URL. Mieux : le code de configuration
-> voyage dans le **nom du fichier téléchargé** (`/download/agent?code=…`),
-> donc l'agent se configure **sans aucune saisie**, active la Stats API et
-> s'installe en **démarrage automatique** avec Windows. Sous-commandes :
-> `--install-autostart` / `--uninstall-autostart`.
+### Icône du fichier .exe
 
-La construction utilise **Node SEA** (Single Executable Application) :
-1. `esbuild` regroupe `agent/agent.js` + `statsapi.js` en un seul fichier ;
-2. Node génère un *blob* SEA ;
-3. le `node.exe` officiel est copié ;
-4. le code de l'agent y est injecté (`postject`) ;
-5. des métadonnées de version sont ajoutées (`resedit`).
+L'icône de la **fenêtre** et de la **barre des tâches** est appliquée à
+l'exécution : elle est toujours correcte. L'icône du **fichier `.exe`** (celle
+vue dans l'explorateur Windows) n'est posée que si le build a lieu **sur
+Windows** — hors Windows, l'outil `rcedit` exigerait Wine. Un build sur Linux
+donne donc l'icône Electron par défaut sur le fichier, sans aucune conséquence
+fonctionnelle.
 
-## Antivirus : pourquoi un faux positif, et comment l'éviter
+## Distribution
 
-Un exécutable qui **embarque un runtime** (Node, Python, .NET packagé…) ressemble,
-pour l'**heuristique** d'un antivirus, à du code « packé » — la même technique
-que certains malwares. C'est un **faux positif** classique, indépendant du
-contenu réel du programme.
+L'utilisateur télécharge `rl-agent.zip`, l'**extrait**, puis lance
+**`RL Session Tracker.exe`**. L'application se configure toute seule (le code
+de configuration voyage dans le nom de l'archive), active la Stats API du jeu,
+s'installe en démarrage automatique et reste dans la barre des tâches.
 
-### Ce que ce projet fait déjà pour limiter les flags
+## Antivirus / SmartScreen
 
-| Mesure | Effet |
-|---|---|
-| **Node SEA** (et non `pkg`) | Part du `node.exe` **officiel signé Microsoft**, déjà connu des antivirus. `pkg` embarque des binaires Node modifiés, bien plus souvent signalés. |
-| **Aucune compression** (pas d'UPX) | La compression d'exécutable est le déclencheur n°1 de faux positifs. |
-| **Métadonnées de version** | Éditeur, description, version, nom de produit. Un `.exe` anonyme paraît suspect ; un `.exe` documenté beaucoup moins. |
-| **Icône** (optionnelle) | Ajoute `assets/agent.ico` avant le build : un `.exe` avec icône paraît plus légitime. |
+L'application **n'est pas signée**. Au premier lancement, Windows peut afficher
+l'avertissement **SmartScreen « éditeur inconnu »** : clic sur « Informations
+complémentaires » → « Exécuter quand même ». C'est le comportement attendu pour
+tout exécutable non signé, quel que soit son contenu.
 
-Ces mesures **réduisent fortement** les faux positifs mais ne les **éliminent
-pas à 100 %**. Un `.exe` non signé, d'éditeur inconnu, déclenchera toujours au
-minimum l'avertissement **SmartScreen « éditeur inconnu »**.
+Les applications Electron sont très répandues : les antivirus les gèrent bien
+et les faux positifs sont rares. Si l'application est tout de même signalée :
+
+1. **Signaler le faux positif à Microsoft** (analyse sous 24-72 h) :
+   <https://www.microsoft.com/en-us/wdsi/filesubmission>
+2. **Exclusion Windows Defender** (pour tes propres PC) : Sécurité Windows →
+   Protection contre les virus → Gérer les paramètres → Exclusions.
 
 ### La vraie solution : signer le code (Authenticode)
 
-La signature de code est le **seul** moyen fiable de supprimer les
-avertissements. Options, de la moins chère à la plus classique :
+La signature de code est le **seul** moyen fiable de supprimer l'avertissement
+SmartScreen. Options, de la moins chère à la plus classique :
 
-- **SignPath.io** — signature de code **gratuite pour les projets open source**.
-  Idéal ici puisque le dépôt est public.
-- **Azure Trusted Signing** — ~10 $/mois, pour particulier ou organisation,
-  s'intègre à `signtool`. L'option payante la plus accessible en 2026.
-- **Certificat OV/EV** chez un AC (Sectigo, DigiCert…) — 100 à 400 €/an.
+- **SignPath.io** — signature **gratuite pour les projets open source** (le
+  dépôt est public : éligible).
+- **Azure Trusted Signing** — ~10 $/mois, accessible aux particuliers.
+- **Certificat OV/EV** chez une autorité (Sectigo, DigiCert…) — 100 à 400 €/an.
 
-Une fois un certificat obtenu, signer le `.exe` :
-
-```bash
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist\rl-agent.exe
-```
-
-> Un certificat **EV** ou **Azure Trusted Signing** donne une réputation
-> SmartScreen immédiate. Un certificat **OV** la construit progressivement
-> au fil des téléchargements.
-
-### Si l'agent est quand même bloqué
-
-1. **Signaler le faux positif à Microsoft** (analyse en général sous 24-72 h) :
-   <https://www.microsoft.com/en-us/wdsi/filesubmission>
-2. **Exclusion Windows Defender** (efficace à 100 %, pour tes propres PC) :
-   Sécurité Windows → Protection contre les virus → Gérer les paramètres →
-   Exclusions → Ajouter `rl-agent.exe`.
-3. **Méthode sans `.exe`** — voir ci-dessous : aucun antivirus n'est concerné.
-
-## Alternative sans exécutable (aucun risque de faux positif)
-
-Si un PC a (ou peut installer) **Node.js**, il n'y a pas besoin du `.exe` du
-tout — donc aucun antivirus à contourner :
-
-1. Copier le dépôt sur le PC, `npm install` ;
-2. double-cliquer **`agent/run-agent.bat`** ;
-3. coller le **code de configuration** quand l'agent le demande (exactement
-   comme avec le `.exe`).
-
-C'est strictement Node.js qui exécute un script — invisible pour les antivirus.
+Un certificat **EV** ou **Azure Trusted Signing** donne une réputation
+SmartScreen immédiate ; un certificat **OV** la construit progressivement.

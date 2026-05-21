@@ -84,26 +84,23 @@ ligne (HTTPS, domaine, pare-feu, WAF) → **[DEPLOY.md](DEPLOY.md)**.
 
 ### 🎮 Je veux envoyer les stats de mon PC
 
-Tu as reçu un **code d'invitation** ? Tout se passe en ligne — **rien à
-configurer** :
+Tu as reçu un **code d'invitation** ? Tout se passe en ligne :
 
 1. Va sur **`https://rl.mateobrl.fr/enroll`** et remplis le formulaire
    (code d'invitation, pseudo Rocket League, plateforme…).
-2. **Télécharge l'agent** depuis la page, puis lance **`rl-agent.exe`**.
+2. **Télécharge l'application**, décompresse l'archive et lance
+   **`RL Session Tracker`**.
 3. Clique **« Oui »** à la fenêtre d'autorisation Windows.
 4. **Redémarre Rocket League.**
 
-L'agent fait le reste tout seul : il **se configure** (le code voyage dans le
-nom du fichier téléchargé — aucune saisie), **active la Stats API** du jeu, et
-**s'installe en démarrage automatique** avec Windows. Ta page s'affiche sur
-`https://rl.mateobrl.fr/u/tonpseudo` 🎉
+L'agent est une **vraie application de bureau** : il se configure seul (le code
+voyage dans le nom de l'archive — aucune saisie), **active la Stats API** du
+jeu, **s'installe en démarrage automatique** et reste dans la **barre des
+tâches**. Ta page s'affiche sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
 
-> ⚙️ Pour gérer le démarrage automatique : `rl-agent.exe --uninstall-autostart`
-> pour le retirer, `--install-autostart` pour le remettre.
-
-> 🛡️ `rl-agent.exe` bloqué par l'antivirus ? C'est un faux positif courant des
-> exécutables auto-portants. Solutions + méthode sans `.exe` →
-> **[BUILD-AGENT.md](BUILD-AGENT.md)**.
+> 🛡️ Avertissement Windows « éditeur inconnu » ? L'application n'est pas signée :
+> clique « Informations complémentaires » → « Exécuter quand même ». Détails et
+> solutions → **[BUILD-AGENT.md](BUILD-AGENT.md)**.
 
 ## 🎯 Activer la Stats API de Rocket League
 
@@ -157,7 +154,7 @@ Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
 | **Serveur** | Node.js · Express · Helmet · express-rate-limit |
 | **Scraping** | Puppeteer — pool de pages Chromium headless (parallèle) |
 | **Dashboard** | React 18 — pré-compilé via esbuild, CSP stricte |
-| **Agent** | Node.js — packagé en `.exe` via Node SEA |
+| **Agent** | Application **Electron** — fenêtre native, barre des tâches |
 | **Temps réel** | SSE (serveur → navigateur) · socket TCP (Stats API du jeu) |
 
 ## 📚 Documentation
@@ -165,7 +162,7 @@ Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
 | Document | Contenu |
 |---|---|
 | **[DEPLOY.md](DEPLOY.md)** | Mise en ligne : HTTPS, reverse proxy, WAF, systemd, gestion des joueurs. |
-| **[BUILD-AGENT.md](BUILD-AGENT.md)** | Construire `rl-agent.exe` et limiter les faux positifs antivirus. |
+| **[BUILD-AGENT.md](BUILD-AGENT.md)** | Construire l'application agent (Electron) et gérer la signature de code. |
 
 <details>
 <summary>🗂️ Structure du projet</summary>
@@ -173,23 +170,23 @@ Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
 ```
 rl-session-tracker/
 ├── server.js              # Serveur Express : API, ingestion, SSE, enrôlement
-├── statsapi.js            # Connecteur de la Stats API du jeu (utilisé par l'agent)
 ├── lib/
 │   ├── players.js         # Registre des joueurs + tokens (hachés)
 │   ├── invites.js         # Registre des codes d'invitation (hachés)
 │   ├── codes.js           # Génération et hachage des codes lisibles
 │   ├── validate.js        # Validations partagées (id, pseudo, plateforme)
 │   └── tracker.js         # Scraping tracker.gg — pool de pages Chromium
-├── agent/
-│   ├── agent.js           # L'agent — enrôlement + envoi des stats
-│   ├── enable-statsapi.js # Active la Stats API du jeu automatiquement
-│   ├── autostart.js       # Démarrage automatique avec Windows
-│   ├── config.example.json
-│   └── run-agent.bat      # Lancer l'agent sans .exe (via Node)
+├── agent/                 # Application agent (Electron)
+│   ├── main.js            # Processus principal : enrôlement + envoi des stats
+│   ├── preload.js         # Pont IPC sécurisé interface ↔ agent
+│   ├── renderer.html      # Interface de la fenêtre
+│   ├── statsapi.js        # Connecteur de la Stats API du jeu
+│   ├── enable-statsapi.js # Active la Stats API automatiquement
+│   └── assets/            # Icône de l'application
 ├── scripts/
 │   ├── add-agent.js       # CLI : déclarer un joueur manuellement
 │   ├── add-invite.js      # CLI : générer un code d'invitation
-│   ├── build-agent.mjs    # Construire rl-agent.exe (Node SEA)
+│   ├── build-agent.mjs    # Construire l'application agent (Electron)
 │   └── build-web.mjs      # Pré-compiler le dashboard (esbuild)
 ├── public/                # Dashboard web (React) + page d'inscription /enroll
 ├── enable-statsapi.bat    # Activer la Stats API à la main (secours)
@@ -204,8 +201,9 @@ rl-session-tracker/
 - Debian/Ubuntu : `sudo apt install chromium`
 - Arch : `sudo pacman -S chromium`
 
-**PC gaming** — Rocket League sur PC (Epic ou Steam). Rien d'autre avec
-`rl-agent.exe` ; Node.js 20+ seulement si tu construis l'agent toi-même.
+**PC gaming** — Rocket League sur PC (Epic ou Steam) et Windows. L'application
+agent ne demande rien d'autre ; Node.js 18+ uniquement si tu la construis
+toi-même.
 </details>
 
 ## 📄 Licence
