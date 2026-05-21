@@ -2,51 +2,68 @@
 
 # 🚀 RL Session Tracker
 
-**Suis tes sessions Rocket League en direct — MMR, victoires, stats de match — sur un dashboard web moderne.**
+### Le suivi de tes sessions Rocket League, en direct.
 
-Plusieurs PC envoient leurs stats. Chaque joueur a sa page. Le tout en **temps réel**, sans le délai habituel des sites de stats.
+MMR · victoires · stats de match — sur un dashboard web moderne,
+alimenté **en temps réel** par plusieurs PC à la fois.
+
+![Node.js](https://img.shields.io/badge/Node.js-18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)
+![Dashboard](https://img.shields.io/badge/Dashboard-React-00e5ff?style=flat-square&logo=react&logoColor=white)
+![Temps réel](https://img.shields.io/badge/Temps_réel-SSE-ff3d71?style=flat-square)
+![Licence](https://img.shields.io/badge/Licence-MIT-blue?style=flat-square)
 
 </div>
 
 ---
 
-## ✨ Ce que ça fait
+Les sites de stats classiques ont **plusieurs minutes de retard**. RL Session
+Tracker, lui, lit les données **directement dans le jeu** via la Stats API
+native de Rocket League : début de match, score, fin de match sont détectés
+**à la seconde**. Plusieurs joueurs peuvent alimenter le même dashboard —
+chacun a sa page.
+
+## ✨ Fonctionnalités
 
 | | |
 |---|---|
-| ⚡ **Temps réel** | Début/fin de match et score détectés **à la seconde**, via la Stats API native de Rocket League. |
+| ⚡ **Temps réel** | Match et score détectés à la seconde via la Stats API du jeu. |
 | 📊 **Stats complètes** | MMR, rang, victoires/défaites, série en cours, buts · arrêts · passes · tirs. |
 | 👥 **Multi-joueurs** | Plusieurs PC envoient leurs stats ; chacun a sa page `/u/pseudo`. |
+| 🟢 **Source transparente** | Un badge indique si les données viennent de l'agent (live) ou de tracker.gg (différé). |
 | 🎨 **Dashboard soigné** | 3 layouts, thème clair/sombre, couleurs d'accent, bilingue FR/EN. |
 | 🔥 **Tiltomètre** | Alerte sympa après 3 défaites d'affilée. |
-| 🔒 **Sécurisé** | Conçu pour être exposé sur internet (tokens, anti-abus, validation). |
+| 🔒 **Sécurisé** | Conçu pour être exposé sur internet : tokens hachés, anti-abus, CSP stricte. |
 
-## 🧩 Comment ça marche
+## 🧩 Architecture
+
+```
+  🎮 PC gaming                       🌐 rl.mateobrl.fr                  👀 Spectateurs
+ ┌───────────────┐                 ┌──────────────────────┐          ┌──────────────┐
+ │ Rocket League │   agent ─POST─► │  serveur + dashboard  │  ─SSE─►  │  /u/pseudo   │
+ │  → Stats API  │   HTTPS, token  │  + pool tracker.gg    │ temps réel│  (public)   │
+ └───────────────┘                 └──────────────────────┘          └──────────────┘
+```
 
 Le projet a **deux morceaux** :
 
-```
-   🎮 PC gaming                          🌐 Serveur (rl.mateobrl.fr)
-  ┌──────────────┐                      ┌────────────────────────────┐
-  │ Rocket League│                      │  Dashboard web             │
-  │   Stats API  │   ── HTTPS ──>       │  reçoit · agrège · affiche │
-  │      ↓       │   (token sécurisé)   │                            │
-  │  rl-agent    │ ───────────────────> │  /u/pseudo  ←── 👀 public  │
-  └──────────────┘                      └────────────────────────────┘
-```
+- **🖥️ Le serveur** — le dashboard. Il tourne sur une machine accessible depuis
+  internet, reçoit les flux des agents, interroge tracker.gg pour le MMR, et
+  diffuse tout en direct aux spectateurs.
+- **🎮 L'agent** — un petit programme sur chaque PC gaming. Il lit la Stats API
+  locale du jeu et la pousse au serveur. Aucune connexion entrante : c'est
+  toujours l'agent qui contacte le serveur.
 
-- **Le serveur** — c'est le dashboard. Il tourne sur une machine accessible depuis internet.
-- **L'agent** — un petit programme sur chaque PC. Il lit les stats *dans le jeu* et les envoie au serveur.
-
-> 💡 Pourquoi un agent ? Les sites de stats classiques (tracker.gg…) ont plusieurs minutes de retard. La Stats API intégrée à Rocket League, elle, est instantanée — mais uniquement en local. L'agent fait le pont.
-
----
+> 💡 **Pourquoi ce découpage ?** La Stats API du jeu est instantanée mais
+> *locale*. tracker.gg est *distant* mais en retard. On combine les deux :
+> l'agent donne le live, tracker.gg donne le MMR exact — rafraîchi pile à la
+> fin de chaque match.
 
 ## 🚀 Démarrage rapide
 
 ### 👀 Je veux juste regarder
 
-Ouvre le site (ex. **`https://rl.mateobrl.fr`**) et clique sur un joueur. Rien à installer.
+Ouvre le site (ex. **`https://rl.mateobrl.fr`**) et clique sur un joueur.
+Rien à installer.
 
 ### 🖥️ J'héberge le serveur
 
@@ -55,33 +72,36 @@ git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 
-# Déclare un joueur (génère son token + son fichier config)
+# Déclare un joueur — génère son token + son fichier de config
 npm run add-agent -- --id mateo --platform epic --username TonPseudoRL --name "Mateo"
 
 npm start
 ```
 
-Le dashboard tourne sur `http://127.0.0.1:3000`. Pour le mettre en ligne proprement (HTTPS, nom de domaine, pare-feu) → **[DEPLOY.md](DEPLOY.md)**.
+Le dashboard tourne sur `http://127.0.0.1:3000`. Pour le mettre vraiment en
+ligne (HTTPS, domaine, pare-feu, WAF) → **[DEPLOY.md](DEPLOY.md)**.
 
 ### 🎮 Je veux envoyer les stats de mon PC
 
-1. **Active la Stats API du jeu** — double-clique sur **`enable-statsapi.bat`**, puis redémarre Rocket League.
-2. Récupère **`rl-agent.exe`** et ton **`config.json`** (fournis par l'hébergeur du serveur).
-3. Mets les deux fichiers dans un même dossier et lance **`rl-agent.exe`**.
+1. **Active la Stats API du jeu** — double-clique sur **`enable-statsapi.bat`**,
+   puis redémarre Rocket League.
+2. Récupère **`rl-agent.exe`** et ton **`config.json`** (fournis par
+   l'hébergeur du serveur).
+3. Place les deux dans un même dossier et lance **`rl-agent.exe`**.
 
-Ta page s'affiche alors sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
+Ta page s'affiche sur `https://rl.mateobrl.fr/u/tonpseudo` 🎉
 
-> 🛡️ `rl-agent.exe` bloqué par l'antivirus ? C'est un faux positif courant des exécutables auto-portants. Solutions et méthode sans `.exe` → **[BUILD-AGENT.md](BUILD-AGENT.md)**.
-
----
+> 🛡️ `rl-agent.exe` bloqué par l'antivirus ? C'est un faux positif courant des
+> exécutables auto-portants. Solutions + méthode sans `.exe` →
+> **[BUILD-AGENT.md](BUILD-AGENT.md)**.
 
 ## 🎯 Activer la Stats API de Rocket League
 
-L'agent a besoin de la **Stats API native** du jeu (intégrée depuis la mise à jour
-anti-triche d'avril 2026). Pour l'activer, une seule fois :
+L'agent a besoin de la **Stats API native** du jeu (intégrée avec la mise à
+jour anti-triche d'avril 2026). Une seule fois :
 
-> Double-clique sur **`enable-statsapi.bat`** → il détecte Rocket League (Epic ou
-> Steam) et configure le jeu. **Redémarre Rocket League** ensuite.
+> Double-clique sur **`enable-statsapi.bat`** → il détecte Rocket League
+> (Epic ou Steam) et configure le jeu. **Redémarre Rocket League** ensuite.
 
 <details>
 <summary>Activation manuelle</summary>
@@ -95,54 +115,76 @@ PacketSendRate=10
 ```
 </details>
 
-> ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). Sur console, ce tracker ne peut pas remonter les données en direct.
+> ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). Sur console, le live
+> n'est pas disponible.
 
 ## 🔒 Sécurité
 
 Le serveur est pensé pour vivre sur internet :
 
-- 🔑 **Tokens par PC** — chaque agent a un token unique, stocké **haché** (un fichier volé ne donne aucun token utilisable).
-- 🚦 **Anti-abus** — limitation de débit sur toutes les routes sensibles.
-- 🧹 **Données validées** — tout ce qui entre est vérifié, typé et borné.
-- 🛡️ **Pas de proxy ouvert** — le serveur n'interroge les sites de stats que pour les joueurs déclarés.
-- 🧱 **Derrière un WAF** — prévu pour tourner derrière un reverse proxy + pare-feu applicatif (SafeLine).
+- 🔑 **Tokens par PC** — chaque agent a un token unique, stocké **haché**
+  (SHA-256). Un `players.json` volé ne donne aucun token réutilisable.
+- 🚦 **Anti-abus** — limitation de débit sur l'ingestion, le scraping et le SSE
+  (avec plafonds de connexions).
+- 🧹 **Données validées** — tout ce qu'un agent envoie est vérifié, typé et
+  borné avant d'être rediffusé.
+- 🛡️ **Pas de proxy ouvert** — le serveur n'interroge tracker.gg que pour les
+  joueurs déclarés.
+- 🧱 **CSP stricte + WAF** — en-têtes Helmet, dashboard pré-compilé (aucun CDN),
+  prévu pour tourner derrière un reverse proxy + WAF (SafeLine).
 
 Détails et mise en place → **[DEPLOY.md](DEPLOY.md)**.
 
+## 🧰 Stack technique
+
+| Côté | Technologies |
+|---|---|
+| **Serveur** | Node.js · Express · Helmet · express-rate-limit |
+| **Scraping** | Puppeteer — pool de pages Chromium headless (parallèle) |
+| **Dashboard** | React 18 — pré-compilé via esbuild, CSP stricte |
+| **Agent** | Node.js — packagé en `.exe` via Node SEA |
+| **Temps réel** | SSE (serveur → navigateur) · socket TCP (Stats API du jeu) |
+
 ## 📚 Documentation
 
-| Document | Pour quoi |
+| Document | Contenu |
 |---|---|
-| **[DEPLOY.md](DEPLOY.md)** | Mettre le serveur en ligne : HTTPS, reverse proxy, WAF, gestion des joueurs. |
-| **[BUILD-AGENT.md](BUILD-AGENT.md)** | Construire `rl-agent.exe` et éviter les faux positifs antivirus. |
+| **[DEPLOY.md](DEPLOY.md)** | Mise en ligne : HTTPS, reverse proxy, WAF, systemd, gestion des joueurs. |
+| **[BUILD-AGENT.md](BUILD-AGENT.md)** | Construire `rl-agent.exe` et limiter les faux positifs antivirus. |
 
 <details>
 <summary>🗂️ Structure du projet</summary>
 
 ```
 rl-session-tracker/
-├── server.js            # Serveur : API, dashboard, ingestion
-├── statsapi.js          # Connecteur Stats API de Rocket League
-├── lib/players.js       # Registre des joueurs / tokens
-├── scripts/
-│   ├── add-agent.js     # Déclarer un nouveau PC
-│   └── build-agent.mjs  # Construire rl-agent.exe
+├── server.js              # Serveur Express : API, ingestion, SSE, dashboard
+├── statsapi.js            # Connecteur de la Stats API du jeu (utilisé par l'agent)
+├── lib/
+│   ├── players.js         # Registre des joueurs + tokens (hachés)
+│   └── tracker.js         # Scraping tracker.gg — pool de pages Chromium
 ├── agent/
-│   ├── agent.js         # L'agent (tourne sur le PC gaming)
-│   └── run-agent.bat    # Lancer l'agent sans .exe (via Node)
-├── enable-statsapi.bat  # Activer la Stats API du jeu
-└── public/              # Dashboard web (interface)
+│   ├── agent.js           # L'agent — tourne sur le PC gaming
+│   ├── config.example.json
+│   └── run-agent.bat      # Lancer l'agent sans .exe (via Node)
+├── scripts/
+│   ├── add-agent.js       # CLI : déclarer un nouveau PC
+│   ├── build-agent.mjs    # Construire rl-agent.exe (Node SEA)
+│   └── build-web.mjs      # Pré-compiler le dashboard (esbuild)
+├── public/                # Dashboard web (React, pré-compilé)
+├── enable-statsapi.bat    # Activer la Stats API du jeu (Windows)
+└── enable-statsapi.ps1
 ```
 </details>
 
 <details>
 <summary>⚙️ Prérequis</summary>
 
-**Serveur** — Node.js 18+, et Chromium installé (`/usr/bin/chromium`) :
+**Serveur** — Node.js 18+ et Chromium :
 - Debian/Ubuntu : `sudo apt install chromium`
 - Arch : `sudo pacman -S chromium`
 
-**PC gaming** — Rocket League sur PC (Epic ou Steam). Rien d'autre avec `rl-agent.exe`.
+**PC gaming** — Rocket League sur PC (Epic ou Steam). Rien d'autre avec
+`rl-agent.exe` ; Node.js 20+ seulement si tu construis l'agent toi-même.
 </details>
 
 ## 📄 Licence

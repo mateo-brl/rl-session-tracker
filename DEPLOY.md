@@ -9,9 +9,14 @@ sur `rl.mateobrl.fr`.
 git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
+npm run build:web      # pré-compile le dashboard (public/dist/app.js)
 ```
 
 Prérequis : **Node.js 18+** et **Chromium** (`sudo apt install chromium`).
+
+> `npm start` lance automatiquement `build:web` avant le serveur (script
+> `prestart`). L'étape ci-dessus n'est nécessaire que si tu démarres le
+> serveur autrement (ex. systemd avec `node server.js`).
 
 ## 2. Configuration
 
@@ -24,6 +29,9 @@ Le serveur se règle par variables d'environnement (ou un fichier `.env`) :
 | `TRUST_PROXY` | `1` | Nombre de proxys de confiance devant le serveur (pour lire la vraie IP client). |
 | `CHROMIUM_PATH` | `/usr/bin/chromium` | Chemin du binaire Chromium. |
 | `PLAYERS_FILE` | `./players.json` | Emplacement du registre des joueurs. |
+| `SCRAPE_POOL` | `4` | Pages Chromium pour scraper tracker.gg en parallèle. |
+| `SCRAPE_TIMEOUT` | `15000` | Délai max d'un scrape tracker.gg, en ms. |
+| `SCRAPE_RECYCLE_MS` | `2700000` | Intervalle de recyclage des pages Chromium (anti-dérive mémoire), en ms. |
 
 ## 3. Déclarer les joueurs
 
@@ -65,6 +73,7 @@ WorkingDirectory=/opt/rl-session-tracker
 Environment=PORT=3000
 Environment=HOST=127.0.0.1
 Environment=TRUST_PROXY=1
+ExecStartPre=/usr/bin/node scripts/build-web.mjs
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
 
@@ -98,8 +107,11 @@ nginx) le respecte. Si malgré tout le live ne s'actualise pas :
 - vérifie que le **buffering est désactivé** pour le chemin `/api/stats/stream/`,
 - assure-toi que le **timeout** du proxy est élevé (≥ 1 h) pour ces connexions.
 
-> Le dashboard fonctionne même sans SSE : il se rabat sur une actualisation
-> toutes les 15 s. Le SSE n'est qu'un bonus de réactivité.
+> Si le SSE est coupé, le navigateur se reconnecte tout seul (backoff). Le
+> chargement initial du profil et le rafraîchissement en fin de match passent
+> par des requêtes HTTP classiques — mais le **suivi live d'un match en cours**
+> (score, bandeau) dépend du SSE : il faut donc que le proxy le laisse passer
+> sans bufferisation.
 
 ## 6. Pare-feu
 
