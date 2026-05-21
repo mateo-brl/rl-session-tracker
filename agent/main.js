@@ -378,11 +378,17 @@ function startAgent(cfg) {
     const sc = fmtScore(d);
     if (sc) state.lastMatch = sc;
     pushState();
+    // Stats complètes par joueur : le serveur en tire le détail du match
+    // (résultat, buts, arrêts…) pour le journal — fini tracker.gg pour ça.
     queue.push({
       type: 'match-end',
       winnerTeam: d.winnerTeam,
       mode: d.mode,
-      players: (d.players || []).map((p) => ({ name: p.name, team: p.team })),
+      players: (d.players || []).map((p) => ({
+        name: p.name, team: p.team,
+        goals: p.goals, saves: p.saves, assists: p.assists,
+        shots: p.shots, score: p.score,
+      })),
     });
     triggerFlush();
   });

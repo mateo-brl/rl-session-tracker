@@ -1,7 +1,8 @@
 // data.js — Real data layer for the RL tracker.
-// Fetches from our backend proxy (/api/*) which hits tracker.gg.
-// All match data is real: it comes from tracker.gg's sessions API
-// (goals/saves/assists/shots/MVPs/MMR delta per match). Nothing is invented.
+// Fetches from our backend proxy (/api/*).
+// Match detail (results, goals, saves, streak…) comes from Rocket League's
+// own Stats API via the agent; only MMR and rank come from tracker.gg. The
+// server hands the match feed back in this same shape. Nothing is invented.
 // Exposes: window.RL = { state, subscribe, loadHostedPlayer, startPolling, ... }
 
 (function () {

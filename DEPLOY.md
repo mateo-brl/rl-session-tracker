@@ -37,6 +37,7 @@ Le serveur se règle par variables d'environnement (ou un fichier `.env`) :
 | `CHROMIUM_PATH` | `/usr/bin/chromium` | Chemin du binaire Chromium. |
 | `PLAYERS_FILE` | `./players.json` | Emplacement du registre des joueurs. |
 | `INVITES_FILE` | `./invites.json` | Emplacement du registre des codes d'invitation. |
+| `MATCHLOG_FILE` | `./matchlog.json` | Emplacement du journal des matchs (détail des parties). |
 | `SETUP_CODE_TTL_HOURS` | `168` | Durée de validité d'un code de configuration (défaut : 7 jours). |
 | `SCRAPE_POOL` | `4` | Pages Chromium pour scraper tracker.gg en parallèle. |
 | `SCRAPE_TIMEOUT` | `15000` | Délai max d'un scrape tracker.gg, en ms. |
@@ -170,8 +171,8 @@ sudo ufw enable
 - [ ] HTTPS actif via SafeLine.
 - [ ] WAF SafeLine en mode interception.
 - [ ] `TRUST_PROXY` réglé sur le nombre réel de proxys (1 avec SafeLine seul).
-- [ ] `players.json`, `invites.json` et les `config.json`/`agent-config-*.json`
-      **non commités** (déjà dans `.gitignore`).
+- [ ] `players.json`, `invites.json`, `matchlog.json` et les `config.json` /
+      `agent-config-*.json` **non commités** (déjà dans `.gitignore`).
 - [ ] Le serveur tourne sous un utilisateur dédié, non-root.
 
 ## Couches de sécurité applicatives (déjà incluses)
