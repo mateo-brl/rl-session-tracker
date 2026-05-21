@@ -2,7 +2,7 @@
 // Fetches from our backend proxy (/api/*) which hits tracker.gg.
 // All match data is real: it comes from tracker.gg's sessions API
 // (goals/saves/assists/shots/MVPs/MMR delta per match). Nothing is invented.
-// Exposes: window.RL = { state, subscribe, searchPlayer, startPolling, ... }
+// Exposes: window.RL = { state, subscribe, loadHostedPlayer, startPolling, ... }
 
 (function () {
   // Every Rocket League playlist tracker.gg can return. `playlistId` matches
@@ -469,27 +469,6 @@
     return p && p.data && Array.isArray(p.data.segments);
   }
 
-  async function searchPlayer(platform, username) {
-    currentPlatform = platform;
-    currentUsername = username;
-    selectedPlaylistId = 'auto';
-
-    const resp = await fetch(`/api/live/${platform}/${encodeURIComponent(username)}`);
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      const e = new Error(err.error || `HTTP ${resp.status}`);
-      e.status = resp.status;
-      throw e;
-    }
-    const liveData = await resp.json();
-    if (!isValidProfile(liveData.profile)) {
-      throw new Error('Invalid response from tracker.gg');
-    }
-    state = buildState(liveData.profile, liveData.sessions, null);
-    emit();
-    return state;
-  }
-
   // Charge un joueur en mode hébergé (URL /u/:id). Le serveur connaît déjà la
   // plateforme et le pseudo tracker.gg liés à cet identifiant.
   async function loadHostedPlayer(id) {
@@ -548,18 +527,18 @@
     emit();
   }
 
-  // ───────── Polling loop ─────────
-  let pollTimer = null;
-  const POLL_INTERVAL = 15000; // 15s polling
-
+  // ───────── Live updates ─────────
+  // Plus de polling périodique : le SSE (connectStatsStream) signale à la
+  // seconde le début/fin de match, et `startAcceleratedPoll` rafraîchit
+  // tracker.gg PILE à la fin d'un match. Le seul `pollUpdate` « manuel » est
+  // celui implicite du chargement initial (loadHostedPlayer fait son propre
+  // fetch + buildState). Plus de scraping tracker.gg en boucle à l'aveugle.
   function startPolling() {
     stopPolling();
-    pollTimer = setInterval(pollUpdate, POLL_INTERVAL);
     connectStatsStream();
   }
 
   function stopPolling() {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     stopAcceleratedPoll();
     disconnectStatsStream();
   }
@@ -575,10 +554,44 @@
     emit();
   }
 
+  // Reconnexion du SSE — l'EventSource gère lui-même certaines reconnexions,
+  // mais pas un flux passé en CLOSED (ex. erreur serveur). On planifie alors
+  // une reconnexion avec un léger backoff progressif (2s → 4s → … → 30s max).
+  let statsReconnectTimer = null;
+  let statsReconnectDelay = 2000;
+  const STATS_RECONNECT_MAX = 30000;
+
+  function scheduleStatsReconnect() {
+    if (statsReconnectTimer || !currentPlayerId) return;
+    statsReconnectTimer = setTimeout(() => {
+      statsReconnectTimer = null;
+      if (!currentPlayerId) return;
+      connectStatsStream();
+    }, statsReconnectDelay);
+    statsReconnectDelay = Math.min(STATS_RECONNECT_MAX, statsReconnectDelay * 2);
+  }
+
   function connectStatsStream() {
     if (statsES || typeof EventSource === 'undefined' || !currentPlayerId) return;
     try { statsES = new EventSource('/api/stats/stream/' + encodeURIComponent(currentPlayerId)); }
-    catch (e) { statsES = null; return; }
+    catch (e) { statsES = null; scheduleStatsReconnect(); return; }
+
+    // Connexion établie : on remet le backoff à zéro pour la prochaine fois.
+    statsES.onopen = () => { statsReconnectDelay = 2000; };
+
+    // EventSource sans reconnexion native quand le flux est CLOSED : on
+    // referme proprement, on reflète l'état déconnecté et on replanifie.
+    statsES.onerror = () => {
+      if (statsES && statsES.readyState === EventSource.CLOSED) {
+        try { statsES.close(); } catch (x) {}
+        statsES = null;
+        liveMatch = null;
+        statsApiConnected = false;
+        refreshLive();
+        scheduleStatsReconnect();
+      }
+      // readyState === CONNECTING : EventSource retente seul, on ne fait rien.
+    };
 
     statsES.addEventListener('connection', (e) => {
       try { statsApiConnected = !!JSON.parse(e.data).connected; } catch (x) {}
@@ -618,6 +631,8 @@
   }
 
   function disconnectStatsStream() {
+    if (statsReconnectTimer) { clearTimeout(statsReconnectTimer); statsReconnectTimer = null; }
+    statsReconnectDelay = 2000;
     if (statsES) { try { statsES.close(); } catch (e) {} statsES = null; }
     liveMatch = null;
     statsApiConnected = false;
@@ -776,7 +791,6 @@
   window.RL = {
     get state() { return state; },
     subscribe,
-    searchPlayer,
     loadHostedPlayer,
     bootstrapDemo,
     startPolling,

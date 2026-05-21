@@ -21,15 +21,30 @@ function holdOpen(code) {
 }
 
 // ───────── Chargement de la configuration ─────────
+// On cherche config.json à côté de l'exécutable puis dans le répertoire du
+// module. On NE cherche PAS dans process.cwd() : un attaquant pourrait sinon
+// déposer un config.json malveillant dans un dossier quelconque et détourner
+// l'agent (serverUrl/token pirates) selon l'endroit d'où il est lancé.
 function findConfig() {
   const dirs = [];
   try { dirs.push(path.dirname(process.execPath)); } catch (e) {} // à côté du .exe
-  dirs.push(process.cwd());
-  dirs.push(__dirname);
+  dirs.push(__dirname);                                            // à côté du module
   for (const d of dirs) {
     const p = path.join(d, 'config.json');
     if (fs.existsSync(p)) return p;
   }
+  // Dernier recours uniquement : le répertoire courant. Détournable, donc
+  // on l'annonce explicitement en console pour que ce ne soit pas silencieux.
+  try {
+    const cwdConfig = path.join(process.cwd(), 'config.json');
+    if (fs.existsSync(cwdConfig)) {
+      console.warn('\n  ⚠  config.json chargé depuis le répertoire courant');
+      console.warn('     (' + cwdConfig + ').');
+      console.warn('     Place-le plutôt à côté de l\'exécutable : un config.json');
+      console.warn('     déposé par un tiers dans ce dossier pourrait détourner l\'agent.');
+      return cwdConfig;
+    }
+  } catch (e) {}
   return null;
 }
 
@@ -46,6 +61,19 @@ function loadConfig() {
     if (!cfg.serverUrl || !cfg.token) throw new Error('serverUrl ou token manquant');
     cfg.serverUrl = String(cfg.serverUrl).replace(/\/+$/, '');
     cfg.statsApiPort = cfg.statsApiPort || 49123;
+
+    // Imposer HTTPS : le token est envoyé en clair dans l'en-tête
+    // Authorization, donc en HTTP il fuite sur le réseau. On tolère HTTP
+    // uniquement sur localhost/127.0.0.1 (pratique pour le développement).
+    let serverHost = '';
+    try { serverHost = new URL(cfg.serverUrl).hostname; } catch (e) {}
+    const isLocal = serverHost === 'localhost'
+      || serverHost === '127.0.0.1' || serverHost === '::1';
+    if (!/^https:\/\//i.test(cfg.serverUrl) && !isLocal) {
+      throw new Error(
+        'serverUrl doit utiliser https:// (le token transiterait en clair). '
+        + 'Reçu : ' + cfg.serverUrl);
+    }
     return cfg;
   } catch (e) {
     console.error('\n  config.json invalide : ' + e.message);
@@ -111,8 +139,14 @@ function startAgent(cfg) {
       });
       if (resp.status === 401) {
         setServerStatus('TOKEN REFUSÉ (401) — vérifie config.json');
-      } else if (resp.status === 429) {
-        setServerStatus('limité (429) — ralentissement');
+      } else if (resp.status === 429 || resp.status >= 500) {
+        // 429 (limité) ou 5xx (erreur serveur) : le serveur n'a rien traité.
+        // On remet les évènements en file pour les renvoyer plus tard. On
+        // garde les plus RÉCENTS si la file déborde (slice(-100)).
+        queue = events.concat(queue).slice(-100);
+        setServerStatus(resp.status === 429
+          ? 'limité (429) — ralentissement, évènements remis en file'
+          : 'erreur serveur ' + resp.status + ' — évènements remis en file');
       } else if (!resp.ok) {
         setServerStatus('erreur HTTP ' + resp.status);
       } else {
@@ -120,8 +154,8 @@ function startAgent(cfg) {
       }
     } catch (e) {
       // Le serveur est injoignable : on remet les évènements en file pour ne
-      // pas les perdre (plafonné, le snapshot match reste toujours à jour).
-      queue = events.concat(queue).slice(0, 100);
+      // pas les perdre. Si la file déborde, on garde les plus RÉCENTS.
+      queue = events.concat(queue).slice(-100);
       setServerStatus('injoignable (' + (e.code || e.name || 'réseau') + ')');
     } finally {
       sending = false;
@@ -142,6 +176,13 @@ function startAgent(cfg) {
     if (d.phase === 'start') {
       queue.push({ type: 'match-start' });
       setGameStatus('match en cours');
+      triggerFlush();
+    } else if (d.phase === 'destroyed') {
+      // Le match a été détruit sans 'ended' propre (déconnexion, abandon...).
+      // On le signale au serveur et on remet le snapshot à l'état inactif.
+      queue.push({ type: 'match-destroyed' });
+      latest.match = { active: false };
+      setGameStatus('Rocket League connecté');
       triggerFlush();
     }
   });

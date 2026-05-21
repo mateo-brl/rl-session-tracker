@@ -414,6 +414,49 @@ button { font-family: inherit; }
   font-variant-numeric: tabular-nums;
 }
 
+/* Pulsation du point LIVE de la bannière de match en direct.
+   Déplacé ici depuis le <style> inline d'index.html — une CSP stricte
+   bloque les <style> inline non whitelistés. */
+@keyframes rl-live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Badge de source de données — d'où viennent les stats affichées :
+   l'agent natif (live) ou le scraping tracker.gg (différé). */
+.rl-source-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: 600 10px/1 var(--font-mono);
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--fg-2);
+}
+.rl-source-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.rl-source-badge.is-live {
+  color: var(--fg);
+  border-color: color-mix(in oklab, var(--win) 35%, var(--border));
+}
+.rl-source-badge.is-live .rl-source-dot {
+  background: var(--win);
+  box-shadow: 0 0 8px color-mix(in oklab, var(--win) 65%, transparent);
+}
+.rl-source-badge.is-deferred {
+  color: var(--fg-muted);
+}
+.rl-source-badge.is-deferred .rl-source-dot {
+  background: #f5b50a;
+  box-shadow: 0 0 8px color-mix(in oklab, #f5b50a 55%, transparent);
+}
+
 .rl-stage {
   flex: 1 1 auto;
   position: relative;

@@ -24,6 +24,36 @@ if (-not $isAdmin) {
   exit
 }
 
+# ───────── Validation d'un dossier d'installation Rocket League ─────────
+# Les chemins viennent de sources non fiables (manifestes Epic,
+# libraryfolders.vdf) : on n'écrit le .ini, en admin, que dans un dossier qui
+# ressemble vraiment à une install Rocket League. On canonicalise le chemin et
+# on exige la présence de l'exécutable du jeu ET du dossier de config.
+#
+# AVERTISSEMENT TOCTOU : il subsiste une fenêtre entre cette validation et
+# l'écriture du fichier — un tiers pourrait remplacer/déplacer le dossier
+# entre les deux. Ce script n'est pas signé et n'élimine pas ce risque ; il ne
+# fait que réduire la surface aux chemins plausibles. Une protection complète
+# exigerait un installeur signé et des ACL strictes sur le dossier cible.
+function Test-RLInstall {
+  param([string]$Path)
+  if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+  # Canonicalisation : résout . / .. / liens et normalise la casse/séparateurs.
+  $canon = $null
+  try {
+    $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+    $canon = [System.IO.Path]::GetFullPath($resolved.Path)
+  } catch { return $null }
+  if (-not (Test-Path -LiteralPath $canon -PathType Container)) { return $null }
+  # Exécutable du jeu : signe le plus fiable d'une vraie install RL.
+  $exe = Join-Path $canon 'Binaries\Win64\RocketLeague.exe'
+  if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { return $null }
+  # Dossier de config où l'on écrira le .ini.
+  $cfg = Join-Path $canon 'TAGame\Config'
+  if (-not (Test-Path -LiteralPath $cfg -PathType Container)) { return $null }
+  return $canon
+}
+
 # ───────── Détection des installations de Rocket League ─────────
 function Find-RLInstalls {
   $found = @()
@@ -66,10 +96,16 @@ function Find-RLInstalls {
   $found += 'C:\Program Files\Epic Games\rocketleague'
   $found += 'C:\Program Files (x86)\Steam\steamapps\common\rocketleague'
 
-  # On ne garde que les dossiers contenant bien TAGame\Config.
-  $found | Select-Object -Unique | Where-Object {
-    Test-Path (Join-Path $_ 'TAGame\Config')
+  # Validation stricte : on canonicalise chaque chemin et on ne garde que ceux
+  # qui ressemblent vraiment à une install RL (exécutable du jeu + TAGame\Config).
+  # Test-RLInstall renvoie le chemin canonique, ce qui dédoublonne aussi les
+  # variantes d'un même dossier (casse, séparateurs, '..').
+  $valid = @()
+  foreach ($p in ($found | Select-Object -Unique)) {
+    $ok = Test-RLInstall -Path $p
+    if ($ok) { $valid += $ok }
   }
+  $valid | Select-Object -Unique
 }
 
 Write-Host ''
