@@ -284,6 +284,25 @@ ipcMain.handle('set-config', (_e, partial) => {
   pushState();
   return config.get();
 });
+// Prévisualise l'animation de fin de match sur le dashboard (réglages).
+ipcMain.on('preview-animation', (_e, result) => {
+  const win = result === 'W';
+  const fake = {
+    result: win ? 'W' : 'L',
+    score: win ? [3, 2] : [1, 3],
+    mode: '2v2',
+    isOT: false,
+    ranked: true,
+    forfeit: false,
+    me: { goals: 2, saves: 1, assists: 0, shots: 4, score: 520, mvp: win },
+    preview: true,
+  };
+  const already = !!windows.getDashboard();
+  windows.openDashboard({ fullscreen: config.get().dashboardFullscreen });
+  // Si la fenêtre vient d'être créée, on lui laisse le temps de charger.
+  setTimeout(() => windows.broadcast('match-result', fake), already ? 50 : 900);
+});
+
 // Marque le match EN COURS comme classé ou casual.
 ipcMain.on('set-current-ranked', (_e, ranked) => {
   if (state.live && !state.live.training) {

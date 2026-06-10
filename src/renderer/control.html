@@ -293,6 +293,27 @@
     </div>
 
     <div class="card">
+      <h2>Animations</h2>
+      <label class="field">Style</label>
+      <select id="animPreset">
+        <option value="broadcast">Broadcast — liserés TV + confettis</option>
+        <option value="minimal">Minimal — fondu sobre et court</option>
+        <option value="arcade">Arcade — punch rétro + secousse</option>
+      </select>
+      <div style="height:10px"></div>
+      <label class="check"><input type="checkbox" id="animEnd" />
+        Écran victoire / défaite en fin de match</label>
+      <label class="check"><input type="checkbox" id="animGoal" />
+        Flash à chaque but</label>
+      <div class="duo">
+        <button class="ghost" style="margin-top:0" id="testWin">Tester victoire</button>
+        <button class="ghost" style="margin-top:0" id="testLoss">Tester défaite</button>
+      </div>
+      <div class="hint">Le test ouvre le dashboard et joue l'animation avec le
+        style et le thème choisis.</div>
+    </div>
+
+    <div class="card">
       <h2>Mini-overlay</h2>
       <label class="check"><input type="checkbox" id="ovStreak" />
         Afficher la série / % de victoires</label>
@@ -450,6 +471,13 @@
     if (document.activeElement !== $('ovScale')) $('ovScale').value = String(oc.scale || 1);
     if (document.activeElement !== $('ovOpacity')) $('ovOpacity').value = String(oc.opacity || 1);
 
+    var an = cfg.anim || {};
+    if (document.activeElement !== $('animPreset')) {
+      $('animPreset').value = an.preset || 'broadcast';
+    }
+    $('animEnd').checked = an.endMatch !== false;
+    $('animGoal').checked = an.goal !== false;
+
     // MMR : on affiche l'estimation courante (pas la base de calibrage),
     // sans écraser une saisie en cours.
     var est = (ses && ses.mmr) || {};
@@ -595,6 +623,24 @@
         api.setConfig({ theme: t });
       });
     });
+
+  // ─── Animations ───
+  function saveAnim() {
+    api.setConfig && api.setConfig({ anim: {
+      preset: $('animPreset').value,
+      endMatch: $('animEnd').checked,
+      goal: $('animGoal').checked,
+    } });
+  }
+  ['animPreset', 'animEnd', 'animGoal'].forEach(function (id) {
+    $(id).addEventListener('change', saveAnim);
+  });
+  $('testWin').onclick = function () {
+    api.previewAnimation && api.previewAnimation('W');
+  };
+  $('testLoss').onclick = function () {
+    api.previewAnimation && api.previewAnimation('L');
+  };
 
   // ─── Mini-overlay ───
   function saveOverlayCfg() {

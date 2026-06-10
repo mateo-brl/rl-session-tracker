@@ -413,6 +413,74 @@
   @keyframes fall {
     to { transform:translateY(108vh) rotate(620deg); opacity:.85; }
   }
+
+  /* ─── Style d'animation « Minimal » : sobre et court ─── */
+  .result-overlay.preset-minimal { background:rgba(12,14,17,.72); }
+  .result-overlay.preset-minimal .result-stripes { display:none; }
+  .result-overlay.preset-minimal .result-text {
+    font-size:min(10vw,118px);
+    animation:min-in .45s ease-out !important;
+  }
+  @keyframes min-in {
+    from { opacity:0; letter-spacing:.22em; }
+    to { opacity:1; letter-spacing:.04em; }
+  }
+  .result-overlay.preset-minimal .result-text::after {
+    content:''; display:block; height:3px; background:currentColor;
+    margin-top:10px; transform-origin:left;
+    animation:min-line .5s .2s both;
+  }
+  @keyframes min-line { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+  .result-overlay.preset-minimal .result-sub {
+    background:transparent; border:0; transform:none;
+  }
+  .result-overlay.preset-minimal .result-sub > span { transform:none; }
+
+  /* ─── Style d'animation « Arcade » : punch rétro ─── */
+  .result-overlay.preset-arcade .result-stripes { display:none; }
+  .result-overlay.preset-arcade::before {
+    content:''; position:absolute; inset:14px; pointer-events:none;
+    border:5px solid currentColor; opacity:0;
+    animation:arc-border .28s steps(2, jump-none) 4;
+  }
+  .result-overlay.preset-arcade.win::before { color:var(--blue); }
+  .result-overlay.preset-arcade.loss::before { color:var(--orange); }
+  @keyframes arc-border { 0% { opacity:0; } 50% { opacity:1; } 100% { opacity:0; } }
+  .result-overlay.preset-arcade .result-text {
+    animation:arc-pop .55s steps(5, jump-none) !important;
+  }
+  @keyframes arc-pop {
+    0% { transform:scale(.2); opacity:0; }
+    30% { transform:scale(1.35); opacity:1; }
+    55% { transform:scale(.85); }
+    80% { transform:scale(1.12); }
+    100% { transform:scale(1); }
+  }
+  .result-overlay.preset-arcade.loss { animation:ov-in .2s ease-out, arc-quake .5s .1s; }
+  @keyframes arc-quake {
+    0%,100% { transform:translate(0,0); }
+    20% { transform:translate(-12px,6px); }
+    40% { transform:translate(10px,-8px); }
+    60% { transform:translate(-8px,-4px); }
+    80% { transform:translate(6px,6px); }
+  }
+  .result-overlay.preset-arcade .confetti-piece {
+    width:10px; height:10px; transform:none;
+    animation-timing-function:steps(14, jump-none);
+  }
+
+  /* ─── Flash de but selon le style ─── */
+  @keyframes goalflash-arcade {
+    0%,100% { border-color:var(--line); background:var(--panel); }
+    25%,65% { border-color:var(--blue); background:var(--panel2); }
+    45% { border-color:var(--line); }
+  }
+  body[data-anim="arcade"] .live.goal { animation:goalflash-arcade .9s steps(2, jump-none); }
+  @keyframes goalflash-minimal {
+    0%,100% { border-color:var(--line); }
+    40% { border-color:var(--muted); }
+  }
+  body[data-anim="minimal"] .live.goal { animation:goalflash-minimal 1s ease-out; }
 </style>
 </head>
 <body>
@@ -740,6 +808,7 @@
     var ses = s.session || {};
 
     applyTheme(cfg.theme);
+    document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
     // La disposition vient de la config — sauf pendant qu'on la modifie.
     if (!editing) {
       layout = mergeLayout(cfg.layout);
@@ -1033,6 +1102,10 @@
   }
   function showResult(m) {
     if (!m || (m.result !== 'W' && m.result !== 'L')) return;
+    var anim = (cur && cur.config && cur.config.anim) || {};
+    // Désactivée dans les réglages — sauf pour le bouton « Tester ».
+    if (!m.preview && anim.endMatch === false) return;
+    var preset = anim.preset || 'broadcast';
     hideResult();
     var win = m.result === 'W';
     var ov = $('resultOverlay');
@@ -1048,24 +1121,25 @@
     $('resultStreak').textContent = (st && st.count >= 2)
       ? st.count + (st.type === 'W' ? ' victoires' : ' défaites') + ' d’affilée'
       : '';
-    if (win) {
+    if (win && preset !== 'minimal') {
       // Pluie aux couleurs du thème — couleur de victoire dominante.
       var cs = getComputedStyle(document.documentElement);
       var cWin = cs.getPropertyValue('--blue').trim() || '#2f9bff';
       var cLoss = cs.getPropertyValue('--orange').trim() || '#ff8a1e';
       var colors = [cWin, cWin, mix(cWin, '#000000', .42), '#eef1f5', cLoss];
+      var fast = preset === 'arcade';
       for (var i = 0; i < 110; i++) {
         var p = document.createElement('i');
         p.className = 'confetti-piece';
         p.style.left = (Math.random() * 100) + 'vw';
         p.style.background = colors[i % colors.length];
-        p.style.animationDuration = (2.2 + Math.random() * 2.3) + 's';
+        p.style.animationDuration = (fast ? 1.4 : 2.2) + Math.random() * (fast ? 1.4 : 2.3) + 's';
         p.style.animationDelay = (Math.random() * 0.9) + 's';
         ov.appendChild(p);
       }
     }
-    ov.className = 'result-overlay show ' + (win ? 'win' : 'loss');
-    resultTimer = setTimeout(hideResult, 6500);
+    ov.className = 'result-overlay show preset-' + preset + ' ' + (win ? 'win' : 'loss');
+    resultTimer = setTimeout(hideResult, preset === 'minimal' ? 3500 : 6500);
   }
   $('resultOverlay').onclick = hideResult;
   if (api.onMatchResult) api.onMatchResult(showResult);
@@ -1089,9 +1163,11 @@
     }
   });
 
-  // Flash sur la carte live à chaque but.
+  // Flash sur la carte live à chaque but (désactivable dans les réglages).
   if (api.onGoal) {
     api.onGoal(function () {
+      var anim = (cur && cur.config && cur.config.anim) || {};
+      if (anim.goal === false) return;
       var c = $('liveCard');
       c.classList.remove('goal');
       void c.offsetWidth;
