@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('rl', {
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
   toggleFullscreen: () => ipcRenderer.send('dashboard-fullscreen-toggle'),
   setCurrentRanked: (on) => ipcRenderer.send('set-current-ranked', on),
+  previewAnimation: (result) => ipcRenderer.send('preview-animation', result),
 
   // Mises à jour.
   updateCheck: () => ipcRenderer.send('update-check'),
