@@ -19,7 +19,18 @@ const DEFAULTS = {
   sounds: true,          // jingles victoire / défaite
   overlayEnabled: false, // mini-overlay toujours au premier plan pendant le jeu
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
+  // ── Personnalisation ──
+  theme: null,           // { win, loss, bg, gold } — null = thème par défaut
+  layout: null,          // disposition des widgets du dashboard — null = défaut
+  overlayCfg: {          // contenu et apparence du mini-overlay
+    showStreak: true,    // série / % victoires
+    showLive: true,      // score du match en cours / dernier match
+    scale: 1,            // 0.85 | 1 | 1.25
+    opacity: 1,          // 1 | 0.85 | 0.7
+  },
 };
+
+const HEX = /^#[0-9a-f]{6}$/i;
 
 let file = null;
 let config = { ...DEFAULTS };
@@ -68,6 +79,41 @@ function update(partial) {
         && Number.isFinite(partial.overlayPos.y)) {
       config.overlayPos = { x: Math.round(partial.overlayPos.x),
         y: Math.round(partial.overlayPos.y) };
+    }
+    // Thème : 4 couleurs hex validées, ou null pour revenir au défaut.
+    if (partial.theme === null) config.theme = null;
+    else if (partial.theme && typeof partial.theme === 'object') {
+      const t = {};
+      for (const k of ['win', 'loss', 'bg', 'gold']) {
+        if (HEX.test(String(partial.theme[k] || ''))) t[k] = partial.theme[k].toLowerCase();
+      }
+      config.theme = Object.keys(t).length ? { ...(config.theme || {}), ...t } : config.theme;
+    }
+    // Disposition des widgets : { id: { x, y, w, h, hidden } } en % bornés.
+    if (partial.layout === null) config.layout = null;
+    else if (partial.layout && typeof partial.layout === 'object') {
+      const out = {};
+      for (const id of Object.keys(partial.layout).slice(0, 12)) {
+        const w = partial.layout[id];
+        if (!w || typeof w !== 'object') continue;
+        const c = (v, lo, hi) => Math.max(lo, Math.min(hi, Number(v)));
+        out[String(id).slice(0, 16)] = {
+          x: c(w.x, 0, 95) || 0, y: c(w.y, 0, 95) || 0,
+          w: c(w.w, 5, 100) || 20, h: c(w.h, 5, 100) || 20,
+          hidden: !!w.hidden,
+        };
+      }
+      config.layout = Object.keys(out).length ? out : null;
+    }
+    // Mini-overlay : contenu, échelle, opacité.
+    if (partial.overlayCfg && typeof partial.overlayCfg === 'object') {
+      const o = config.overlayCfg = { ...DEFAULTS.overlayCfg, ...(config.overlayCfg || {}) };
+      if (typeof partial.overlayCfg.showStreak === 'boolean') o.showStreak = partial.overlayCfg.showStreak;
+      if (typeof partial.overlayCfg.showLive === 'boolean') o.showLive = partial.overlayCfg.showLive;
+      const sc = Number(partial.overlayCfg.scale);
+      if (sc >= 0.7 && sc <= 1.6) o.scale = sc;
+      const op = Number(partial.overlayCfg.opacity);
+      if (op >= 0.4 && op <= 1) o.opacity = op;
     }
     // Calibrage du MMR d'un mode : { mode: '2v2', value: 1234 | null }.
     if (partial.mmrSet && typeof partial.mmrSet.mode === 'string') {

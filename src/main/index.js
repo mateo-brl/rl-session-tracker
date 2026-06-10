@@ -112,7 +112,8 @@ function setGameRunning(running) {
 
 function openOverlay() {
   windows.openOverlay(config.get().overlayPos,
-    (pos) => config.update({ overlayPos: pos }));
+    (pos) => config.update({ overlayPos: pos }),
+    config.get().overlayCfg);
 }
 
 function recomputeRunning() {
@@ -275,6 +276,9 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && typeof partial.overlayEnabled === 'boolean') {
     if (partial.overlayEnabled && state.game.running) openOverlay();
     else if (!partial.overlayEnabled) windows.closeOverlay();
+  }
+  if (partial && partial.overlayCfg) {
+    windows.applyOverlayCfg(config.get().overlayCfg);
   }
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();

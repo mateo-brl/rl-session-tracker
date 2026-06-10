@@ -65,11 +65,45 @@
   function $(id) { return document.getElementById(id); }
   var api = window.rl || {};
 
+  // ─── Thème (partagé avec le dashboard) ───
+  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  function mix(a, b, f) {
+    var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    var c = [16, 8, 0].map(function (sh) {
+      var va = (pa >> sh) & 255, vb = (pb >> sh) & 255;
+      return Math.round(va + (vb - va) * f);
+    });
+    return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+  }
+  var themeApplied = '';
+  function applyTheme(t) {
+    t = Object.assign({}, THEME_DEFAULT, t || {});
+    var key = JSON.stringify(t);
+    if (key === themeApplied) return;
+    themeApplied = key;
+    var s = document.documentElement.style;
+    s.setProperty('--blue', t.win);
+    s.setProperty('--orange', t.loss);
+    s.setProperty('--bg', t.bg);
+    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
+    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+  }
+
   function render(s) {
     if (!s) return;
+    var cfg = s.config || {};
+    applyTheme(cfg.theme);
+    var oc = cfg.overlayCfg || {};
+    // La fenêtre est redimensionnée par le processus principal ; le contenu
+    // suit via le zoom.
+    document.body.style.zoom = oc.scale || 1;
     var ses = s.session || {};
     $('w').textContent = ses.wins || 0;
     $('l').textContent = ses.losses || 0;
+
+    // Contenu personnalisable : série et/ou ligne live masquables.
+    $('top').style.display = oc.showStreak === false ? 'none' : 'block';
+    $('bottom').style.display = oc.showLive === false ? 'none' : 'block';
 
     var st = ses.streak || { count: 0 };
     var top = $('top');
