@@ -258,7 +258,11 @@
     $('rApi').textContent = game.statsConnected ? 'connectée' : 'en attente d’un match';
     $('rApi').className = game.statsConnected ? 'live' : '';
 
-    if (s.live) {
+    if (s.live && s.live.training) {
+      $('rMatchLabel').textContent = 'En cours';
+      $('rMatch').textContent = 'entraînement (non compté)';
+      $('rMatch').className = '';
+    } else if (s.live) {
       $('rMatchLabel').textContent = 'Match en cours';
       $('rMatch').textContent = (s.live.mode ? s.live.mode + ' · ' : '') + fmtScore(s.live);
       $('rMatch').className = 'live';

@@ -67,12 +67,18 @@ function pushState() {
 }
 
 // ───────── Démarrage automatique avec Windows ─────────
+// IMPORTANT : sous Windows, getLoginItemSettings ne reconnaît l'entrée que si
+// on lui passe les MÊMES args que ceux donnés à setLoginItemSettings — sans
+// ça il répond toujours « désactivé » et la case se décoche toute seule.
+const AUTOSTART_ARGS = ['--silent'];
 function autostartEnabled() {
-  try { return app.getLoginItemSettings().openAtLogin; } catch (e) { return false; }
+  try {
+    return app.getLoginItemSettings({ args: AUTOSTART_ARGS }).openAtLogin;
+  } catch (e) { return false; }
 }
 function setAutostart(on) {
   try {
-    app.setLoginItemSettings({ openAtLogin: on, args: ['--silent'] });
+    app.setLoginItemSettings({ openAtLogin: on, args: AUTOSTART_ARGS });
     state.autostart = autostartEnabled();
     log('démarrage auto : ' + (on ? 'activé' : 'désactivé'));
   } catch (e) {
@@ -127,6 +133,13 @@ function createTray() {
 }
 
 // ───────── Stats API du jeu ─────────
+// Entraînement / piste libre : le joueur est seul dans la « partie ». Un vrai
+// match a toujours au moins 2 joueurs — en dessous, on affiche « entraînement »
+// et on ne compte RIEN (ni buts, ni résultat).
+function isTraining(d) {
+  return !Array.isArray(d.players) || d.players.length < 2;
+}
+
 function startStatsApi() {
   process.env.STATSAPI_PORT = String(config.get().statsApiPort);
   const api = new RLStatsAPI();
@@ -136,17 +149,23 @@ function startStatsApi() {
     recomputeRunning();
   });
   api.on('state', (d) => {
-    state.live = d && d.active ? d : null;
+    state.live = d && d.active ? { ...d, training: isTraining(d) } : null;
     pushState();
   });
   api.on('match', (d) => {
     if (d.phase === 'destroyed') { state.live = null; pushState(); }
   });
   api.on('goal', (d) => {
+    if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
   });
   api.on('ended', (snap) => {
     state.live = null;
+    if (isTraining(snap)) {
+      pushState();
+      log('entraînement terminé — non compté');
+      return;
+    }
     store.addMatch(snap);
     // Pseudo pas encore configuré : on le devine (joueur présent dans tous
     // les derniers matchs). Zéro saisie pour l'utilisateur dans le cas normal.
@@ -162,6 +181,10 @@ function startStatsApi() {
     }
     refreshSession();
     pushState();
+    // Animation victoire / défaite sur le dashboard : le match qu'on vient
+    // d'enregistrer est le premier de l'historique, déjà évalué (W/L, MVP).
+    const last = state.history[0];
+    if (last) windows.broadcast('match-result', last);
     log('match enregistré : ' + (snap.mode || '?') + ' '
       + (Array.isArray(snap.score) ? snap.score.join('-') : '?'));
   });
@@ -185,9 +208,19 @@ async function firstRunSetup() {
 ipcMain.handle('get-state', () => { state.config = config.get(); return state; });
 ipcMain.handle('set-config', (_e, partial) => {
   config.update(partial);
+  // Le plein écran s'applique immédiatement si le dashboard est ouvert.
+  if (partial && typeof partial.dashboardFullscreen === 'boolean') {
+    windows.setDashboardFullscreen(partial.dashboardFullscreen);
+  }
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
   return config.get();
+});
+ipcMain.on('dashboard-fullscreen-toggle', () => {
+  const on = !config.get().dashboardFullscreen;
+  config.update({ dashboardFullscreen: on });
+  windows.setDashboardFullscreen(on);
+  pushState();
 });
 ipcMain.handle('reset-session', () => {
   store.resetSession();
