@@ -28,7 +28,7 @@ tu lances le jeu.
 |---|---|
 | 🖥️ **Dashboard auto** | Tu lances Rocket League → le tracker s'ouvre en plein écran sur ton 2ᵉ écran. Tu quittes le jeu → il se ferme. |
 | ⚡ **Temps réel** | Score, temps, overtime, stats des joueurs — à la seconde, pendant le match. |
-| 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours 🔥, meilleure série, par mode (1v1 · 2v2 · 3v3). |
+| 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours 🔥, meilleure série, par mode (1v1 · 2v2 · 3v3). Tout repart à zéro à chaque fermeture de l'application — sauf le MMR, qui est conservé. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 📈 **MMR estimé** | Recopie une fois ton MMR affiché en jeu (visible depuis la saison 22), l'appli le suit ensuite toute seule. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |

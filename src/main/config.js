@@ -71,10 +71,18 @@ function update(partial) {
   return config;
 }
 
+// Remplace toutes les bases de calibrage MMR d'un coup (utilisé quand
+// l'historique est effacé : l'estimation courante devient la base).
+function setMmr(map) {
+  config.mmr = (map && typeof map === 'object') ? map : {};
+  save();
+  return config;
+}
+
 function save() {
   try {
     fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   } catch (e) { /* préférences non critiques */ }
 }
 
-module.exports = { init, get, exists, update, save };
+module.exports = { init, get, exists, update, setMmr, save };
