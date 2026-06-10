@@ -102,6 +102,25 @@ function openDashboard(opts, onReady) {
   return dashboard;
 }
 
+// Bascule le plein écran du dashboard ouvert. En sortant du plein écran, on
+// redonne une taille de fenêtre raisonnable, centrée sur le même écran.
+function setDashboardFullscreen(on) {
+  if (!dashboard || dashboard.isDestroyed()) return;
+  dashboard.setFullScreen(!!on);
+  if (!on) {
+    const d = screen.getDisplayMatching(dashboard.getBounds());
+    const wa = d.workArea;
+    const w = Math.min(1280, wa.width - 80);
+    const h = Math.min(800, wa.height - 80);
+    dashboard.setBounds({
+      x: wa.x + Math.round((wa.width - w) / 2),
+      y: wa.y + Math.round((wa.height - h) / 2),
+      width: w,
+      height: h,
+    });
+  }
+}
+
 function closeDashboard() {
   if (dashboard && !dashboard.isDestroyed()) dashboard.destroy();
   dashboard = null;
@@ -123,5 +142,6 @@ function broadcast(channel, payload) {
 module.exports = {
   createControl, showControl, getControl,
   openDashboard, closeDashboard, getDashboard,
+  setDashboardFullscreen,
   broadcast,
 };
