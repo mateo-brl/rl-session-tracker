@@ -133,14 +133,18 @@ function getDashboard() {
 
 // ───────── Mini-overlay (toujours au premier plan) ─────────
 // Petit bandeau W–L / série / score live, pour jouer sur un seul écran.
-function openOverlay(pos, onMoved) {
+const OVERLAY_W = 284;
+const OVERLAY_H = 92;
+
+function openOverlay(pos, onMoved, ocfg) {
   if (overlay && !overlay.isDestroyed()) { overlay.show(); return overlay; }
   const wa = screen.getPrimaryDisplay().workArea;
+  const scale = (ocfg && ocfg.scale) || 1;
   overlay = new BrowserWindow({
     x: (pos && Number.isFinite(pos.x)) ? pos.x : wa.x + wa.width - 300,
     y: (pos && Number.isFinite(pos.y)) ? pos.y : wa.y + 16,
-    width: 284,
-    height: 92,
+    width: Math.round(OVERLAY_W * scale),
+    height: Math.round(OVERLAY_H * scale),
     frame: false,
     resizable: false,
     maximizable: false,
@@ -158,6 +162,9 @@ function openOverlay(pos, onMoved) {
     },
   });
   overlay.setAlwaysOnTop(true, 'screen-saver');
+  if (ocfg && ocfg.opacity < 1) {
+    try { overlay.setOpacity(ocfg.opacity); } catch (e) {}
+  }
   overlay.loadFile(path.join(RENDERER, 'overlay.html'));
   overlay.once('ready-to-show', () => overlay.show());
   overlay.on('moved', () => {
@@ -173,6 +180,19 @@ function openOverlay(pos, onMoved) {
 function closeOverlay() {
   if (overlay && !overlay.isDestroyed()) overlay.destroy();
   overlay = null;
+}
+
+// Applique échelle et opacité à un overlay déjà ouvert.
+function applyOverlayCfg(ocfg) {
+  if (!overlay || overlay.isDestroyed() || !ocfg) return;
+  const b = overlay.getBounds();
+  const scale = ocfg.scale || 1;
+  overlay.setBounds({
+    x: b.x, y: b.y,
+    width: Math.round(OVERLAY_W * scale),
+    height: Math.round(OVERLAY_H * scale),
+  });
+  try { overlay.setOpacity(ocfg.opacity == null ? 1 : ocfg.opacity); } catch (e) {}
 }
 
 function getOverlay() {
@@ -192,6 +212,6 @@ module.exports = {
   createControl, showControl, getControl,
   openDashboard, closeDashboard, getDashboard,
   setDashboardFullscreen,
-  openOverlay, closeOverlay, getOverlay,
+  openOverlay, closeOverlay, getOverlay, applyOverlayCfg,
   broadcast,
 };

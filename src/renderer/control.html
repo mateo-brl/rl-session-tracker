@@ -121,6 +121,23 @@
   .check input { accent-color:var(--blue); width:15px; height:15px;
     cursor:pointer; }
 
+  .color-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+  .color-grid label { font-size:11.5px; color:var(--muted); display:flex;
+    flex-direction:column; gap:5px; }
+  input[type=color] {
+    width:100%; height:32px; padding:2px; cursor:pointer; border-radius:0;
+    background:var(--panel2); border:1px solid var(--line);
+  }
+  input[type=color]::-webkit-color-swatch-wrapper { padding:2px; }
+  input[type=color]::-webkit-color-swatch { border:0; }
+  select {
+    width:100%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--text); font-size:13px; padding:8px 10px; font-family:inherit;
+    border-radius:0;
+  }
+  select:focus { outline:none; border-color:var(--blue); }
+  .duo { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:8px; }
+
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip {
     border:1px solid var(--line); background:var(--panel2); color:var(--text);
@@ -259,6 +276,44 @@
         Lancer au démarrage de Windows</label>
     </div>
 
+    <div class="card">
+      <h2>Apparence</h2>
+      <div class="chips" id="themePresets"></div>
+      <div style="height:12px"></div>
+      <div class="color-grid">
+        <label>Victoire<input type="color" id="cWin" /></label>
+        <label>Défaite<input type="color" id="cLoss" /></label>
+        <label>Fond<input type="color" id="cBg" /></label>
+        <label>MVP<input type="color" id="cGold" /></label>
+      </div>
+      <div class="hint">Les couleurs s'appliquent partout : dashboard,
+        mini-overlay et cette fenêtre. Et sur le dashboard, le bouton
+        « Personnaliser » permet de déplacer, redimensionner et masquer
+        chaque bloc.</div>
+    </div>
+
+    <div class="card">
+      <h2>Mini-overlay</h2>
+      <label class="check"><input type="checkbox" id="ovStreak" />
+        Afficher la série / % de victoires</label>
+      <label class="check"><input type="checkbox" id="ovLive" />
+        Afficher le score en direct / dernier match</label>
+      <div class="duo">
+        <label class="field">Taille
+          <select id="ovScale">
+            <option value="0.85">Petit</option>
+            <option value="1">Normal</option>
+            <option value="1.25">Grand</option>
+          </select></label>
+        <label class="field">Opacité
+          <select id="ovOpacity">
+            <option value="1">100 %</option>
+            <option value="0.85">85 %</option>
+            <option value="0.7">70 %</option>
+          </select></label>
+      </div>
+    </div>
+
     <button class="primary" id="dashBtn">Ouvrir le dashboard</button>
     <button class="ghost danger" id="resetBtn">Vider les matchs récents</button>
     <button class="ghost" id="statsApiBtn">Réactiver la Stats API du jeu</button>
@@ -274,6 +329,50 @@
   var api = window.rl || {};
   var cur = null;
   var editingPseudo = false;
+
+  // ─── Thème (partagé avec le dashboard et l'overlay) ───
+  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  var PRESETS = [
+    { name: 'Bleu / Orange', t: THEME_DEFAULT },
+    { name: 'Vert / Rouge', t: { win: '#2ee68a', loss: '#ff5d6c', bg: '#0c0e11', gold: '#ffc233' } },
+    { name: 'Violet / Rose', t: { win: '#9d6bff', loss: '#ff4f9e', bg: '#0d0b14', gold: '#ffd166' } },
+    { name: 'Mono nuit', t: { win: '#e8eef5', loss: '#5b6573', bg: '#08090c', gold: '#c9d2dd' } },
+  ];
+  function mix(a, b, f) {
+    var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    var c = [16, 8, 0].map(function (sh) {
+      var va = (pa >> sh) & 255, vb = (pb >> sh) & 255;
+      return Math.round(va + (vb - va) * f);
+    });
+    return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+  }
+  var themeApplied = '';
+  function applyTheme(t) {
+    t = Object.assign({}, THEME_DEFAULT, t || {});
+    var key = JSON.stringify(t);
+    if (key === themeApplied) return;
+    themeApplied = key;
+    var s = document.documentElement.style;
+    s.setProperty('--blue', t.win);
+    s.setProperty('--blue-deep', mix(t.win, '#000000', .42));
+    s.setProperty('--orange', t.loss);
+    s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
+    s.setProperty('--gold', t.gold);
+    s.setProperty('--bg', t.bg);
+    s.setProperty('--panel', mix(t.bg, '#ffffff', .035));
+    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
+    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+  }
+  // Pastilles de thèmes prédéfinis (construites une fois).
+  PRESETS.forEach(function (p) {
+    var b = document.createElement('button');
+    b.className = 'chip';
+    var inner = document.createElement('span');
+    inner.textContent = p.name;
+    b.appendChild(inner);
+    b.onclick = function () { api.setConfig && api.setConfig({ theme: p.t }); };
+    document.getElementById('themePresets').appendChild(b);
+  });
 
   function fmtScore(live) {
     return live && Array.isArray(live.score)
@@ -336,6 +435,20 @@
     $('optOverlay').checked = !!cfg.overlayEnabled;
     $('optSounds').checked = cfg.sounds !== false;
     $('optBoot').checked = !!s.autostart;
+
+    // Apparence + mini-overlay (sans écraser une saisie en cours).
+    applyTheme(cfg.theme);
+    var th = Object.assign({}, THEME_DEFAULT, cfg.theme || {});
+    [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
+      .forEach(function (pair) {
+        var input = $(pair[0]);
+        if (document.activeElement !== input) input.value = th[pair[1]];
+      });
+    var oc = cfg.overlayCfg || {};
+    $('ovStreak').checked = oc.showStreak !== false;
+    $('ovLive').checked = oc.showLive !== false;
+    if (document.activeElement !== $('ovScale')) $('ovScale').value = String(oc.scale || 1);
+    if (document.activeElement !== $('ovOpacity')) $('ovOpacity').value = String(oc.opacity || 1);
 
     // MMR : on affiche l'estimation courante (pas la base de calibrage),
     // sans écraser une saisie en cours.
@@ -471,6 +584,30 @@
   $('optBoot').onchange = function () {
     api.setAutostart && api.setAutostart($('optBoot').checked);
   };
+
+  // ─── Apparence ───
+  [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
+    .forEach(function (pair) {
+      $(pair[0]).addEventListener('change', function () {
+        if (!api.setConfig) return;
+        var t = {};
+        t[pair[1]] = $(pair[0]).value;
+        api.setConfig({ theme: t });
+      });
+    });
+
+  // ─── Mini-overlay ───
+  function saveOverlayCfg() {
+    api.setConfig && api.setConfig({ overlayCfg: {
+      showStreak: $('ovStreak').checked,
+      showLive: $('ovLive').checked,
+      scale: Number($('ovScale').value),
+      opacity: Number($('ovOpacity').value),
+    } });
+  }
+  ['ovStreak', 'ovLive', 'ovScale', 'ovOpacity'].forEach(function (id) {
+    $(id).addEventListener('change', saveOverlayCfg);
+  });
 
   // ─── Actions ───
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
