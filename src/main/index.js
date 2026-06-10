@@ -192,6 +192,7 @@ function isTraining(d) {
 function startStatsApi() {
   process.env.STATSAPI_PORT = String(config.get().statsApiPort);
   const api = new RLStatsAPI();
+  let lastRecordedAt = 0;   // ceinture anti-doublon (fin de match + abandon)
 
   api.on('connection', (d) => {
     state.game.statsConnected = d.connected;
@@ -226,6 +227,14 @@ function startStatsApi() {
       log('abandon casual / entraînement — non compté');
       return;
     }
+    // Un match vient d'être enregistré ? Cet « abandon » n'est que la fin
+    // d'écran du même match (FF) : on ne compte pas deux défaites.
+    if (Date.now() - lastRecordedAt < 45 * 1000) {
+      pushState();
+      log('abandon ignoré — match déjà enregistré il y a moins de 45 s');
+      return;
+    }
+    lastRecordedAt = Date.now();
     snap.ranked = true;
     store.addMatch(snap);
     refreshSession();
@@ -249,6 +258,7 @@ function startStatsApi() {
     snap.ranked = state.currentRanked !== null
       ? state.currentRanked : config.get().mmrCounts !== false;
     state.currentRanked = null;
+    lastRecordedAt = Date.now();
     store.addMatch(snap);
     // Pseudo pas encore configuré : on le devine (joueur présent dans tous
     // les derniers matchs). Zéro saisie pour l'utilisateur dans le cas normal.
