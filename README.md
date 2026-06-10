@@ -101,6 +101,15 @@ pseudo dans les suggestions.
 </details>
 
 <details>
+<summary><b>Le mini-overlay n'apparaît pas par-dessus le jeu</b></summary>
+
+Rocket League est en mode « Plein écran » exclusif : Windows ne laisse alors
+**aucune** fenêtre passer devant le jeu (c'est pareil pour tous les overlays).
+Mets l'affichage en **« Fenêtré sans bordure »** (Paramètres → Vidéo) —
+visuellement identique, et l'overlay passera devant.
+</details>
+
+<details>
 <summary><b>Le dashboard s'ouvre sur le mauvais écran</b></summary>
 
 Il choisit l'écran **secondaire** automatiquement. Si tu préfères le placer
@@ -279,6 +288,15 @@ prompt → **restart Rocket League**. As a last resort, double-click
 The app doesn't know who you are yet. Play 2-3 matches (it detects your name
 automatically), or open the app window and pick your name from the
 suggestions.
+</details>
+
+<details>
+<summary><b>The mini-overlay doesn't show above the game</b></summary>
+
+Rocket League is in exclusive "Fullscreen" mode: Windows then lets **no**
+window appear above the game (the same goes for every overlay). Set the
+display mode to **"Borderless Windowed"** (Settings → Video) — visually
+identical, and the overlay will show on top.
 </details>
 
 <details>
