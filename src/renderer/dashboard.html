@@ -53,6 +53,62 @@
     background:linear-gradient(90deg,var(--ok),#5ff0c0); white-space:nowrap;
   }
   .clock { font-size:14px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .fs-btn {
+    border:1px solid var(--line); background:var(--card); color:var(--muted);
+    border-radius:10px; width:34px; height:34px; font-size:16px; cursor:pointer;
+    font-family:inherit; line-height:1;
+  }
+  .fs-btn:hover { border-color:var(--cyan); color:var(--cyan); }
+
+  /* ─── Entraînement (non compté) ─── */
+  .live-training { flex:1; display:none; flex-direction:column; align-items:center;
+    justify-content:center; gap:10px; }
+  .live-training .big { font-size:30px; font-weight:800; color:var(--warn); }
+  .live-training .sub { font-size:14px; color:var(--muted); }
+
+  /* ─── Animation victoire / défaite ─── */
+  .result-overlay {
+    position:fixed; inset:0; z-index:50; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px;
+    background:rgba(10,12,18,.82); cursor:pointer;
+  }
+  .result-overlay.show { display:flex; animation:ov-in .25s ease-out; }
+  @keyframes ov-in { from { opacity:0; } to { opacity:1; } }
+  .result-text {
+    font-size:min(13vw,150px); font-weight:900; letter-spacing:.05em;
+    line-height:1;
+  }
+  .result-overlay.win .result-text {
+    color:var(--ok); text-shadow:0 0 70px rgba(46,230,166,.65);
+    animation:pop .55s cubic-bezier(.2,1.6,.4,1);
+  }
+  .result-overlay.loss .result-text {
+    color:var(--err); text-shadow:0 0 70px rgba(255,93,108,.55);
+    animation:shake .55s ease-in-out;
+  }
+  @keyframes pop {
+    0% { transform:scale(.3); opacity:0; }
+    60% { transform:scale(1.12); opacity:1; }
+    100% { transform:scale(1); }
+  }
+  @keyframes shake {
+    0% { transform:translateY(-40px); opacity:0; }
+    40% { transform:translateY(0); opacity:1; }
+    55% { transform:translateX(-14px); }
+    70% { transform:translateX(11px); }
+    85% { transform:translateX(-6px); }
+    100% { transform:translateX(0); }
+  }
+  .result-sub { font-size:26px; color:var(--text); font-weight:700;
+    font-variant-numeric:tabular-nums; }
+  .result-streak { font-size:16px; color:var(--muted); }
+  .confetti-piece {
+    position:absolute; top:-24px; width:10px; height:15px; border-radius:2px;
+    animation:fall linear forwards;
+  }
+  @keyframes fall {
+    to { transform:translateY(108vh) rotate(740deg); opacity:.85; }
+  }
 
   /* ─── Grille principale ─── */
   main {
@@ -206,6 +262,7 @@
       <span id="updTxt"></span>
       <button id="updBtn"></button>
     </div>
+    <button class="fs-btn" id="fsBtn" title="Plein écran (F11)">⛶</button>
     <div class="clock" id="clock"></div>
   </header>
 
@@ -243,6 +300,10 @@
       <div class="live-off" id="liveOff">
         En attente d'un match…<br/>Lance une partie, le score s'affichera ici
         en direct.
+      </div>
+      <div class="live-training" id="liveTraining">
+        <div class="big">🏋️ Entraînement</div>
+        <div class="sub">Piste libre détectée — rien n'est compté dans tes stats.</div>
       </div>
       <div class="live-on" id="liveOn" style="display:none">
         <div class="live-mode" id="liveMode"></div>
@@ -282,13 +343,20 @@
     </section>
   </main>
 
-  <div class="esc-hint">Échap pour fermer</div>
+  <div class="esc-hint">F11 : plein écran · Échap : quitter le plein écran / fermer</div>
+
+  <div class="result-overlay" id="resultOverlay">
+    <div class="result-text" id="resultText"></div>
+    <div class="result-sub" id="resultSub"></div>
+    <div class="result-streak" id="resultStreak"></div>
+  </div>
 
 <script>
 (function () {
   'use strict';
   function $(id) { return document.getElementById(id); }
   var api = window.rl || {};
+  var cur = null;
 
   // ─── Horloge ───
   function tickClock() {
@@ -317,6 +385,7 @@
 
   function render(s) {
     if (!s) return;
+    cur = s;
     var cfg = s.config || {};
     var ses = s.session || {};
 
@@ -385,11 +454,14 @@
     });
     $('modesGrid').innerHTML = html;
 
-    // Match en cours.
+    // Match en cours. L'entraînement (joueur seul) est affiché comme tel et
+    // n'alimente aucune statistique.
     var live = s.live;
+    var training = live && live.training;
     $('liveOff').style.display = live ? 'none' : 'flex';
-    $('liveOn').style.display = live ? 'flex' : 'none';
-    if (live) {
+    $('liveTraining').style.display = training ? 'flex' : 'none';
+    $('liveOn').style.display = (live && !training) ? 'flex' : 'none';
+    if (live && !training) {
       $('liveMode').textContent = live.mode || 'match';
       $('ls0').textContent = live.score ? live.score[0] : 0;
       $('ls1').textContent = live.score ? live.score[1] : 0;
@@ -485,9 +557,65 @@
     });
   }
 
-  // Échap ferme le dashboard.
+  // ─── Animation victoire / défaite ───
+  var resultTimer = null;
+  function hideResult() {
+    clearTimeout(resultTimer);
+    var ov = $('resultOverlay');
+    ov.className = 'result-overlay';
+    // Retire les confettis de l'animation précédente.
+    Array.prototype.slice.call(ov.querySelectorAll('.confetti-piece'))
+      .forEach(function (el) { el.remove(); });
+  }
+  function showResult(m) {
+    if (!m || (m.result !== 'W' && m.result !== 'L')) return;
+    hideResult();
+    var win = m.result === 'W';
+    var ov = $('resultOverlay');
+    $('resultText').textContent = win ? 'VICTOIRE' : 'DÉFAITE';
+    $('resultSub').textContent =
+      (m.score ? m.score[0] + ' – ' + m.score[1] : '')
+      + (m.isOT ? ' (OT)' : '')
+      + (m.mode ? '  ·  ' + m.mode : '')
+      + (m.me && m.me.mvp ? '  ·  ★ MVP' : '');
+    var st = cur && cur.session && cur.session.streak;
+    $('resultStreak').textContent = (st && st.count >= 2)
+      ? (st.type === 'W' ? '🔥 ' + st.count + ' victoires d’affilée'
+                         : '🧊 ' + st.count + ' défaites d’affilée')
+      : '';
+    if (win) {
+      var colors = ['#00e5ff', '#2ee6a6', '#ffb020', '#ff3d71', '#e7e9f0'];
+      for (var i = 0; i < 110; i++) {
+        var p = document.createElement('i');
+        p.className = 'confetti-piece';
+        p.style.left = (Math.random() * 100) + 'vw';
+        p.style.background = colors[i % colors.length];
+        p.style.animationDuration = (2.2 + Math.random() * 2.3) + 's';
+        p.style.animationDelay = (Math.random() * 0.9) + 's';
+        p.style.transform = 'rotate(' + Math.round(Math.random() * 360) + 'deg)';
+        ov.appendChild(p);
+      }
+    }
+    ov.className = 'result-overlay show ' + (win ? 'win' : 'loss');
+    resultTimer = setTimeout(hideResult, 6500);
+  }
+  $('resultOverlay').onclick = hideResult;
+  if (api.onMatchResult) api.onMatchResult(showResult);
+
+  // ─── Plein écran et clavier ───
+  function toggleFullscreen() {
+    if (api.toggleFullscreen) api.toggleFullscreen();
+  }
+  $('fsBtn').onclick = toggleFullscreen;
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
     if (e.key === 'Escape') {
+      // L'animation d'abord, puis le plein écran, puis la fermeture.
+      if ($('resultOverlay').classList.contains('show')) { hideResult(); return; }
+      if (cur && cur.config && cur.config.dashboardFullscreen) {
+        toggleFullscreen();
+        return;
+      }
       if (api.closeDashboard) api.closeDashboard(); else window.close();
     }
   });

@@ -56,6 +56,7 @@ class SessionStore {
   // ({ mode, score, isOT, winnerTeam, players, endedAt }).
   addMatch(snap) {
     const players = Array.isArray(snap.players) ? snap.players : [];
+    if (players.length < 2) return;   // entraînement / piste libre — jamais compté
     this._rememberPlayers(players);
 
     this.matches.push({

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('rl', {
   getState: () => ipcRenderer.invoke('get-state'),
   onState: (cb) => ipcRenderer.on('state', (_e, s) => cb(s)),
   onGoal: (cb) => ipcRenderer.on('goal', (_e, g) => cb(g)),
+  onMatchResult: (cb) => ipcRenderer.on('match-result', (_e, m) => cb(m)),
 
   // Réglages et actions.
   setConfig: (partial) => ipcRenderer.invoke('set-config', partial),
@@ -17,6 +18,7 @@ contextBridge.exposeInMainWorld('rl', {
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
+  toggleFullscreen: () => ipcRenderer.send('dashboard-fullscreen-toggle'),
 
   // Mises à jour.
   updateCheck: () => ipcRenderer.send('update-check'),

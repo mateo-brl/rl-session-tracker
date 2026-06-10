@@ -1,7 +1,7 @@
 {
   "name": "rl-session-tracker",
   "productName": "RL Session Tracker",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Tracker de sessions Rocket League — application de bureau locale, temps réel via la Stats API du jeu",
   "main": "src/main/index.js",
   "author": "Mateo BRL",
