@@ -42,6 +42,7 @@ class RLStatsAPI extends EventEmitter {
     this.socket = null;
     this.connected = false;
     this.match = null;        // snapshot du match en cours, ou null
+    this._afterEnd = false;   // entre matchended et le prochain matchcreated
     this.reconnectDelay = 2000;
     this._lastStateEmit = 0;
     this._stateTimer = null;  // timer du « trailing edge » de la diffusion
@@ -99,6 +100,7 @@ class RLStatsAPI extends EventEmitter {
       this.connected = true;
       this.reconnectDelay = 2000;
       this._resetParser();
+      this._afterEnd = false;
       if (DEBUG) console.log('[statsapi] connecté à ' + HOST + ':' + PORT);
       this.emit('connection', { connected: true });
     });
@@ -210,9 +212,14 @@ class RLStatsAPI extends EventEmitter {
     switch (name) {
       case 'matchcreated':
       case 'matchinitialized':
+        this._afterEnd = false;
         this._onMatchStart();
         break;
       case 'updatestate':
+        // Après matchended, le jeu continue d'envoyer des updatestate pendant
+        // l'écran de fin : les ignorer, sinon on recrée un « match fantôme »
+        // que matchdestroyed compterait comme un abandon (double défaite).
+        if (this._afterEnd) break;
         this._onUpdateState(data);
         break;
       case 'goalscored':
@@ -338,6 +345,7 @@ class RLStatsAPI extends EventEmitter {
     const snap = this.snapshot();
     snap.winnerTeam = winnerTeam;
     snap.endedAt = Date.now();
+    this._afterEnd = true;
     this.emit('ended', snap);
     this.match = null;
   }
