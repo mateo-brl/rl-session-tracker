@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'" />
+<title>RL Session Tracker — Overlay</title>
+<style>
+  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
+    src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
+    src:url('fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
+    src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+  :root {
+    --bg:#0c0e11; --panel2:#1a1e25; --line:#272d37;
+    --text:#eef1f5; --muted:#8b93a1;
+    --blue:#2f9bff; --orange:#ff8a1e;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body {
+    background:var(--bg); color:var(--text); overflow:hidden;
+    font-family:'Barlow Condensed','Segoe UI',sans-serif;
+    -webkit-user-select:none; user-select:none;
+    border:1px solid var(--line);
+    display:flex; flex-direction:column;
+    -webkit-app-region:drag;            /* tout le bandeau se déplace */
+  }
+  .strip { height:3px; background:linear-gradient(90deg,
+    var(--blue) 0 50%, var(--orange) 50% 100%); flex:none; }
+  .row { flex:1; display:flex; align-items:center; gap:12px; padding:0 14px; }
+  .wl { display:flex; align-items:baseline; gap:7px;
+    font-variant-numeric:tabular-nums; }
+  .wl .w { font-size:42px; font-weight:800; color:var(--blue); line-height:1; }
+  .wl .sep { font-size:22px; color:var(--line); }
+  .wl .l { font-size:42px; font-weight:800; color:var(--orange); line-height:1; }
+  .info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .info .top { font-style:italic; font-weight:800; font-size:13px;
+    letter-spacing:.1em; text-transform:uppercase; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .info .top.hot { color:var(--blue); }
+  .info .top.tilt { color:var(--orange); }
+  .info .bottom { font-weight:700; font-size:15px; color:var(--text);
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .live-dot { display:inline-block; width:7px; height:7px;
+    background:var(--blue); margin-right:6px; vertical-align:1px; }
+</style>
+</head>
+<body>
+  <div class="strip"></div>
+  <div class="row">
+    <div class="wl">
+      <span class="w" id="w">0</span><span class="sep">–</span>
+      <span class="l" id="l">0</span>
+    </div>
+    <div class="info">
+      <div class="top" id="top">Session</div>
+      <div class="bottom" id="bottom">—</div>
+    </div>
+  </div>
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  var api = window.rl || {};
+
+  function render(s) {
+    if (!s) return;
+    var ses = s.session || {};
+    $('w').textContent = ses.wins || 0;
+    $('l').textContent = ses.losses || 0;
+
+    var st = ses.streak || { count: 0 };
+    var top = $('top');
+    if (st.count >= 2) {
+      top.className = 'top ' + (st.type === 'W' ? 'hot' : 'tilt');
+      top.textContent = 'Série de ' + st.count + ' '
+        + (st.type === 'W' ? 'victoires' : 'défaites');
+    } else {
+      top.className = 'top';
+      top.textContent = 'Session' + (ses.winrate != null
+        ? ' — ' + ses.winrate + ' % V' : '');
+    }
+
+    var live = s.live;
+    if (live && !live.training && live.score) {
+      $('bottom').innerHTML = '<span class="live-dot"></span>'
+        + (live.mode ? live.mode + '  ' : '')
+        + live.score[0] + ' : ' + live.score[1];
+    } else {
+      var last = s.history && s.history[0];
+      $('bottom').textContent = last && last.score
+        ? 'Dernier : ' + last.score[0] + ' – ' + last.score[1]
+          + (last.result === 'W' ? '  V' : last.result === 'L' ? '  D' : '')
+        : '—';
+    }
+  }
+
+  if (api.onState) api.onState(render);
+  if (api.getState) api.getState().then(render);
+})();
+</script>
+</body>
+</html>

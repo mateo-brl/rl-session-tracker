@@ -15,7 +15,10 @@ const DEFAULTS = {
   // est visible en jeu. L'utilisateur le recopie une fois par mode (base de
   // calibrage), puis l'application l'estime match après match.
   mmr: {},               // '2v2' → { base: 1234, setAt: timestamp }
-  mmrCounts: true,       // false si l'utilisateur joue surtout en casual
+  mmrCounts: true,       // les matchs sont classés par défaut (sinon casual)
+  sounds: true,          // jingles victoire / défaite
+  overlayEnabled: false, // mini-overlay toujours au premier plan pendant le jeu
+  overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
 };
 
 let file = null;
@@ -55,6 +58,17 @@ function update(partial) {
     if (typeof partial.mmrCounts === 'boolean') {
       config.mmrCounts = partial.mmrCounts;
     }
+    if (typeof partial.sounds === 'boolean') {
+      config.sounds = partial.sounds;
+    }
+    if (typeof partial.overlayEnabled === 'boolean') {
+      config.overlayEnabled = partial.overlayEnabled;
+    }
+    if (partial.overlayPos && Number.isFinite(partial.overlayPos.x)
+        && Number.isFinite(partial.overlayPos.y)) {
+      config.overlayPos = { x: Math.round(partial.overlayPos.x),
+        y: Math.round(partial.overlayPos.y) };
+    }
     // Calibrage du MMR d'un mode : { mode: '2v2', value: 1234 | null }.
     if (partial.mmrSet && typeof partial.mmrSet.mode === 'string') {
       const mode = partial.mmrSet.mode.slice(0, 8);
@@ -71,18 +85,10 @@ function update(partial) {
   return config;
 }
 
-// Remplace toutes les bases de calibrage MMR d'un coup (utilisé quand
-// l'historique est effacé : l'estimation courante devient la base).
-function setMmr(map) {
-  config.mmr = (map && typeof map === 'object') ? map : {};
-  save();
-  return config;
-}
-
 function save() {
   try {
     fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   } catch (e) { /* préférences non critiques */ }
 }
 
-module.exports = { init, get, exists, update, setMmr, save };
+module.exports = { init, get, exists, update, save };

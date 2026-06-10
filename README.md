@@ -28,12 +28,14 @@ tu lances le jeu.
 |---|---|
 | 🖥️ **Dashboard auto** | Tu lances Rocket League → le tracker s'ouvre en plein écran sur ton 2ᵉ écran. Tu quittes le jeu → il se ferme. |
 | ⚡ **Temps réel** | Score, temps, overtime, stats des joueurs — à la seconde, pendant le match. |
-| 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours 🔥, meilleure série, par mode (1v1 · 2v2 · 3v3). Tout repart à zéro à chaque fermeture de l'application — sauf le MMR, qui est conservé. |
+| 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours, meilleure série, par mode (1v1 · 2v2 · 3v3). La liste des matchs récents repart à zéro à chaque lancement (ou d'un clic). |
+| 📈 **Évolution MMR** | Recopie une fois ton MMR affiché en jeu (saison 22+) : courbe d'évolution match après match, bilan des 7 derniers jours, records de tous les temps. |
+| ⚖️ **Comptage honnête** | Un forfait en classé compte comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
-| 📈 **MMR estimé** | Recopie une fois ton MMR affiché en jeu (visible depuis la saison 22), l'appli le suit ensuite toute seule. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
+| 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
-| 🧊 **Tiltomètre** | 3 défaites d'affilée ? L'appli te suggère gentiment une pause. |
+| 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
 
 ## 🎮 Installation (2 minutes, aucune connaissance requise)
 
@@ -161,7 +163,9 @@ rl-session-tracker/
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
 │   └── renderer/
 │       ├── control.html       # Fenêtre de contrôle / réglages
-│       └── dashboard.html     # Le tracker plein écran
+│       ├── dashboard.html     # Le tracker plein écran
+│       ├── overlay.html       # Mini-overlay toujours au premier plan
+│       └── fonts/             # Barlow Condensed (licence OFL-1.1)
 ├── build/icon.ico             # Icône de l'application
 ├── electron-builder.yml       # Empaquetage NSIS + publication GitHub
 ├── .github/workflows/release.yml

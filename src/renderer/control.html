@@ -245,17 +245,22 @@
         corriger quand tu veux.</div>
       <div style="height:10px"></div>
       <label class="check"><input type="checkbox" id="optRanked" />
-        Compter mes matchs dans le MMR estimé (je joue en classé)</label>
+        Par défaut mes matchs sont classés (modifiable à chaque match
+        sur le dashboard)</label>
       <label class="check"><input type="checkbox" id="optAuto" />
         Ouvrir le dashboard quand Rocket League démarre</label>
       <label class="check"><input type="checkbox" id="optFull" />
         Dashboard en plein écran (2ᵉ écran si présent)</label>
+      <label class="check"><input type="checkbox" id="optOverlay" />
+        Mini-overlay au premier plan pendant le jeu</label>
+      <label class="check"><input type="checkbox" id="optSounds" />
+        Jingle de victoire / défaite</label>
       <label class="check"><input type="checkbox" id="optBoot" />
         Lancer au démarrage de Windows</label>
     </div>
 
     <button class="primary" id="dashBtn">Ouvrir le dashboard</button>
-    <button class="ghost danger" id="resetBtn">Réinitialiser la session</button>
+    <button class="ghost danger" id="resetBtn">Vider les matchs récents</button>
     <button class="ghost" id="statsApiBtn">Réactiver la Stats API du jeu</button>
 
     <div class="foot">v<span id="ver">?</span> — tu peux fermer cette fenêtre,
@@ -328,6 +333,8 @@
     $('optAuto').checked = cfg.autoDashboard !== false;
     $('optFull').checked = cfg.dashboardFullscreen !== false;
     $('optRanked').checked = cfg.mmrCounts !== false;
+    $('optOverlay').checked = !!cfg.overlayEnabled;
+    $('optSounds').checked = cfg.sounds !== false;
     $('optBoot').checked = !!s.autostart;
 
     // MMR : on affiche l'estimation courante (pas la base de calibrage),
@@ -455,6 +462,12 @@
   $('optFull').onchange = function () {
     api.setConfig && api.setConfig({ dashboardFullscreen: $('optFull').checked });
   };
+  $('optOverlay').onchange = function () {
+    api.setConfig && api.setConfig({ overlayEnabled: $('optOverlay').checked });
+  };
+  $('optSounds').onchange = function () {
+    api.setConfig && api.setConfig({ sounds: $('optSounds').checked });
+  };
   $('optBoot').onchange = function () {
     api.setAutostart && api.setAutostart($('optBoot').checked);
   };
@@ -462,8 +475,8 @@
   // ─── Actions ───
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
   $('resetBtn').onclick = function () {
-    if (confirm('Repartir de zéro ? Les compteurs de la session repassent à 0 '
-        + '(le MMR est conservé).')) {
+    if (confirm('Vider les matchs récents ? Les compteurs repassent à 0. '
+        + 'Le MMR, la courbe d’évolution et les records sont conservés.')) {
       api.resetSession && api.resetSession();
     }
   };
