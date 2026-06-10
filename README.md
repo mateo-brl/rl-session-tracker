@@ -27,6 +27,18 @@ s'en sert pour faire ce que faisaient les overlays d'avant — en mieux : un
 vrai dashboard de session sur ton double écran, qui s'ouvre tout seul quand
 tu lances le jeu.
 
+### 📸 Aperçu
+
+![Dashboard — vue session avec match en direct](docs/dashboard.png)
+
+![Écran de victoire — animation Broadcast](docs/victory.png)
+
+<p align="center">
+  <img src="docs/control.png" width="38%" alt="Fenêtre de réglages" />
+  &nbsp;&nbsp;
+  <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
+</p>
+
 ### ✨ Ce que ça fait
 
 | | |
@@ -41,7 +53,8 @@ tu lances le jeu.
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
-| 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque (bouton « Personnaliser »). Thèmes de couleurs prédéfinis ou libres, appliqués partout. Overlay réglable : contenu, taille, opacité. |
+| 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). Thèmes de couleurs prédéfinis ou libres, 3 styles d'animations testables, overlay réglable. |
+| 🌍 **FR / EN** | Interface bilingue : langue du système détectée automatiquement, modifiable dans les réglages. |
 
 ### 🎮 Installation (2 minutes, aucune connaissance requise)
 
@@ -197,6 +210,18 @@ API** is the only allowed real-time source. RL Session Tracker uses it to do
 what the old overlays did — better: a real session dashboard on your second
 screen that opens by itself when you launch the game.
 
+### 📸 Preview
+
+![Dashboard — session view with a live match](docs/dashboard.png)
+
+![Victory screen — Broadcast animation](docs/victory.png)
+
+<p align="center">
+  <img src="docs/control.png" width="38%" alt="Settings window" />
+  &nbsp;&nbsp;
+  <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
+</p>
+
 ### ✨ Features
 
 | | |
@@ -211,7 +236,8 @@ screen that opens by itself when you launch the game.
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
-| 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden ("Customize" button). Built-in or fully custom color themes, applied everywhere. Adjustable overlay: content, size, opacity. |
+| 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). Built-in or fully custom color themes, 3 testable animation styles, adjustable overlay. |
+| 🌍 **FR / EN** | Bilingual interface: system language auto-detected, changeable in the settings. |
 
 ### 🎮 Install (2 minutes, no technical knowledge needed)
 

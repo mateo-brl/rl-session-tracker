@@ -208,27 +208,24 @@
 
     <div class="rows">
       <div class="row"><span>Rocket League</span><b id="rGame">—</b></div>
-      <div class="row"><span>Stats API du jeu</span><b id="rApi">—</b></div>
+      <div class="row"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">—</b></div>
       <div class="row"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
-      <div class="row"><span>Session</span><b id="rSession">—</b></div>
+      <div class="row"><span data-i18n="lSession">Session</span><b id="rSession">—</b></div>
     </div>
 
     <div class="card" id="welcomeCard" style="display:none">
-      <h2>Bienvenue</h2>
-      <p class="txt">Il n'y a rien à configurer : <b>lance Rocket League et
-        joue un match</b>. L'application détecte tout — ton pseudo, tes
-        victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
+      <h2 data-i18n="hWelcome">Bienvenue</h2>
+      <p class="txt" data-i18n="pWelcome">Il n'y a rien à configurer : <b>lance Rocket League et joue un match</b>. L'application détecte tout — ton pseudo, tes victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
     </div>
 
     <div class="card" id="whoCard" style="display:none">
-      <h2>Qui es-tu ?</h2>
-      <p class="txt" style="margin-bottom:10px">Plusieurs joueurs reviennent
-        dans tes matchs — clique sur ton pseudo :</p>
+      <h2 data-i18n="hWho">Qui es-tu ?</h2>
+      <p class="txt" style="margin-bottom:10px" data-i18n="pWho">Plusieurs joueurs reviennent dans tes matchs — clique sur ton pseudo :</p>
       <div id="whoChips" class="chips"></div>
     </div>
 
     <div class="card" id="updCard" style="display:none">
-      <h2>Mise à jour</h2>
+      <h2 data-i18n="hUpdate">Mise à jour</h2>
       <div class="upd-row">
         <div class="upd-txt" id="updTxt"></div>
         <button class="upd-btn" id="updBtn" style="display:none"></button>
@@ -238,16 +235,21 @@
     </div>
 
     <div class="card">
-      <h2>Réglages</h2>
-      <label class="field" for="pseudo">Ton pseudo en jeu</label>
+      <h2 data-i18n="hSettings">Réglages</h2>
+      <label class="field" data-i18n="lLang">Langue</label>
+      <select id="optLang">
+        <option value="auto" data-i18n="oAuto">Automatique (système)</option>
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+      </select>
+      <div style="height:14px"></div>
+      <label class="field" for="pseudo" data-i18n="lPseudo">Ton pseudo en jeu</label>
       <input type="text" id="pseudo" list="seen" placeholder="ex. MateoBRL"
              autocomplete="off" spellcheck="false" />
       <datalist id="seen"></datalist>
-      <div class="hint">Sert à savoir quelle équipe est la tienne pour compter
-        victoires et défaites. Joue un match : les pseudos détectés apparaissent
-        en suggestion.</div>
+      <div class="hint" data-i18n="hintPseudo">Sert à savoir quelle équipe est la tienne pour compter victoires et défaites. Joue un match : les pseudos détectés apparaissent en suggestion.</div>
       <div style="height:14px"></div>
-      <label class="field">Mon MMR (optionnel)</label>
+      <label class="field" data-i18n="lMmr">Mon MMR (optionnel)</label>
       <div class="mmr-grid">
         <div class="mmr-cell"><span>1v1</span>
           <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" /></div>
@@ -256,77 +258,59 @@
         <div class="mmr-cell"><span>3v3</span>
           <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" /></div>
       </div>
-      <div class="hint">Recopie le MMR affiché dans le jeu (Paramètres →
-        Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli
-        l'estime toute seule match après match (environ ±9) — reviens le
-        corriger quand tu veux.</div>
+      <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
       <div style="height:10px"></div>
-      <label class="check"><input type="checkbox" id="optRanked" />
-        Par défaut mes matchs sont classés (modifiable à chaque match
-        sur le dashboard)</label>
-      <label class="check"><input type="checkbox" id="optAuto" />
-        Ouvrir le dashboard quand Rocket League démarre</label>
-      <label class="check"><input type="checkbox" id="optFull" />
-        Dashboard en plein écran (2ᵉ écran si présent)</label>
-      <label class="check"><input type="checkbox" id="optOverlay" />
-        Mini-overlay au premier plan pendant le jeu</label>
-      <label class="check"><input type="checkbox" id="optSounds" />
-        Jingle de victoire / défaite</label>
-      <label class="check"><input type="checkbox" id="optBoot" />
-        Lancer au démarrage de Windows</label>
+      <label class="check"><input type="checkbox" id="optRanked" /><span data-i18n="cRanked">Par défaut mes matchs sont classés (modifiable à chaque match sur le dashboard)</span></label>
+      <label class="check"><input type="checkbox" id="optAuto" /><span data-i18n="cAuto">Ouvrir le dashboard quand Rocket League démarre</span></label>
+      <label class="check"><input type="checkbox" id="optFull" /><span data-i18n="cFull">Dashboard en plein écran (2ᵉ écran si présent)</span></label>
+      <label class="check"><input type="checkbox" id="optOverlay" /><span data-i18n="cOverlay">Mini-overlay au premier plan pendant le jeu</span></label>
+      <label class="check"><input type="checkbox" id="optSounds" /><span data-i18n="cSounds">Jingle de victoire / défaite</span></label>
+      <label class="check"><input type="checkbox" id="optBoot" /><span data-i18n="cBoot">Lancer au démarrage de Windows</span></label>
     </div>
 
     <div class="card">
-      <h2>Apparence</h2>
+      <h2 data-i18n="hLook">Apparence</h2>
       <div class="chips" id="themePresets"></div>
       <div style="height:12px"></div>
       <div class="color-grid">
-        <label>Victoire<input type="color" id="cWin" /></label>
-        <label>Défaite<input type="color" id="cLoss" /></label>
-        <label>Fond<input type="color" id="cBg" /></label>
+        <label><span data-i18n="kWin">Victoire</span><input type="color" id="cWin" /></label>
+        <label><span data-i18n="kLoss">Défaite</span><input type="color" id="cLoss" /></label>
+        <label><span data-i18n="kBg">Fond</span><input type="color" id="cBg" /></label>
         <label>MVP<input type="color" id="cGold" /></label>
       </div>
-      <div class="hint">Les couleurs s'appliquent partout : dashboard,
-        mini-overlay et cette fenêtre. Et sur le dashboard, le bouton
-        « Personnaliser » permet de déplacer, redimensionner et masquer
-        chaque bloc.</div>
+      <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
     </div>
 
     <div class="card">
-      <h2>Animations</h2>
-      <label class="field">Style</label>
+      <h2 data-i18n="hAnim">Animations</h2>
+      <label class="field" data-i18n="lStyle">Style</label>
       <select id="animPreset">
-        <option value="broadcast">Broadcast — liserés TV + confettis</option>
-        <option value="minimal">Minimal — fondu sobre et court</option>
-        <option value="arcade">Arcade — punch rétro + secousse</option>
+        <option value="broadcast" data-i18n="oBroadcast">Broadcast — liserés TV + confettis</option>
+        <option value="minimal" data-i18n="oMinimal">Minimal — fondu sobre et court</option>
+        <option value="arcade" data-i18n="oArcade">Arcade — punch rétro + secousse</option>
       </select>
       <div style="height:10px"></div>
-      <label class="check"><input type="checkbox" id="animEnd" />
-        Écran victoire / défaite en fin de match</label>
-      <label class="check"><input type="checkbox" id="animGoal" />
-        Flash à chaque but</label>
+      <label class="check"><input type="checkbox" id="animEnd" /><span data-i18n="cAnimEnd">Écran victoire / défaite en fin de match</span></label>
+      <label class="check"><input type="checkbox" id="animGoal" /><span data-i18n="cAnimGoal">Flash à chaque but</span></label>
       <div class="duo">
-        <button class="ghost" style="margin-top:0" id="testWin">Tester victoire</button>
-        <button class="ghost" style="margin-top:0" id="testLoss">Tester défaite</button>
+        <button class="ghost" style="margin-top:0" id="testWin" data-i18n="bTestWin">Tester victoire</button>
+        <button class="ghost" style="margin-top:0" id="testLoss" data-i18n="bTestLoss">Tester défaite</button>
       </div>
-      <div class="hint">Le test ouvre le dashboard et joue l'animation avec le
-        style et le thème choisis.</div>
+      <div class="hint" data-i18n="hintTest">Le test ouvre le dashboard et joue l'animation avec le style et le thème choisis.</div>
     </div>
 
     <div class="card">
       <h2>Mini-overlay</h2>
-      <label class="check"><input type="checkbox" id="ovStreak" />
-        Afficher la série / % de victoires</label>
-      <label class="check"><input type="checkbox" id="ovLive" />
-        Afficher le score en direct / dernier match</label>
+      <label class="check"><input type="checkbox" id="ovStreak" /><span data-i18n="cOvStreak">Afficher la série / % de victoires</span></label>
+      <label class="check"><input type="checkbox" id="ovLive" /><span data-i18n="cOvLive">Afficher le score en direct / dernier match</span></label>
       <div class="duo">
-        <label class="field">Taille
+        <label class="field"><span data-i18n="lSize">Taille</span>
           <select id="ovScale">
-            <option value="0.85">Petit</option>
-            <option value="1">Normal</option>
-            <option value="1.25">Grand</option>
+            <option value="0.85" data-i18n="oSmall">Petit</option>
+            <option value="1" data-i18n="oNormal">Normal</option>
+            <option value="1.25" data-i18n="oBig">Grand</option>
           </select></label>
-        <label class="field">Opacité
+        <label class="field"><span data-i18n="lOpacity">Opacité</span>
           <select id="ovOpacity">
             <option value="1">100 %</option>
             <option value="0.85">85 %</option>
@@ -335,12 +319,11 @@
       </div>
     </div>
 
-    <button class="primary" id="dashBtn">Ouvrir le dashboard</button>
-    <button class="ghost danger" id="resetBtn">Vider les matchs récents</button>
-    <button class="ghost" id="statsApiBtn">Réactiver la Stats API du jeu</button>
+    <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
+    <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
+    <button class="ghost" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
 
-    <div class="foot">v<span id="ver">?</span> — tu peux fermer cette fenêtre,
-      l'application reste active dans la barre des tâches.</div>
+    <div class="foot">v<span id="ver">?</span><span data-i18n="foot"> — tu peux fermer cette fenêtre, l'application reste active dans la barre des tâches.</span></div>
   </div>
 
 <script>
@@ -350,6 +333,128 @@
   var api = window.rl || {};
   var cur = null;
   var editingPseudo = false;
+
+  // ─── Langue (FR / EN) ───
+  var I18N = {
+    fr: {
+      lStats: 'Stats API du jeu', lSession: 'Session',
+      hWelcome: 'Bienvenue',
+      pWelcome: 'Il n\u2019y a rien \u00e0 configurer : <b>lance Rocket League et joue un match</b>. L\u2019application d\u00e9tecte tout \u2014 ton pseudo, tes victoires, ta s\u00e9rie \u2014 et ouvre le tracker sur ton 2\u1d49 \u00e9cran.',
+      hWho: 'Qui es-tu ?', pWho: 'Plusieurs joueurs reviennent dans tes matchs \u2014 clique sur ton pseudo :',
+      hUpdate: 'Mise \u00e0 jour', hSettings: 'R\u00e9glages', lLang: 'Langue',
+      oAuto: 'Automatique (syst\u00e8me)',
+      lPseudo: 'Ton pseudo en jeu',
+      hintPseudo: 'Sert \u00e0 savoir quelle \u00e9quipe est la tienne pour compter victoires et d\u00e9faites. Joue un match : les pseudos d\u00e9tect\u00e9s apparaissent en suggestion.',
+      lMmr: 'Mon MMR (optionnel)',
+      hintMmr: 'Recopie le MMR affich\u00e9 dans le jeu (Param\u00e8tres \u2192 Interface \u2192 \u00ab Afficher le MMR \u00bb, depuis la saison 22). Ensuite l\u2019appli l\u2019estime toute seule match apr\u00e8s match (environ \u00b19) \u2014 reviens le corriger quand tu veux.',
+      cRanked: 'Par d\u00e9faut mes matchs sont class\u00e9s (modifiable \u00e0 chaque match sur le dashboard)',
+      cAuto: 'Ouvrir le dashboard quand Rocket League d\u00e9marre',
+      cFull: 'Dashboard en plein \u00e9cran (2\u1d49 \u00e9cran si pr\u00e9sent)',
+      cOverlay: 'Mini-overlay au premier plan pendant le jeu',
+      cSounds: 'Jingle de victoire / d\u00e9faite',
+      cBoot: 'Lancer au d\u00e9marrage de Windows',
+      hAnim: 'Animations', lStyle: 'Style',
+      oBroadcast: 'Broadcast \u2014 liser\u00e9s TV + confettis',
+      oMinimal: 'Minimal \u2014 fondu sobre et court',
+      oArcade: 'Arcade \u2014 punch r\u00e9tro + secousse',
+      cAnimEnd: '\u00c9cran victoire / d\u00e9faite en fin de match',
+      cAnimGoal: 'Flash \u00e0 chaque but',
+      bTestWin: 'Tester victoire', bTestLoss: 'Tester d\u00e9faite',
+      hintTest: 'Le test ouvre le dashboard et joue l\u2019animation avec le style et le th\u00e8me choisis.',
+      hLook: 'Apparence', kWin: 'Victoire', kLoss: 'D\u00e9faite', kBg: 'Fond',
+      hintLook: 'Les couleurs s\u2019appliquent partout : dashboard, mini-overlay et cette fen\u00eatre. Et sur le dashboard, le bouton \u00ab Personnaliser \u00bb permet de d\u00e9placer, redimensionner et masquer chaque bloc.',
+      cOvStreak: 'Afficher la s\u00e9rie / % de victoires',
+      cOvLive: 'Afficher le score en direct / dernier match',
+      lSize: 'Taille', oSmall: 'Petit', oNormal: 'Normal', oBig: 'Grand',
+      lOpacity: 'Opacit\u00e9',
+      bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
+      bStatsApi: 'R\u00e9activer la Stats API du jeu',
+      foot: ' \u2014 tu peux fermer cette fen\u00eatre, l\u2019application reste active dans la barre des t\u00e2ches.',
+      stInMatch: 'Match en cours', stGame: 'Rocket League d\u00e9tect\u00e9',
+      stWait: 'En attente de Rocket League',
+      detected: 'd\u00e9tect\u00e9', waiting: 'en attente',
+      apiOn: 'connect\u00e9e', apiWait: 'en attente d\u2019un match',
+      lCur: 'En cours', training: 'entra\u00eenement (non compt\u00e9)',
+      lMatch: 'Match en cours', lLast: 'Dernier match',
+      noMatch: 'aucun match',
+      streakOf: function (n, w) { return ' \u00b7 s\u00e9rie de ' + n + (w ? ' victoires' : ' d\u00e9faites'); },
+      updAvail: function (v) { return 'Nouvelle version <b>v' + v + '</b> disponible.'; },
+      updGo: 'Mettre \u00e0 jour',
+      updDl: function (v, p) { return 'T\u00e9l\u00e9chargement de <b>v' + v + '</b>\u2026 ' + p + ' %'; },
+      updReady: function (v) { return '<b>v' + v + '</b> pr\u00eate \u00e0 installer.'; },
+      updRestart: 'Red\u00e9marrer et installer',
+      updFail: function (v) { return 'Mise \u00e0 jour vers <b>v' + v + '</b> impossible.'; },
+      updErr: 'Erreur inconnue.', updRetry: 'R\u00e9essayer',
+      confirmClear: 'Vider les matchs r\u00e9cents ? Les compteurs repassent \u00e0 0. Le MMR, la courbe d\u2019\u00e9volution et les records sont conserv\u00e9s.',
+      apiBusy: 'Activation\u2026 (autorise la fen\u00eatre Windows)',
+      apiDone: 'Fait \u2014 red\u00e9marre Rocket League',
+    },
+    en: {
+      lStats: 'Game Stats API', lSession: 'Session',
+      hWelcome: 'Welcome',
+      pWelcome: 'There is nothing to set up: <b>launch Rocket League and play a match</b>. The app detects everything \u2014 your name, your wins, your streak \u2014 and opens the tracker on your second screen.',
+      hWho: 'Who are you?', pWho: 'Several players keep showing up in your matches \u2014 click your name:',
+      hUpdate: 'Update', hSettings: 'Settings', lLang: 'Language',
+      oAuto: 'Automatic (system)',
+      lPseudo: 'Your in-game name',
+      hintPseudo: 'Used to know which team is yours when counting wins and losses. Play a match: detected names show up as suggestions.',
+      lMmr: 'My MMR (optional)',
+      hintMmr: 'Copy the MMR shown in the game (Settings \u2192 Interface \u2192 \u201cShow MMR\u201d, since Season 22). The app then estimates it match after match (about \u00b19) \u2014 come back and correct it anytime.',
+      cRanked: 'My matches are ranked by default (changeable on each live match on the dashboard)',
+      cAuto: 'Open the dashboard when Rocket League starts',
+      cFull: 'Fullscreen dashboard (second screen if present)',
+      cOverlay: 'Always-on-top mini-overlay while playing',
+      cSounds: 'Win / loss jingle',
+      cBoot: 'Start with Windows',
+      hAnim: 'Animations', lStyle: 'Style',
+      oBroadcast: 'Broadcast \u2014 TV stripes + confetti',
+      oMinimal: 'Minimal \u2014 short, subtle fade',
+      oArcade: 'Arcade \u2014 retro punch + shake',
+      cAnimEnd: 'Victory / defeat screen at match end',
+      cAnimGoal: 'Flash on every goal',
+      bTestWin: 'Test victory', bTestLoss: 'Test defeat',
+      hintTest: 'The test opens the dashboard and plays the animation with the chosen style and theme.',
+      hLook: 'Appearance', kWin: 'Win', kLoss: 'Loss', kBg: 'Background',
+      hintLook: 'Colors apply everywhere: dashboard, mini-overlay and this window. And on the dashboard, the \u201cCustomize\u201d button lets you move, resize and hide every block.',
+      cOvStreak: 'Show streak / win rate',
+      cOvLive: 'Show live score / last match',
+      lSize: 'Size', oSmall: 'Small', oNormal: 'Normal', oBig: 'Large',
+      lOpacity: 'Opacity',
+      bDash: 'Open the dashboard', bClear: 'Clear recent matches',
+      bStatsApi: 'Re-enable the game Stats API',
+      foot: ' \u2014 you can close this window, the app stays active in the system tray.',
+      stInMatch: 'Match in progress', stGame: 'Rocket League detected',
+      stWait: 'Waiting for Rocket League',
+      detected: 'detected', waiting: 'waiting',
+      apiOn: 'connected', apiWait: 'waiting for a match',
+      lCur: 'In progress', training: 'training (not counted)',
+      lMatch: 'Live match', lLast: 'Last match',
+      noMatch: 'no matches',
+      streakOf: function (n, w) { return ' \u00b7 streak of ' + n + (w ? ' wins' : ' losses'); },
+      updAvail: function (v) { return 'New version <b>v' + v + '</b> available.'; },
+      updGo: 'Update',
+      updDl: function (v, p) { return 'Downloading <b>v' + v + '</b>\u2026 ' + p + '%'; },
+      updReady: function (v) { return '<b>v' + v + '</b> ready to install.'; },
+      updRestart: 'Restart and install',
+      updFail: function (v) { return 'Update to <b>v' + v + '</b> failed.'; },
+      updErr: 'Unknown error.', updRetry: 'Retry',
+      confirmClear: 'Clear recent matches? Counters go back to 0. MMR, the evolution curve and records are kept.',
+      apiBusy: 'Enabling\u2026 (accept the Windows prompt)',
+      apiDone: 'Done \u2014 restart Rocket League',
+    },
+  };
+  var T = I18N.fr;
+  var langApplied = '';
+  function applyLang(lang) {
+    lang = I18N[lang] ? lang : 'fr';
+    if (lang === langApplied) return;
+    langApplied = lang;
+    T = I18N[lang];
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = T[el.dataset.i18n];
+      if (typeof v === 'string') el.innerHTML = v;
+    });
+  }
 
   // ─── Thème (partagé avec le dashboard et l'overlay) ───
   var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
@@ -407,27 +512,28 @@
 
     var game = s.game || {};
     var running = !!game.running;
+    applyLang(s.lang);
     $('dot').className = 'sq ' + (running ? 'ok' : 'warn');
     $('statusText').textContent = running
-      ? (s.live ? 'Match en cours' : 'Rocket League détecté')
-      : 'En attente de Rocket League';
+      ? (s.live ? T.stInMatch : T.stGame)
+      : T.stWait;
 
-    $('rGame').textContent = running ? 'détecté' : 'en attente';
+    $('rGame').textContent = running ? T.detected : T.waiting;
     $('rGame').className = running ? 'live' : '';
-    $('rApi').textContent = game.statsConnected ? 'connectée' : 'en attente d’un match';
+    $('rApi').textContent = game.statsConnected ? T.apiOn : T.apiWait;
     $('rApi').className = game.statsConnected ? 'live' : '';
 
     if (s.live && s.live.training) {
-      $('rMatchLabel').textContent = 'En cours';
-      $('rMatch').textContent = 'entraînement (non compté)';
+      $('rMatchLabel').textContent = T.lCur;
+      $('rMatch').textContent = T.training;
       $('rMatch').className = '';
     } else if (s.live) {
-      $('rMatchLabel').textContent = 'Match en cours';
+      $('rMatchLabel').textContent = T.lMatch;
       $('rMatch').textContent = (s.live.mode ? s.live.mode + ' · ' : '') + fmtScore(s.live);
       $('rMatch').className = 'live';
     } else {
       var last = s.history && s.history[0];
-      $('rMatchLabel').textContent = 'Dernier match';
+      $('rMatchLabel').textContent = T.lLast;
       $('rMatch').textContent = last && last.score
         ? last.mode + ' · ' + last.score[0] + ' – ' + last.score[1] : '—';
       $('rMatch').className = '';
@@ -438,15 +544,17 @@
       $('rSession').innerHTML = '<span class="w">' + ses.wins + ' V</span> — '
         + '<span class="l">' + ses.losses + ' D</span>'
         + (ses.streak.count >= 2
-          ? ' · série de ' + ses.streak.count
-            + (ses.streak.type === 'W' ? ' victoires' : ' défaites')
+          ? T.streakOf(ses.streak.count, ses.streak.type === 'W')
           : '');
     } else {
-      $('rSession').textContent = 'aucun match';
+      $('rSession').textContent = T.noMatch;
     }
 
     // Réglages (ne pas écraser la saisie en cours).
     var cfg = s.config || {};
+    if (document.activeElement !== $('optLang')) {
+      $('optLang').value = cfg.lang || 'auto';
+    }
     if (!editingPseudo && document.activeElement !== $('pseudo')) {
       $('pseudo').value = cfg.pseudo || '';
     }
@@ -528,27 +636,27 @@
 
     if (u.status === 'available') {
       card.style.display = 'block';
-      txt.innerHTML = 'Nouvelle version <b>v' + u.next + '</b> disponible.';
-      btn.textContent = 'Mettre à jour';
+      txt.innerHTML = T.updAvail(u.next);
+      btn.textContent = T.updGo;
       btn.style.display = 'block';
       btn.onclick = function () { api.updateDownload && api.updateDownload(); };
     } else if (u.status === 'downloading') {
       card.style.display = 'block';
-      txt.innerHTML = 'Téléchargement de <b>v' + u.next + '</b>… ' + (u.percent || 0) + ' %';
+      txt.innerHTML = T.updDl(u.next, u.percent || 0);
       prog.style.display = 'block';
       $('updBar').style.width = (u.percent || 0) + '%';
     } else if (u.status === 'downloaded') {
       card.style.display = 'block';
-      txt.innerHTML = '<b>v' + u.next + '</b> prête à installer.';
-      btn.textContent = 'Redémarrer et installer';
+      txt.innerHTML = T.updReady(u.next);
+      btn.textContent = T.updRestart;
       btn.style.display = 'block';
       btn.onclick = function () { api.updateInstall && api.updateInstall(); };
     } else if (u.status === 'error' && u.next) {
       card.style.display = 'block';
-      txt.innerHTML = 'Mise à jour vers <b>v' + u.next + '</b> impossible.';
-      err.textContent = u.error || 'Erreur inconnue.';
+      txt.innerHTML = T.updFail(u.next);
+      err.textContent = u.error || T.updErr;
       err.style.display = 'block';
-      btn.textContent = 'Réessayer';
+      btn.textContent = T.updRetry;
       btn.className = 'upd-btn ghosty';
       btn.style.display = 'block';
       btn.onclick = function () { api.updateDownload && api.updateDownload(); };
@@ -613,6 +721,10 @@
     api.setAutostart && api.setAutostart($('optBoot').checked);
   };
 
+  $('optLang').addEventListener('change', function () {
+    api.setConfig && api.setConfig({ lang: $('optLang').value });
+  });
+
   // ─── Apparence ───
   [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
     .forEach(function (pair) {
@@ -658,19 +770,18 @@
   // ─── Actions ───
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
   $('resetBtn').onclick = function () {
-    if (confirm('Vider les matchs récents ? Les compteurs repassent à 0. '
-        + 'Le MMR, la courbe d’évolution et les records sont conservés.')) {
+    if (confirm(T.confirmClear)) {
       api.resetSession && api.resetSession();
     }
   };
   $('statsApiBtn').onclick = function () {
     var b = $('statsApiBtn');
-    b.disabled = true; b.textContent = 'Activation… (autorise la fenêtre Windows)';
+    b.disabled = true; b.textContent = T.apiBusy;
     Promise.resolve(api.enableStatsApi ? api.enableStatsApi() : null)
       .then(function () {
-        b.textContent = 'Fait — redémarre Rocket League';
+        b.textContent = T.apiDone;
         setTimeout(function () {
-          b.disabled = false; b.textContent = 'Réactiver la Stats API du jeu';
+          b.disabled = false; b.textContent = T.bStatsApi;
         }, 5000);
       });
   };

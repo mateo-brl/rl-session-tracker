@@ -89,8 +89,17 @@
     s.setProperty('--line', mix(t.bg, '#ffffff', .14));
   }
 
+  var I18N = {
+    fr: { session: 'Session', last: 'Dernier : ', wr: ' % V',
+      streak: function (n, w) { return 'Série de ' + n + (w ? ' victoires' : ' défaites'); } },
+    en: { session: 'Session', last: 'Last: ', wr: '% W',
+      streak: function (n, w) { return 'Streak of ' + n + (w ? ' wins' : ' losses'); } },
+  };
+  var T = I18N.fr;
+
   function render(s) {
     if (!s) return;
+    T = I18N[s.lang] || I18N.fr;
     var cfg = s.config || {};
     applyTheme(cfg.theme);
     var oc = cfg.overlayCfg || {};
@@ -109,12 +118,11 @@
     var top = $('top');
     if (st.count >= 2) {
       top.className = 'top ' + (st.type === 'W' ? 'hot' : 'tilt');
-      top.textContent = 'Série de ' + st.count + ' '
-        + (st.type === 'W' ? 'victoires' : 'défaites');
+      top.textContent = T.streak(st.count, st.type === 'W');
     } else {
       top.className = 'top';
-      top.textContent = 'Session' + (ses.winrate != null
-        ? ' — ' + ses.winrate + ' % V' : '');
+      top.textContent = T.session + (ses.winrate != null
+        ? ' — ' + ses.winrate + T.wr : '');
     }
 
     var live = s.live;
@@ -125,7 +133,7 @@
     } else {
       var last = s.history && s.history[0];
       $('bottom').textContent = last && last.score
-        ? 'Dernier : ' + last.score[0] + ' – ' + last.score[1]
+        ? T.last + last.score[0] + ' – ' + last.score[1]
           + (last.result === 'W' ? '  V' : last.result === 'L' ? '  D' : '')
         : '—';
     }

@@ -43,6 +43,7 @@ let tray = null;
 const state = {
   version: app.getVersion(),
   firstRun: false,
+  lang: 'fr',            // langue résolue (réglage, sinon langue du système)
   config: null,
   autostart: false,
   game: { processRunning: false, statsConnected: false, running: false },
@@ -68,8 +69,17 @@ function refreshSession() {
   state.records = snap.records;
 }
 
+function resolveLang() {
+  const l = config.get().lang;
+  if (l === 'fr' || l === 'en') return l;
+  try {
+    return String(app.getLocale()).toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  } catch (e) { return 'fr'; }
+}
+
 function pushState() {
   state.config = config.get();
+  state.lang = resolveLang();
   windows.broadcast('state', state);
 }
 
@@ -128,18 +138,20 @@ function openDashboard() {
 }
 
 // ───────── Barre des tâches ─────────
-function createTray() {
-  try {
-    tray = new Tray(ICON);
-  } catch (e) {
-    log('icône systray indisponible : ' + e.message);
-    return;
-  }
-  tray.setToolTip('RL Session Tracker');
+const TRAY_LABELS = {
+  fr: { open: 'Ouvrir', dash: 'Ouvrir le dashboard', overlay: 'Mini-overlay',
+    update: 'Vérifier les mises à jour', quit: 'Quitter' },
+  en: { open: 'Open', dash: 'Open the dashboard', overlay: 'Mini-overlay',
+    update: 'Check for updates', quit: 'Quit' },
+};
+
+function buildTrayMenu() {
+  if (!tray) return;
+  const L = TRAY_LABELS[resolveLang()] || TRAY_LABELS.fr;
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Ouvrir', click: () => windows.showControl() },
-    { label: 'Ouvrir le dashboard', click: () => openDashboard() },
-    { label: 'Mini-overlay', click: () => {
+    { label: L.open, click: () => windows.showControl() },
+    { label: L.dash, click: () => openDashboard() },
+    { label: L.overlay, click: () => {
       if (windows.getOverlay()) {
         config.update({ overlayEnabled: false });
         windows.closeOverlay();
@@ -150,10 +162,21 @@ function createTray() {
       pushState();
     } },
     { type: 'separator' },
-    { label: 'Vérifier les mises à jour', click: () => updater.check() },
+    { label: L.update, click: () => updater.check() },
     { type: 'separator' },
-    { label: 'Quitter', click: () => { app.isQuitting = true; app.quit(); } },
+    { label: L.quit, click: () => { app.isQuitting = true; app.quit(); } },
   ]));
+}
+
+function createTray() {
+  try {
+    tray = new Tray(ICON);
+  } catch (e) {
+    log('icône systray indisponible : ' + e.message);
+    return;
+  }
+  tray.setToolTip('RL Session Tracker');
+  buildTrayMenu();
   tray.on('click', () => windows.showControl());
   tray.on('double-click', () => windows.showControl());
 }
@@ -280,6 +303,7 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && partial.overlayCfg) {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
+  if (partial && partial.lang) buildTrayMenu();
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
   return config.get();

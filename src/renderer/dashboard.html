@@ -158,9 +158,9 @@
   .hero-main { display:flex; align-items:center; gap:38px; flex-wrap:wrap; }
   .wl { display:flex; align-items:baseline; gap:16px;
     font-variant-numeric:tabular-nums; }
-  .wl .w { font-size:96px; font-weight:800; color:var(--blue); line-height:.95; }
+  .wl .w { font-size:88px; font-weight:800; color:var(--blue); line-height:.95; }
   .wl .sep { font-size:50px; color:var(--line); font-weight:500; }
-  .wl .l { font-size:96px; font-weight:800; color:var(--orange); line-height:.95; }
+  .wl .l { font-size:88px; font-weight:800; color:var(--orange); line-height:.95; }
   .wl-cap { display:flex; gap:52px; margin-top:8px; }
   .wl-cap span { font-size:12px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.16em; }
@@ -170,7 +170,7 @@
   .kv span { font-size:13px; font-weight:600; color:var(--muted);
     text-transform:uppercase; letter-spacing:.08em; }
   .streak-banner {
-    display:none; margin-top:16px; transform:skewX(-12deg); width:max-content;
+    display:none; margin-top:10px; transform:skewX(-12deg); width:max-content;
     padding:8px 18px; font-style:italic; font-weight:800; font-size:17px;
     letter-spacing:.06em; text-transform:uppercase;
   }
@@ -269,11 +269,11 @@
   .evo-tab > span { display:inline-block; transform:skewX(12deg); }
   .evo-tab.on { border-color:var(--blue); color:var(--text);
     background:var(--blue-deep); }
-  .evo-chart { flex:1; min-height:74px; position:relative; }
+  .evo-chart { flex:1; min-height:52px; position:relative; }
   .evo-chart svg { position:absolute; inset:0; width:100%; height:100%; }
   .evo-empty { flex:1; display:flex; align-items:center; justify-content:center;
     color:var(--muted); font-size:14px; font-weight:600; text-align:center;
-    line-height:1.6; min-height:74px; }
+    line-height:1.6; min-height:52px; }
   .evo-range { display:flex; justify-content:space-between; font-size:12px;
     font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
   .evo-foot { display:flex; gap:22px; margin-top:10px; padding-top:9px;
@@ -306,7 +306,7 @@
     flex:1; align-content:center; }
   .tot { text-align:center; border-left:1px solid var(--line); }
   .tot:first-child { border-left:0; }
-  .tot b { display:block; font-size:40px; font-weight:800;
+  .tot b { display:block; font-size:32px; font-weight:800;
     font-variant-numeric:tabular-nums; line-height:1.1; }
   .tot span { font-size:11.5px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.14em; }
@@ -348,6 +348,36 @@
   .empty-hint { flex:1; display:flex; align-items:center; justify-content:center;
     color:var(--muted); font-size:16px; font-weight:600; text-align:center;
     line-height:1.7; letter-spacing:.03em; }
+
+  /* ─── Widgets bonus : horloge et objectif ─── */
+  .clock-wrap { flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:2px; }
+  .clock-big { font-size:64px; font-weight:800; line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .clock-date { font-size:14px; font-weight:600; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.1em; }
+  .goal-wrap { flex:1; display:flex; flex-direction:column;
+    justify-content:center; gap:10px; }
+  .goal-nums { display:flex; align-items:baseline; gap:10px;
+    font-variant-numeric:tabular-nums; }
+  .goal-nums b { font-size:42px; font-weight:800; line-height:1; }
+  .goal-nums b.up { color:var(--blue); }
+  .goal-nums b.down { color:var(--orange); }
+  .goal-nums > span:first-of-type { font-size:16px; font-weight:700;
+    color:var(--muted); }
+  .goal-ctl { margin-left:auto; display:flex; gap:6px; }
+  .goal-ctl button {
+    width:26px; height:26px; border:1px solid var(--line);
+    background:var(--panel2); color:var(--muted); font-size:15px;
+    cursor:pointer; font-family:inherit; line-height:1;
+  }
+  .goal-ctl button:hover { border-color:var(--blue); color:var(--text); }
+  .goal-bar { height:10px; background:var(--panel2);
+    border:1px solid var(--line); overflow:hidden; }
+  .goal-bar i { display:block; height:100%; width:0; background:var(--blue);
+    transition:width .4s; }
+  .goal-sub { font-size:13px; font-weight:600; color:var(--muted);
+    letter-spacing:.04em; text-transform:uppercase; }
 
   .esc-hint { position:fixed; bottom:8px; right:16px; font-size:11px;
     font-weight:600; letter-spacing:.06em; color:var(--muted); opacity:.55;
@@ -497,11 +527,12 @@
       <button id="updBtn"></button>
     </div>
     <div id="editTools">
+      <span id="slotChips" style="display:flex;gap:6px"></span>
       <span id="hiddenChips" style="display:flex;gap:8px"></span>
-      <button class="hdr-btn" id="layoutResetBtn"><span>Réinitialiser</span></button>
-      <button class="hdr-btn accent" id="editDoneBtn"><span>Terminé</span></button>
+      <button class="hdr-btn" id="layoutResetBtn"><span data-i18n="reset">Réinitialiser</span></button>
+      <button class="hdr-btn accent" id="editDoneBtn"><span data-i18n="done">Terminé</span></button>
     </div>
-    <button class="hdr-btn" id="editBtn" title="Déplacer, redimensionner et masquer les blocs"><span>Personnaliser</span></button>
+    <button class="hdr-btn" id="editBtn"><span data-i18n="edit">Personnaliser</span></button>
     <button class="fs-btn" id="fsBtn" title="Plein écran (F11)">⛶</button>
     <div class="clock" id="clock"></div>
   </header>
@@ -509,7 +540,7 @@
   <main><div id="canvas">
     <!-- Bilan de session -->
     <section class="card hero">
-      <div class="tag"><span>Session <span id="sessionSince"></span></span></div>
+      <div class="tag"><span><span data-i18n="tagSession">Session</span> <span id="sessionSince"></span></span></div>
       <div class="hero-main">
         <div>
           <div class="wl">
@@ -517,12 +548,12 @@
             <span class="sep">–</span>
             <span class="l" id="losses">0</span>
           </div>
-          <div class="wl-cap"><span>Victoires</span><span>Défaites</span></div>
+          <div class="wl-cap"><span data-i18n="wins">Victoires</span><span data-i18n="losses">Défaites</span></div>
         </div>
         <div class="hero-side">
-          <div class="kv"><b id="winrate">—</b><span>de victoires</span></div>
-          <div class="kv"><b id="played">0</b><span>matchs joués</span></div>
-          <div class="kv"><b id="bestStreak">—</b><span>meilleure série</span></div>
+          <div class="kv"><b id="winrate">—</b><span data-i18n="kvWinrate">de victoires</span></div>
+          <div class="kv"><b id="played">0</b><span data-i18n="kvPlayed">matchs joués</span></div>
+          <div class="kv"><b id="bestStreak">—</b><span data-i18n="kvBest">meilleure série</span></div>
         </div>
       </div>
       <div class="streak-banner" id="streakBadge"><span id="streakTxt"></span></div>
@@ -530,20 +561,17 @@
 
     <!-- Par mode -->
     <section class="card modes">
-      <div class="tag"><span>Par mode</span></div>
+      <div class="tag"><span data-i18n="tagModes">Par mode</span></div>
       <div class="modes-grid" id="modesGrid"></div>
     </section>
 
     <!-- Match en cours -->
     <section class="card live" id="liveCard">
-      <div class="tag"><span id="liveTitle">Match en cours</span></div>
-      <div class="live-off" id="liveOff">
-        En attente d'un match.<br/>Lance une partie : le score s'affiche ici
-        en direct.
-      </div>
+      <div class="tag"><span id="liveTitle" data-i18n="tagLive">Match en cours</span></div>
+      <div class="live-off" id="liveOff" data-i18n="liveOff">En attente d'un match.<br/>Lance une partie : le score s'affiche ici en direct.</div>
       <div class="live-training" id="liveTraining">
-        <div class="big">Entraînement</div>
-        <div class="sub">Piste libre détectée — rien n'est compté dans tes stats.</div>
+        <div class="big" data-i18n="training">Entraînement</div>
+        <div class="sub" data-i18n="trainingSub">Piste libre détectée — rien n'est compté dans tes stats.</div>
       </div>
       <div class="live-on" id="liveOn" style="display:none">
         <div class="live-mode" id="liveMode"></div>
@@ -555,8 +583,8 @@
         <div class="live-time"><span id="liveTime"></span><span class="ot"
           id="liveOT" style="display:none">Overtime</span></div>
         <div class="ranked-toggle">
-          <button id="rkOn"><span>Classé</span></button>
-          <button id="rkOff"><span>Casual</span></button>
+          <button id="rkOn"><span data-i18n="ranked">Classé</span></button>
+          <button id="rkOff"><span data-i18n="casual">Casual</span></button>
         </div>
         <table class="live-players" id="livePlayers"></table>
       </div>
@@ -564,7 +592,7 @@
 
     <!-- Évolution du MMR -->
     <section class="card evo">
-      <div class="tag"><span>Évolution MMR</span></div>
+      <div class="tag"><span data-i18n="tagEvo">Évolution MMR</span></div>
       <div class="evo-head" id="evoTabs"></div>
       <div class="evo-chart" id="evoChart" style="display:none">
         <svg id="evoSvg" preserveAspectRatio="none" viewBox="0 0 100 40"></svg>
@@ -572,43 +600,64 @@
       <div class="evo-range" id="evoRange" style="display:none">
         <span id="evoMin"></span><span id="evoMax"></span>
       </div>
-      <div class="evo-empty" id="evoEmpty">
-        Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite
-        match après match.
-      </div>
+      <div class="evo-empty" id="evoEmpty" data-i18n="evoEmpty">Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.</div>
       <div class="evo-foot">
-        <span>7 jours <b id="wkLine">—</b></span>
-        <span>Record série <b id="recStreak">—</b></span>
-        <span>Record victoires / jour <b id="recDay">—</b></span>
+        <span><span data-i18n="f7">7 jours</span> <b id="wkLine">—</b></span>
+        <span><span data-i18n="fStreak">Record série</span> <b id="recStreak">—</b></span>
+        <span><span data-i18n="fDay">Record victoires / jour</span> <b id="recDay">—</b></span>
       </div>
     </section>
 
     <!-- Totaux -->
     <section class="card totals">
-      <div class="tag"><span>Mes stats de la session</span></div>
+      <div class="tag"><span data-i18n="tagTotals">Mes stats de la session</span></div>
       <div class="totals-grid">
-        <div class="tot"><b id="tGoals">0</b><span>Buts</span></div>
-        <div class="tot"><b id="tAssists">0</b><span>Passes</span></div>
-        <div class="tot"><b id="tSaves">0</b><span>Arrêts</span></div>
-        <div class="tot"><b id="tShots">0</b><span>Tirs</span></div>
+        <div class="tot"><b id="tGoals">0</b><span data-i18n="ttGoals">Buts</span></div>
+        <div class="tot"><b id="tAssists">0</b><span data-i18n="ttAssists">Passes</span></div>
+        <div class="tot"><b id="tSaves">0</b><span data-i18n="ttSaves">Arrêts</span></div>
+        <div class="tot"><b id="tShots">0</b><span data-i18n="ttShots">Tirs</span></div>
         <div class="tot"><b id="tMvps">0</b><span>MVP</span></div>
       </div>
     </section>
 
     <!-- Historique -->
     <section class="card history">
-      <div class="tag"><span>Derniers matchs</span></div>
+      <div class="tag"><span data-i18n="tagHistory">Derniers matchs</span></div>
       <div class="hist-scroll" id="histScroll" style="display:none">
         <table class="hist"><tbody id="histBody"></tbody></table>
       </div>
-      <div class="empty-hint" id="histEmpty">
-        Aucun match pour l'instant.<br/>Tout se remplit automatiquement dès la
-        fin de ta première partie.
+      <div class="empty-hint" id="histEmpty" data-i18n="histEmpty">Aucun match pour l'instant.<br/>Tout se remplit automatiquement dès la fin de ta première partie.</div>
+    </section>
+
+    <!-- Horloge (widget bonus, masqué par défaut) -->
+    <section class="card clockw">
+      <div class="tag"><span data-i18n="tagClock">Horloge</span></div>
+      <div class="clock-wrap">
+        <div class="clock-big" id="clockBig"></div>
+        <div class="clock-date" id="clockDate"></div>
       </div>
+    </section>
+
+    <!-- Objectif de session (widget bonus, masqué par défaut) -->
+    <section class="card goalw">
+      <div class="tag"><span data-i18n="tagGoal">Objectif de session</span></div>
+      <div class="goal-wrap" id="goalWrap" style="display:none">
+        <div class="goal-nums">
+          <b id="goalCur">+0</b>
+          <span id="goalTarget">/ +50 MMR</span>
+          <span class="goal-ctl">
+            <button id="goalMinus" title="Objectif −10">−</button>
+            <button id="goalPlus" title="Objectif +10">+</button>
+          </span>
+        </div>
+        <div class="goal-bar"><i id="goalFill"></i></div>
+        <div class="goal-sub" id="goalSub"></div>
+      </div>
+      <div class="empty-hint" id="goalEmpty" data-i18n="goalEmpty">Renseigne ton MMR dans les réglages<br/>pour suivre un objectif.</div>
     </section>
   </div></main>
 
-  <div class="esc-hint">F11 plein écran — Échap quitter / fermer</div>
+  <div class="esc-hint" data-i18n="escHint">F11 plein écran — Échap quitter / fermer</div>
 
   <div class="result-overlay" id="resultOverlay">
     <div class="result-stripes"></div>
@@ -624,13 +673,48 @@
   var api = window.rl || {};
   var cur = null;
 
-  // ─── Horloge ───
+  // ─── Horloge (en-tête + widget) ───
   function tickClock() {
-    $('clock').textContent = new Date().toLocaleTimeString('fr-FR',
-      { hour: '2-digit', minute: '2-digit' });
+    var d = new Date();
+    var loc = (typeof T !== 'undefined' && T.locale) || 'fr-FR';
+    var hm = d.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+    $('clock').textContent = hm;
+    $('clockBig').textContent = hm;
+    $('clockDate').textContent = d.toLocaleDateString(loc,
+      { weekday: 'long', day: 'numeric', month: 'long' });
   }
   tickClock();
   setInterval(tickClock, 10000);
+
+  // ─── Objectif de session : somme des deltas MMR vs cible réglable ───
+  function renderGoal(ses, cfg) {
+    var mmr = ses.mmr || {};
+    var modes = Object.keys(mmr);
+    var hasMmr = modes.length > 0;
+    $('goalWrap').style.display = hasMmr ? 'flex' : 'none';
+    $('goalEmpty').style.display = hasMmr ? 'none' : 'flex';
+    if (!hasMmr) return;
+    var target = cfg.sessionGoal || 50;
+    var sum = 0;
+    modes.forEach(function (k) { sum += mmr[k].delta || 0; });
+    var el = $('goalCur');
+    el.textContent = (sum >= 0 ? '+' : '') + sum;
+    el.className = sum > 0 ? 'up' : sum < 0 ? 'down' : '';
+    $('goalTarget').textContent = '/ +' + target + ' MMR';
+    var pct = Math.max(0, Math.min(100, Math.round(sum / target * 100)));
+    $('goalFill').style.width = pct + '%';
+    $('goalSub').textContent = sum >= target
+      ? T.goalReached
+      : sum < 0 ? T.goalNeg : T.goalLeft(target - sum);
+  }
+  $('goalMinus').onclick = function () {
+    if (!api.setConfig || !cur) return;
+    api.setConfig({ sessionGoal: Math.max(10, (cur.config.sessionGoal || 50) - 10) });
+  };
+  $('goalPlus').onclick = function () {
+    if (!api.setConfig || !cur) return;
+    api.setConfig({ sessionGoal: Math.min(500, (cur.config.sessionGoal || 50) + 10) });
+  };
 
   function fmtTime(sec) {
     if (typeof sec !== 'number' || !isFinite(sec)) return '';
@@ -638,7 +722,7 @@
     return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
   }
   function fmtHour(ts) {
-    return new Date(ts).toLocaleTimeString('fr-FR',
+    return new Date(ts).toLocaleTimeString(T.locale,
       { hour: '2-digit', minute: '2-digit' });
   }
   function esc(s) {
@@ -648,6 +732,101 @@
   }
 
   var MODES = ['1v1', '2v2', '3v3'];
+
+  // ─── Langue (FR / EN) ───
+  var I18N = {
+    fr: {
+      tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
+      tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
+      tagHistory: 'Derniers matchs', tagClock: 'Horloge',
+      tagGoal: 'Objectif de session',
+      wins: 'Victoires', losses: 'Défaites',
+      kvWinrate: 'de victoires', kvPlayed: 'matchs joués', kvBest: 'meilleure série',
+      liveOff: 'En attente d’un match.<br/>Lance une partie : le score s’affiche ici en direct.',
+      training: 'Entraînement',
+      trainingSub: 'Piste libre détectée — rien n’est compté dans tes stats.',
+      ranked: 'Classé', casual: 'Casual',
+      thPlayer: 'Joueur', thGoals: 'Buts', thAssists: 'Pass', thSaves: 'Arr', thPts: 'Pts',
+      you: 'Toi',
+      evoEmpty: 'Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.',
+      f7: '7 jours', fStreak: 'Record série', fDay: 'Record victoires / jour',
+      ttGoals: 'Buts', ttAssists: 'Passes', ttSaves: 'Arrêts', ttShots: 'Tirs',
+      histEmpty: 'Aucun match pour l’instant.<br/>Tout se remplit automatiquement dès la fin de ta première partie.',
+      goalEmpty: 'Renseigne ton MMR dans les réglages<br/>pour suivre un objectif.',
+      edit: 'Personnaliser', done: 'Terminé', reset: 'Réinitialiser',
+      escHint: 'F11 plein écran — Échap quitter / fermer',
+      live: 'En direct', offGame: 'Hors jeu', since: '— depuis ',
+      streakHot: function (n) { return 'Série : ' + n + ' victoires d’affilée'; },
+      streakTilt: function (n) { return n + ' défaites d’affilée — une pause ?'; },
+      modeStreak: function (n, w) { return 'Série de ' + n + ' ' + (w ? 'victoires' : 'défaites'); },
+      nMatches: function (n) { return n + (n > 1 ? ' matchs' : ' match'); },
+      notPlayed: 'pas joué',
+      updNew: 'Nouvelle version ', updGo: 'Mettre à jour',
+      updDl: 'Téléchargement ', updReady: ' prête', updRestart: 'Redémarrer',
+      win: 'Victoire', loss: 'Défaite', forfeit: 'Forfait',
+      resStreak: function (n, w) { return n + (w ? ' victoires' : ' défaites') + ' d’affilée'; },
+      sG: 'B', sA: 'P', sS: 'A',
+      wkLine: function (p, r) { return p + ' matchs · ' + (r == null ? '—' : r + ' % V'); },
+      vUnit: ' V', profile: 'Profil ',
+      goalReached: 'Objectif atteint !', goalNeg: 'Remonte la pente…',
+      goalLeft: function (n) { return 'Encore +' + n; },
+      widgets: { hero: 'Session', modes: 'Par mode', live: 'Match', evo: 'Évolution',
+        totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif' },
+      locale: 'fr-FR',
+    },
+    en: {
+      tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
+      tagEvo: 'MMR evolution', tagTotals: 'My session stats',
+      tagHistory: 'Recent matches', tagClock: 'Clock',
+      tagGoal: 'Session goal',
+      wins: 'Wins', losses: 'Losses',
+      kvWinrate: 'win rate', kvPlayed: 'matches played', kvBest: 'best streak',
+      liveOff: 'Waiting for a match.<br/>Start playing: the score shows up here live.',
+      training: 'Training',
+      trainingSub: 'Free play detected — nothing is counted in your stats.',
+      ranked: 'Ranked', casual: 'Casual',
+      thPlayer: 'Player', thGoals: 'Goals', thAssists: 'Ast', thSaves: 'Saves', thPts: 'Pts',
+      you: 'You',
+      evoEmpty: 'Set your MMR in the settings:<br/>the curve then draws itself match after match.',
+      f7: 'Last 7 days', fStreak: 'Streak record', fDay: 'Wins / day record',
+      ttGoals: 'Goals', ttAssists: 'Assists', ttSaves: 'Saves', ttShots: 'Shots',
+      histEmpty: 'No matches yet.<br/>Everything fills in automatically when your first game ends.',
+      goalEmpty: 'Set your MMR in the settings<br/>to track a goal.',
+      edit: 'Customize', done: 'Done', reset: 'Reset',
+      escHint: 'F11 fullscreen — Esc exit / close',
+      live: 'Live', offGame: 'Not in game', since: '— since ',
+      streakHot: function (n) { return 'Streak: ' + n + ' wins in a row'; },
+      streakTilt: function (n) { return n + ' losses in a row — take a break?'; },
+      modeStreak: function (n, w) { return 'Streak of ' + n + ' ' + (w ? 'wins' : 'losses'); },
+      nMatches: function (n) { return n + (n > 1 ? ' matches' : ' match'); },
+      notPlayed: 'not played',
+      updNew: 'New version ', updGo: 'Update',
+      updDl: 'Downloading ', updReady: ' ready', updRestart: 'Restart',
+      win: 'Victory', loss: 'Defeat', forfeit: 'Forfeit',
+      resStreak: function (n, w) { return n + (w ? ' wins' : ' losses') + ' in a row'; },
+      sG: 'G', sA: 'A', sS: 'S',
+      wkLine: function (p, r) { return p + ' matches · ' + (r == null ? '—' : r + '% W'); },
+      vUnit: ' W', profile: 'Layout ',
+      goalReached: 'Goal reached!', goalNeg: 'Climb back up…',
+      goalLeft: function (n) { return '+' + n + ' to go'; },
+      widgets: { hero: 'Session', modes: 'Modes', live: 'Match', evo: 'Evolution',
+        totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal' },
+      locale: 'en-GB',
+    },
+  };
+  var T = I18N.fr;
+  var langApplied = '';
+  function applyLang(lang) {
+    lang = I18N[lang] ? lang : 'fr';
+    if (lang === langApplied) return;
+    langApplied = lang;
+    T = I18N[lang];
+    document.querySelectorAll('[data-i18n]').forEach(function (el) {
+      var v = T[el.dataset.i18n];
+      if (typeof v === 'string') el.innerHTML = v;
+    });
+    tickClock();
+  }
 
   // ─── Thème : 4 couleurs, le reste est dérivé (panneaux, liserés) ───
   var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
@@ -681,14 +860,18 @@
   var WIDGET_LABELS = {
     hero: 'Session', modes: 'Par mode', live: 'Match',
     evo: 'Évolution', totals: 'Stats', history: 'Historique',
+    clockw: 'Horloge', goalw: 'Objectif',
   };
   var LAYOUT_DEFAULT = {
-    hero: { x: 0, y: 0, w: 55, h: 30 },
-    modes: { x: 0, y: 32, w: 55, h: 23 },
-    live: { x: 56, y: 0, w: 44, h: 55 },
-    evo: { x: 0, y: 57, w: 55, h: 26 },
-    totals: { x: 0, y: 85, w: 55, h: 15 },
-    history: { x: 56, y: 57, w: 44, h: 43 },
+    hero: { x: 0, y: 0, w: 55, h: 29 },
+    modes: { x: 0, y: 31, w: 55, h: 24 },
+    live: { x: 56, y: 0, w: 44, h: 58 },
+    evo: { x: 0, y: 57, w: 55, h: 27 },
+    totals: { x: 0, y: 86, w: 55, h: 14 },
+    history: { x: 56, y: 60, w: 44, h: 40 },
+    // Widgets bonus : masqués par défaut, à activer via « Personnaliser ».
+    clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
+    goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
   };
   function mergeLayout(cfgLayout) {
     var out = {};
@@ -700,7 +883,34 @@
   }
   var layout = mergeLayout(null);
   var editing = false;
+  var adoptNextLayout = false;   // un changement de profil force l'adoption
   function widgetEl(id) { return document.querySelector('.card.' + id); }
+
+  // Disposition active : profil 1/2/3 (l'ancien champ unique sert de secours).
+  function cfgLayout(cfg) {
+    var slot = (cfg && cfg.layoutSlot) || '1';
+    var slots = (cfg && cfg.layouts) || {};
+    return slots[slot] || (slot === '1' ? cfg && cfg.layout : null) || null;
+  }
+  function renderSlotChips() {
+    var box = $('slotChips');
+    box.innerHTML = '';
+    if (!editing) return;
+    var active = (cur && cur.config && cur.config.layoutSlot) || '1';
+    ['1', '2', '3'].forEach(function (n) {
+      var b = document.createElement('button');
+      b.className = 'hdr-btn' + (n === active ? ' accent' : '');
+      var inner = document.createElement('span');
+      inner.textContent = n;
+      b.appendChild(inner);
+      b.title = T.profile + n;
+      b.onclick = function () {
+        adoptNextLayout = true;
+        if (api.setConfig) api.setConfig({ layoutSlot: n });
+      };
+      box.appendChild(b);
+    });
+  }
 
   function applyLayout() {
     Object.keys(layout).forEach(function (id) {
@@ -714,6 +924,7 @@
       el.style.display = w.hidden ? 'none' : 'flex';
     });
     renderHiddenChips();
+    renderSlotChips();
   }
   function renderHiddenChips() {
     var box = $('hiddenChips');
@@ -724,7 +935,7 @@
       var b = document.createElement('button');
       b.className = 'ghost-chip';
       var inner = document.createElement('span');
-      inner.textContent = '+ ' + WIDGET_LABELS[id];
+      inner.textContent = '+ ' + (T.widgets[id] || WIDGET_LABELS[id]);
       b.appendChild(inner);
       b.onclick = function () {
         layout[id].hidden = false;
@@ -807,18 +1018,21 @@
     var cfg = s.config || {};
     var ses = s.session || {};
 
+    applyLang(s.lang);
     applyTheme(cfg.theme);
     document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
-    // La disposition vient de la config — sauf pendant qu'on la modifie.
-    if (!editing) {
-      layout = mergeLayout(cfg.layout);
+    // La disposition vient de la config — sauf pendant qu'on la modifie
+    // (un changement de profil force quand même l'adoption).
+    if (!editing || adoptNextLayout) {
+      adoptNextLayout = false;
+      layout = mergeLayout(cfgLayout(cfg));
       applyLayout();
     }
 
     // En-tête.
     var running = s.game && s.game.running;
     $('gameDot').className = 'sq ' + (running ? 'ok' : 'off');
-    $('gameTxt').textContent = running ? 'En direct' : 'Hors jeu';
+    $('gameTxt').textContent = running ? T.live : T.offGame;
     $('gameTxt').className = 'lbl' + (running ? ' on' : '');
     if (cfg.pseudo) {
       $('pseudoPill').style.display = 'flex';
@@ -833,18 +1047,18 @@
     $('losses').textContent = ses.losses || 0;
     $('played').textContent = ses.played || 0;
     $('winrate').textContent = ses.winrate == null ? '—' : ses.winrate + ' %';
-    $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + ' V' : '—';
+    $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + T.vUnit : '—';
     $('sessionSince').textContent = ses.startedAt
-      ? '— depuis ' + fmtHour(ses.startedAt) : '';
+      ? T.since + fmtHour(ses.startedAt) : '';
 
     var badge = $('streakBadge');
     var st = ses.streak || { count: 0 };
     if (st.type === 'W' && st.count >= 3) {
       badge.className = 'streak-banner hot';
-      $('streakTxt').textContent = 'Série : ' + st.count + ' victoires d’affilée';
+      $('streakTxt').textContent = T.streakHot(st.count);
     } else if (st.type === 'L' && st.count >= 3) {
       badge.className = 'streak-banner tilt';
-      $('streakTxt').textContent = st.count + ' défaites d’affilée — une pause ?';
+      $('streakTxt').textContent = T.streakTilt(st.count);
     } else {
       badge.className = 'streak-banner';
     }
@@ -868,10 +1082,9 @@
       if (m) {
         var stm;
         if (m.streak && m.streak.count >= 2) {
-          stm = 'Série de ' + m.streak.count + ' '
-            + (m.streak.type === 'W' ? 'victoires' : 'défaites');
+          stm = T.modeStreak(m.streak.count, m.streak.type === 'W');
         } else {
-          stm = m.played + (m.played > 1 ? ' matchs' : ' match');
+          stm = T.nMatches(m.played);
         }
         html += '<div class="mode"><div class="name">' + esc(k) + '</div>'
           + '<div class="rec"><span class="mw">' + m.wins + '</span>'
@@ -879,7 +1092,7 @@
           + '<div class="sub">' + stm + '</div>' + mmrLine + '</div>';
       } else if (MODES.indexOf(k) !== -1) {
         html += '<div class="mode empty"><div class="name">' + esc(k) + '</div>'
-          + '<div class="rec">—</div><div class="sub">pas joué</div>'
+          + '<div class="rec">—</div><div class="sub">' + T.notPlayed + '</div>'
           + mmrLine + '</div>';
       }
     });
@@ -905,6 +1118,7 @@
     }
 
     renderEvolution(s);
+    renderGoal(ses, cfg);
 
     // Totaux.
     var t = ses.totals || {};
@@ -924,8 +1138,8 @@
       var cls = m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'U';
       var sc = m.score ? m.score[0] + ' – ' + m.score[1] : '—';
       var stats = m.me
-        ? '<b>' + m.me.goals + '</b> B&nbsp;&nbsp;<b>' + m.me.assists
-          + '</b> P&nbsp;&nbsp;<b>' + m.me.saves + '</b> A'
+        ? '<b>' + m.me.goals + '</b> ' + T.sG + '&nbsp;&nbsp;<b>' + m.me.assists
+          + '</b> ' + T.sA + '&nbsp;&nbsp;<b>' + m.me.saves + '</b> ' + T.sS
           + (m.me.mvp ? ' <span class="mvp-chip">MVP</span>' : '')
         : '';
       var marks = (m.isOT ? ' <span class="ot-mini">OT</span>' : '')
@@ -950,14 +1164,14 @@
     var sorted = players.slice().sort(function (a, b) {
       return (a.team - b.team) || (b.score - a.score);
     });
-    var html = '<thead><tr><td>Joueur</td><td class="num">Buts</td>'
-      + '<td class="num">Pass</td><td class="num">Arr</td><td class="num">Pts</td>'
-      + '</tr></thead>';
+    var html = '<thead><tr><td>' + T.thPlayer + '</td><td class="num">' + T.thGoals + '</td>'
+      + '<td class="num">' + T.thAssists + '</td><td class="num">' + T.thSaves + '</td>'
+      + '<td class="num">' + T.thPts + '</td></tr></thead>';
     sorted.forEach(function (p) {
       var isMe = me && String(p.name).trim().toLowerCase() === me;
       html += '<tr class="t' + (p.team === 1 ? 1 : 0) + (isMe ? ' me' : '') + '">'
         + '<td class="n">' + esc(p.name)
-          + (isMe ? '<span class="me-tag">Toi</span>' : '') + '</td>'
+          + (isMe ? '<span class="me-tag">' + T.you + '</span>' : '') + '</td>'
         + '<td class="num">' + p.goals + '</td>'
         + '<td class="num">' + p.assists + '</td>'
         + '<td class="num">' + p.saves + '</td>'
@@ -1005,11 +1219,11 @@
 
     var wk = s.week;
     $('wkLine').textContent = (wk && wk.played)
-      ? wk.played + ' matchs · ' + (wk.winrate == null ? '—' : wk.winrate + ' % V')
+      ? T.wkLine(wk.played, wk.winrate)
       : '—';
     var rec = s.records || {};
-    $('recStreak').textContent = rec.bestWinStreak ? rec.bestWinStreak + ' V' : '—';
-    $('recDay').textContent = rec.bestDayWins ? rec.bestDayWins + ' V' : '—';
+    $('recStreak').textContent = rec.bestWinStreak ? rec.bestWinStreak + T.vUnit : '—';
+    $('recDay').textContent = rec.bestDayWins ? rec.bestDayWins + T.vUnit : '—';
   }
 
   function drawEvolution(points) {
@@ -1073,18 +1287,18 @@
     var pill = $('updPill'), btn = $('updBtn'), txt = $('updTxt');
     if (u.status === 'available') {
       pill.style.display = 'flex';
-      txt.textContent = 'Nouvelle version ' + u.next;
-      btn.textContent = 'Mettre à jour';
+      txt.textContent = T.updNew + u.next;
+      btn.textContent = T.updGo;
       btn.onclick = function () { api.updateDownload && api.updateDownload(); };
     } else if (u.status === 'downloading') {
       pill.style.display = 'flex';
-      txt.textContent = 'Téléchargement ' + (u.percent || 0) + ' %';
+      txt.textContent = T.updDl + (u.percent || 0) + ' %';
       btn.textContent = '· · ·';
       btn.onclick = null;
     } else if (u.status === 'downloaded') {
       pill.style.display = 'flex';
-      txt.textContent = 'Version ' + u.next + ' prête';
-      btn.textContent = 'Redémarrer';
+      txt.textContent = 'v' + u.next + T.updReady;
+      btn.textContent = T.updRestart;
       btn.onclick = function () { api.updateInstall && api.updateInstall(); };
     } else {
       pill.style.display = 'none';
@@ -1109,9 +1323,9 @@
     hideResult();
     var win = m.result === 'W';
     var ov = $('resultOverlay');
-    $('resultText').textContent = win ? 'Victoire' : 'Défaite';
+    $('resultText').textContent = win ? T.win : T.loss;
     $('resultSub').textContent = m.forfeit
-      ? 'Forfait' + (m.mode ? '  ·  ' + m.mode : '')
+      ? T.forfeit + (m.mode ? '  ·  ' + m.mode : '')
       : (m.score ? m.score[0] + ' – ' + m.score[1] : '')
         + (m.isOT ? ' (OT)' : '')
         + (m.mode ? '  ·  ' + m.mode : '')
@@ -1119,7 +1333,7 @@
     if (!cur || !cur.config || cur.config.sounds !== false) playJingle(win);
     var st = cur && cur.session && cur.session.streak;
     $('resultStreak').textContent = (st && st.count >= 2)
-      ? st.count + (st.type === 'W' ? ' victoires' : ' défaites') + ' d’affilée'
+      ? T.resStreak(st.count, st.type === 'W')
       : '';
     if (win && preset !== 'minimal') {
       // Pluie aux couleurs du thème — couleur de victoire dominante.
