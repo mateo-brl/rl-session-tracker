@@ -54,6 +54,16 @@ const state = {
   update: updater.getState(),
 };
 
+// Stats et historique remis à zéro, MMR préservé : l'estimation courante de
+// chaque mode devient la nouvelle base de calibrage avant l'effacement.
+function clearHistoryKeepMmr(reason) {
+  if (!store) return;
+  const hadMatches = store.matches.length > 0;
+  const folded = store.clearHistory(config.get(), config.get().pseudo);
+  config.setMmr(folded);
+  if (hadMatches) log('historique effacé (' + reason + ') — MMR conservé');
+}
+
 function refreshSession() {
   const snap = store.snapshot(config.get().pseudo, config.get());
   state.session = snap.session;
@@ -252,7 +262,10 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => windows.showControl());
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => { app.isQuitting = true; });
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    clearHistoryKeepMmr('fermeture');
+  });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}
@@ -260,6 +273,10 @@ if (!gotLock) {
     const firstRun = !configExists();
     config.init(app.getPath('userData'));
     store = new SessionStore(app.getPath('userData'));
+    // Chaque lancement repart de zéro (stats + historique), MMR conservé.
+    // Fait aussi au démarrage pour rattraper une fermeture brutale (crash,
+    // extinction du PC) où le before-quit n'a pas pu s'exécuter.
+    clearHistoryKeepMmr('démarrage');
     state.autostart = autostartEnabled();
     refreshSession();
 

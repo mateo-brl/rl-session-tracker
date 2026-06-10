@@ -94,6 +94,28 @@ class SessionStore {
     this._persist();
   }
 
+  // Vide stats et historique en PRÉSERVANT le MMR : l'estimation courante de
+  // chaque mode calibré est figée comme nouvelle base (sinon, effacer les
+  // matchs ferait reculer le MMR jusqu'au dernier calibrage manuel).
+  // Retourne les nouvelles bases, à enregistrer dans la configuration.
+  clearHistory(cfg, pseudo) {
+    const folded = {};
+    const mmrCfg = (cfg && cfg.mmr) || {};
+    const counts = !cfg || cfg.mmrCounts !== false;
+    for (const mode of Object.keys(mmrCfg)) {
+      const entry = mmrCfg[mode];
+      if (!entry || !Number.isFinite(entry.base)) continue;
+      folded[mode] = {
+        base: counts ? this._mmrForMode(mode, entry, pseudo) : entry.base,
+        setAt: Date.now(),
+      };
+    }
+    this.matches = [];
+    this.resetAt = 0;
+    this._persist();        // playersSeen est conservé (aide à la config)
+    return folded;
+  }
+
   // Devine le pseudo du joueur suivi sans rien demander : c'est le seul nom
   // présent dans TOUS les derniers matchs (lui est toujours là, les
   // adversaires changent). Ambigu si un coéquipier fixe joue toute la
