@@ -1,31 +1,25 @@
 {
   "name": "rl-session-tracker",
-  "version": "2.3.0",
-  "description": "Rocket League session tracker — multi-joueurs, temps réel",
-  "main": "server.js",
+  "productName": "RL Session Tracker",
+  "version": "3.0.0",
+  "description": "Tracker de sessions Rocket League — application de bureau locale, temps réel via la Stats API du jeu",
+  "main": "src/main/index.js",
+  "author": "Mateo BRL",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mateo-brl/rl-session-tracker.git"
+  },
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "agent": "node agent/agent.js",
-    "add-agent": "node scripts/add-agent.js",
-    "add-invite": "node scripts/add-invite.js",
-    "build:agent": "node scripts/build-agent.mjs",
-    "build:web": "node scripts/build-web.mjs",
-    "prestart": "node scripts/build-web.mjs"
+    "start": "electron .",
+    "dist": "electron-builder --win --x64",
+    "release": "electron-builder --win --x64 --publish always"
   },
   "dependencies": {
-    "dotenv": "^17.4.2",
-    "express": "^4.21.0",
-    "express-rate-limit": "^7.4.1",
-    "helmet": "^8.0.0",
-    "puppeteer-core": "^24.43.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "@electron/packager": "^18.3.0",
-    "archiver": "^7.0.1",
-    "electron": "^30.0.0",
-    "esbuild": "^0.25.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
   }
 }
