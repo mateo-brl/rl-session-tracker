@@ -10,9 +10,13 @@
 
 name: release
 
+# Déclenchement manuel possible depuis l'onglet Actions (ou l'API) : utile
+# quand on ne peut pas pousser de tag — electron-builder crée alors lui-même
+# la release vX.Y.Z à partir de la version du package.json.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
