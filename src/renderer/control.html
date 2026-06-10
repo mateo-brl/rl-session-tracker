@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+<title>RL Session Tracker</title>
+<style>
+  :root {
+    --bg:#0a0c12; --card:#11141d; --card2:#161a26; --line:#232838;
+    --text:#e7e9f0; --muted:#8b90a3; --cyan:#00e5ff; --pink:#ff3d71;
+    --ok:#2ee6a6; --warn:#ffb020; --err:#ff5d6c;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body {
+    background:
+      radial-gradient(640px 360px at 88% -10%, rgba(0,229,255,.12), transparent),
+      radial-gradient(520px 340px at -8% 110%, rgba(255,61,113,.12), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none; user-select:none;
+    overflow:hidden;
+  }
+
+  /* ─── Barre de titre sur mesure (fenêtre sans cadre) ─── */
+  .titlebar {
+    height:40px; display:flex; align-items:center; justify-content:space-between;
+    padding-left:14px; -webkit-app-region:drag;
+    border-bottom:1px solid var(--line);
+  }
+  .tb-title { font-size:12.5px; font-weight:700; letter-spacing:.02em; }
+  .tb-title .dotmark { color:var(--cyan); }
+  .tb-buttons { display:flex; -webkit-app-region:no-drag; }
+  .tb-btn {
+    width:44px; height:40px; border:0; background:transparent; cursor:pointer;
+    color:var(--muted); font-size:14px; font-family:inherit;
+  }
+  .tb-btn:hover { background:rgba(255,255,255,.06); color:var(--text); }
+  .tb-btn.close:hover { background:#e3344b; color:#fff; }
+
+  .body { height:calc(100vh - 40px); padding:18px 22px 14px; overflow-y:auto; }
+
+  .status { display:flex; align-items:center; gap:11px; margin:2px 0 14px;
+    font-size:17px; font-weight:600; }
+  .dot { width:12px; height:12px; border-radius:50%; background:var(--muted); flex:none; }
+  .dot.ok   { background:var(--ok);   box-shadow:0 0 12px rgba(46,230,166,.7); }
+  .dot.warn { background:var(--warn); box-shadow:0 0 12px rgba(255,176,32,.55); }
+
+  .rows {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:2px 16px; margin-bottom:14px;
+  }
+  .row { display:flex; justify-content:space-between; align-items:center;
+    padding:11px 0; font-size:13.5px; }
+  .row + .row { border-top:1px solid var(--line); }
+  .row span { color:var(--muted); }
+  .row b { font-weight:600; }
+  .row b.live { color:var(--cyan); }
+  .row b.win  { color:var(--ok); }
+  .row b.loss { color:var(--err); }
+
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px 16px; margin-bottom:14px;
+  }
+  .card h2 { font-size:11.5px; text-transform:uppercase; letter-spacing:.09em;
+    color:var(--muted); margin-bottom:11px; }
+
+  label.field { display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px; }
+  input[type=text] {
+    width:100%; background:var(--card2); border:1px solid var(--line);
+    border-radius:10px; color:var(--text); font-size:14.5px; padding:10px 12px;
+    font-family:inherit;
+  }
+  input[type=text]:focus { outline:none; border-color:var(--cyan);
+    box-shadow:0 0 0 3px rgba(0,229,255,.14); }
+  .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.45; }
+
+  .check { display:flex; align-items:center; gap:9px; padding:7px 0;
+    font-size:13.5px; cursor:pointer; }
+  .check input { accent-color:var(--cyan); width:15px; height:15px; cursor:pointer; }
+
+  button.primary {
+    width:100%; border:0; border-radius:11px; padding:12px;
+    font-size:14px; font-weight:700; font-family:inherit; cursor:pointer;
+    color:#06121a; background:linear-gradient(90deg,var(--cyan),#51f0ff);
+  }
+  button.primary:disabled { opacity:.55; cursor:progress; }
+  button.ghost {
+    width:100%; border:1px solid var(--line); background:var(--card2);
+    color:var(--text); border-radius:11px; padding:11px; font-size:13.5px;
+    font-weight:600; font-family:inherit; cursor:pointer; margin-top:8px;
+  }
+  button.ghost:hover { border-color:var(--cyan); }
+  button.ghost.danger:hover { border-color:var(--err); color:var(--err); }
+
+  /* ─── Mise à jour ─── */
+  .upd-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .upd-txt { font-size:13px; color:var(--muted); line-height:1.45; }
+  .upd-txt b { color:var(--text); }
+  .upd-btn {
+    border:0; border-radius:9px; padding:9px 14px; font-size:13px; font-weight:700;
+    font-family:inherit; cursor:pointer; color:#06121a; white-space:nowrap;
+    background:linear-gradient(90deg,var(--ok),#5ff0c0);
+  }
+  .upd-btn.ghosty { background:var(--card2); color:var(--text);
+    border:1px solid var(--line); font-weight:600; }
+  .progress { height:7px; border-radius:5px; background:var(--card2);
+    border:1px solid var(--line); margin-top:10px; overflow:hidden; }
+  .progress i { display:block; height:100%; width:0;
+    background:linear-gradient(90deg,var(--cyan),var(--ok)); transition:width .3s; }
+  .upd-err { color:var(--err); font-size:12px; margin-top:8px; }
+
+  .mmr-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .mmr-cell span { display:block; font-size:11px; color:var(--cyan);
+    font-weight:700; margin-bottom:4px; }
+  input[type=number] {
+    width:100%; background:var(--card2); border:1px solid var(--line);
+    border-radius:10px; color:var(--text); font-size:14.5px; padding:9px 10px;
+    font-family:inherit; -moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
+  input[type=number]:focus { outline:none; border-color:var(--cyan);
+    box-shadow:0 0 0 3px rgba(0,229,255,.14); }
+
+  .chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip {
+    border:1px solid var(--line); background:var(--card2); color:var(--text);
+    border-radius:999px; padding:8px 16px; font-size:13.5px; font-weight:600;
+    font-family:inherit; cursor:pointer;
+  }
+  .chip:hover { border-color:var(--cyan); color:var(--cyan); }
+
+  .foot { color:var(--muted); font-size:11px; text-align:center; margin-top:4px;
+    padding-bottom:6px; }
+</style>
+</head>
+<body>
+
+  <div class="titlebar">
+    <div class="tb-title"><span class="dotmark">●</span> RL Session Tracker</div>
+    <div class="tb-buttons">
+      <button class="tb-btn" id="min" title="Réduire">&#9472;</button>
+      <button class="tb-btn close" id="close" title="Fermer">&#10005;</button>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span id="statusText">Démarrage…</span>
+    </div>
+
+    <div class="rows">
+      <div class="row"><span>Rocket League</span><b id="rGame">—</b></div>
+      <div class="row"><span>Stats API du jeu</span><b id="rApi">—</b></div>
+      <div class="row"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
+      <div class="row"><span>Session</span><b id="rSession">—</b></div>
+    </div>
+
+    <div class="card" id="welcomeCard" style="display:none">
+      <h2>Bienvenue 👋</h2>
+      <div class="upd-txt">Il n'y a rien à configurer : <b>lance Rocket League
+        et joue un match</b>. L'application détecte tout — ton pseudo, tes
+        victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</div>
+    </div>
+
+    <div class="card" id="whoCard" style="display:none">
+      <h2>Qui es-tu ?</h2>
+      <div class="upd-txt" style="margin-bottom:10px">Plusieurs joueurs
+        reviennent dans tes matchs — clique sur ton pseudo :</div>
+      <div id="whoChips" class="chips"></div>
+    </div>
+
+    <div class="card" id="updCard" style="display:none">
+      <h2>Mise à jour</h2>
+      <div class="upd-row">
+        <div class="upd-txt" id="updTxt"></div>
+        <button class="upd-btn" id="updBtn" style="display:none"></button>
+      </div>
+      <div class="progress" id="updProg" style="display:none"><i id="updBar"></i></div>
+      <div class="upd-err" id="updErr" style="display:none"></div>
+    </div>
+
+    <div class="card">
+      <h2>Réglages</h2>
+      <label class="field" for="pseudo">Ton pseudo en jeu</label>
+      <input type="text" id="pseudo" list="seen" placeholder="ex. MateoBRL"
+             autocomplete="off" spellcheck="false" />
+      <datalist id="seen"></datalist>
+      <div class="hint">Sert à savoir quelle équipe est la tienne pour compter
+        victoires et défaites. Joue un match : les pseudos détectés apparaissent
+        en suggestion.</div>
+      <div style="height:14px"></div>
+      <label class="field">Mon MMR (optionnel)</label>
+      <div class="mmr-grid">
+        <div class="mmr-cell"><span>1v1</span>
+          <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" /></div>
+        <div class="mmr-cell"><span>2v2</span>
+          <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" /></div>
+        <div class="mmr-cell"><span>3v3</span>
+          <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" /></div>
+      </div>
+      <div class="hint">Recopie le MMR affiché dans le jeu (Paramètres →
+        Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli
+        l'estime toute seule match après match (≈ ±9) — reviens le corriger
+        quand tu veux.</div>
+      <div style="height:10px"></div>
+      <label class="check"><input type="checkbox" id="optRanked" />
+        Compter mes matchs dans le MMR estimé (je joue en classé)</label>
+      <label class="check"><input type="checkbox" id="optAuto" />
+        Ouvrir le dashboard quand Rocket League démarre</label>
+      <label class="check"><input type="checkbox" id="optFull" />
+        Dashboard en plein écran (2ᵉ écran si présent)</label>
+      <label class="check"><input type="checkbox" id="optBoot" />
+        Lancer au démarrage de Windows</label>
+    </div>
+
+    <button class="primary" id="dashBtn">Ouvrir le dashboard</button>
+    <button class="ghost danger" id="resetBtn">Réinitialiser la session</button>
+    <button class="ghost" id="statsApiBtn">Réactiver la Stats API du jeu</button>
+
+    <div class="foot">v<span id="ver">?</span> — tu peux fermer cette fenêtre,
+      l'application reste active dans la barre des tâches.</div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  var api = window.rl || {};
+  var cur = null;
+  var editingPseudo = false;
+
+  function fmtScore(live) {
+    return live && Array.isArray(live.score)
+      ? live.score[0] + ' – ' + live.score[1] : null;
+  }
+
+  function render(s) {
+    if (!s) return;
+    cur = s;
+    $('ver').textContent = s.version || '?';
+
+    var game = s.game || {};
+    var running = !!game.running;
+    $('dot').className = 'dot ' + (running ? 'ok' : 'warn');
+    $('statusText').textContent = running
+      ? (s.live ? 'Match en cours' : 'Rocket League détecté')
+      : 'En attente de Rocket League';
+
+    $('rGame').textContent = running ? 'détecté' : 'en attente';
+    $('rGame').className = running ? 'live' : '';
+    $('rApi').textContent = game.statsConnected ? 'connectée' : 'en attente d’un match';
+    $('rApi').className = game.statsConnected ? 'live' : '';
+
+    if (s.live) {
+      $('rMatchLabel').textContent = 'Match en cours';
+      $('rMatch').textContent = (s.live.mode ? s.live.mode + ' · ' : '') + fmtScore(s.live);
+      $('rMatch').className = 'live';
+    } else {
+      var last = s.history && s.history[0];
+      $('rMatchLabel').textContent = 'Dernier match';
+      $('rMatch').textContent = last && last.score
+        ? last.mode + ' · ' + last.score[0] + ' – ' + last.score[1] : '—';
+      $('rMatch').className = '';
+    }
+
+    var ses = s.session;
+    if (ses && ses.played) {
+      $('rSession').innerHTML = '<b class="win">' + ses.wins + ' V</b> — <b class="loss">'
+        + ses.losses + ' D</b>'
+        + (ses.streak.count >= 2
+          ? ' · série de ' + ses.streak.count + (ses.streak.type === 'W' ? ' 🔥' : ' ❄️')
+          : '');
+    } else {
+      $('rSession').textContent = 'aucun match';
+    }
+
+    // Réglages (ne pas écraser la saisie en cours).
+    var cfg = s.config || {};
+    if (!editingPseudo && document.activeElement !== $('pseudo')) {
+      $('pseudo').value = cfg.pseudo || '';
+    }
+    $('optAuto').checked = cfg.autoDashboard !== false;
+    $('optFull').checked = cfg.dashboardFullscreen !== false;
+    $('optRanked').checked = cfg.mmrCounts !== false;
+    $('optBoot').checked = !!s.autostart;
+
+    // MMR : on affiche l'estimation courante (pas la base de calibrage),
+    // sans écraser une saisie en cours.
+    var est = (ses && ses.mmr) || {};
+    ['1v1', '2v2', '3v3'].forEach(function (mode) {
+      var input = $('mmr' + mode);
+      if (document.activeElement === input) return;
+      input.value = est[mode] ? est[mode].value : '';
+    });
+
+    var dl = $('seen');
+    dl.innerHTML = '';
+    (s.playersSeen || []).forEach(function (n) {
+      var o = document.createElement('option');
+      o.value = n;
+      dl.appendChild(o);
+    });
+
+    // Accueil et identification : ne s'affichent que tant que le pseudo
+    // n'est pas connu (cas normal : tout disparaît après le premier match).
+    var noPseudo = !(cfg.pseudo || '').trim();
+    $('welcomeCard').style.display =
+      noPseudo && !(ses && ses.played) ? 'block' : 'none';
+    var cand = s.pseudoCandidates || [];
+    $('whoCard').style.display = noPseudo && cand.length > 1 ? 'block' : 'none';
+    var chips = $('whoChips');
+    chips.innerHTML = '';
+    cand.forEach(function (n) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      b.textContent = n;
+      b.onclick = function () { api.setConfig && api.setConfig({ pseudo: n }); };
+      chips.appendChild(b);
+    });
+
+    renderUpdate(s.update || {});
+  }
+
+  function renderUpdate(u) {
+    var card = $('updCard'), txt = $('updTxt'), btn = $('updBtn');
+    var prog = $('updProg'), err = $('updErr');
+    err.style.display = 'none';
+    prog.style.display = 'none';
+    btn.style.display = 'none';
+    btn.disabled = false;
+    btn.className = 'upd-btn';
+
+    if (u.status === 'available') {
+      card.style.display = 'block';
+      txt.innerHTML = 'Nouvelle version <b>v' + u.next + '</b> disponible.';
+      btn.textContent = 'Mettre à jour';
+      btn.style.display = 'block';
+      btn.onclick = function () { api.updateDownload && api.updateDownload(); };
+    } else if (u.status === 'downloading') {
+      card.style.display = 'block';
+      txt.innerHTML = 'Téléchargement de <b>v' + u.next + '</b>… ' + (u.percent || 0) + ' %';
+      prog.style.display = 'block';
+      $('updBar').style.width = (u.percent || 0) + '%';
+    } else if (u.status === 'downloaded') {
+      card.style.display = 'block';
+      txt.innerHTML = '<b>v' + u.next + '</b> prête à installer.';
+      btn.textContent = 'Redémarrer et installer';
+      btn.style.display = 'block';
+      btn.onclick = function () { api.updateInstall && api.updateInstall(); };
+    } else if (u.status === 'error' && u.next) {
+      card.style.display = 'block';
+      txt.innerHTML = 'Mise à jour vers <b>v' + u.next + '</b> impossible.';
+      err.textContent = u.error || 'Erreur inconnue.';
+      err.style.display = 'block';
+      btn.textContent = 'Réessayer';
+      btn.className = 'upd-btn ghosty';
+      btn.style.display = 'block';
+      btn.onclick = function () { api.updateDownload && api.updateDownload(); };
+    } else {
+      card.style.display = 'none';
+    }
+  }
+
+  // ─── Barre de titre ───
+  $('min').onclick = function () { api.minimize && api.minimize(); };
+  $('close').onclick = function () { api.close && api.close(); };
+
+  // ─── Réglages ───
+  $('pseudo').addEventListener('input', function () { editingPseudo = true; });
+  function savePseudo() {
+    editingPseudo = false;
+    if (!api.setConfig) return;
+    var v = $('pseudo').value.trim();
+    if (!cur || !cur.config || v !== (cur.config.pseudo || '')) {
+      api.setConfig({ pseudo: v });
+    }
+  }
+  $('pseudo').addEventListener('change', savePseudo);
+  $('pseudo').addEventListener('blur', savePseudo);
+  $('pseudo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { savePseudo(); $('pseudo').blur(); }
+  });
+
+  ['1v1', '2v2', '3v3'].forEach(function (mode) {
+    var input = $('mmr' + mode);
+    function save() {
+      if (!api.setConfig || !cur) return;
+      var v = input.value.trim();
+      var known = cur.session && cur.session.mmr && cur.session.mmr[mode];
+      var current = known ? String(known.value) : '';
+      if (v === current) return;       // rien n'a changé
+      api.setConfig({ mmrSet: { mode: mode, value: v === '' ? null : Number(v) } });
+    }
+    input.addEventListener('change', save);
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { save(); input.blur(); }
+    });
+  });
+  $('optRanked').onchange = function () {
+    api.setConfig && api.setConfig({ mmrCounts: $('optRanked').checked });
+  };
+
+  $('optAuto').onchange = function () {
+    api.setConfig && api.setConfig({ autoDashboard: $('optAuto').checked });
+  };
+  $('optFull').onchange = function () {
+    api.setConfig && api.setConfig({ dashboardFullscreen: $('optFull').checked });
+  };
+  $('optBoot').onchange = function () {
+    api.setAutostart && api.setAutostart($('optBoot').checked);
+  };
+
+  // ─── Actions ───
+  $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
+  $('resetBtn').onclick = function () {
+    if (confirm('Repartir de zéro ? Les compteurs de la session repassent à 0 '
+        + '(l’historique des matchs est conservé).')) {
+      api.resetSession && api.resetSession();
+    }
+  };
+  $('statsApiBtn').onclick = function () {
+    var b = $('statsApiBtn');
+    b.disabled = true; b.textContent = 'Activation… (autorise la fenêtre Windows)';
+    Promise.resolve(api.enableStatsApi ? api.enableStatsApi() : null)
+      .then(function () {
+        b.textContent = 'Fait — redémarre Rocket League';
+        setTimeout(function () {
+          b.disabled = false; b.textContent = 'Réactiver la Stats API du jeu';
+        }, 5000);
+      });
+  };
+
+  // ─── État live ───
+  if (api.onState) api.onState(render);
+  if (api.getState) api.getState().then(render);
+})();
+</script>
+</body>
+</html>

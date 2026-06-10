@@ -1,0 +1,35 @@
+# release.yml — Construit l'installeur Windows et publie la release GitHub.
+#
+# Déclenché par un tag de version :
+#
+#   npm version minor          # met à jour package.json + crée le tag vX.Y.Z
+#   git push --follow-tags
+#
+# electron-builder publie l'installeur NSIS + latest.yml sur la release ;
+# c'est ce que les applications installées consultent pour se mettre à jour.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx electron-builder --win --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
