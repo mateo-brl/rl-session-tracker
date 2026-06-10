@@ -47,28 +47,25 @@ const state = {
   autostart: false,
   game: { processRunning: false, statsConnected: false, running: false },
   live: null,            // match en cours (snapshot Stats API), ou null
+  currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
   session: null,         // agrégats de session
   history: [],
   playersSeen: [],
   pseudoCandidates: [],  // si le pseudo n'a pas pu être deviné tout seul
+  evolution: {},         // courbes MMR par mode calibré
+  week: null,            // bilan des 7 derniers jours
+  records: null,         // records de tous les temps
   update: updater.getState(),
 };
-
-// Stats et historique remis à zéro, MMR préservé : l'estimation courante de
-// chaque mode devient la nouvelle base de calibrage avant l'effacement.
-function clearHistoryKeepMmr(reason) {
-  if (!store) return;
-  const hadMatches = store.matches.length > 0;
-  const folded = store.clearHistory(config.get(), config.get().pseudo);
-  config.setMmr(folded);
-  if (hadMatches) log('historique effacé (' + reason + ') — MMR conservé');
-}
 
 function refreshSession() {
   const snap = store.snapshot(config.get().pseudo, config.get());
   state.session = snap.session;
   state.history = snap.history;
   state.playersSeen = snap.playersSeen;
+  state.evolution = snap.evolution;
+  state.week = snap.week;
+  state.records = snap.records;
 }
 
 function pushState() {
@@ -103,11 +100,19 @@ function setGameRunning(running) {
   log('Rocket League : ' + (running ? 'détecté' : 'fermé'));
   if (running) {
     if (config.get().autoDashboard) openDashboard();
+    if (config.get().overlayEnabled) openOverlay();
   } else {
     state.live = null;
+    state.currentRanked = null;
     windows.closeDashboard();
+    windows.closeOverlay();
   }
   pushState();
+}
+
+function openOverlay() {
+  windows.openOverlay(config.get().overlayPos,
+    (pos) => config.update({ overlayPos: pos }));
 }
 
 function recomputeRunning() {
@@ -133,6 +138,16 @@ function createTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Ouvrir', click: () => windows.showControl() },
     { label: 'Ouvrir le dashboard', click: () => openDashboard() },
+    { label: 'Mini-overlay', click: () => {
+      if (windows.getOverlay()) {
+        config.update({ overlayEnabled: false });
+        windows.closeOverlay();
+      } else {
+        config.update({ overlayEnabled: true });
+        openOverlay();
+      }
+      pushState();
+    } },
     { type: 'separator' },
     { label: 'Vérifier les mises à jour', click: () => updater.check() },
     { type: 'separator' },
@@ -160,10 +175,40 @@ function startStatsApi() {
   });
   api.on('state', (d) => {
     state.live = d && d.active ? { ...d, training: isTraining(d) } : null;
+    // Nouveau match : classé ou casual ? Pré-réglé sur la préférence, et
+    // modifiable d'un clic sur le dashboard pendant la partie.
+    if (state.live && !state.live.training && state.currentRanked === null) {
+      state.currentRanked = config.get().mmrCounts !== false;
+    }
     pushState();
   });
   api.on('match', (d) => {
-    if (d.phase === 'destroyed') { state.live = null; pushState(); }
+    if (d.phase === 'destroyed') {
+      state.live = null;
+      state.currentRanked = null;
+      pushState();
+    }
+  });
+  // Abandon (forfait, départ en cours de match, déconnexion). En CLASSÉ, le
+  // jeu compte une défaite — nous aussi. En casual, quitter est normal : on
+  // ignore le match.
+  api.on('abandoned', (snap) => {
+    state.live = null;
+    const ranked = state.currentRanked !== null
+      ? state.currentRanked : config.get().mmrCounts !== false;
+    state.currentRanked = null;
+    if (isTraining(snap) || !ranked) {
+      pushState();
+      log('abandon casual / entraînement — non compté');
+      return;
+    }
+    snap.ranked = true;
+    store.addMatch(snap);
+    refreshSession();
+    pushState();
+    const last = state.history[0];
+    if (last) windows.broadcast('match-result', last);
+    log('forfait enregistré : ' + (snap.mode || '?') + ' — compté comme défaite');
   });
   api.on('goal', (d) => {
     if (state.live && state.live.training) return;
@@ -172,10 +217,14 @@ function startStatsApi() {
   api.on('ended', (snap) => {
     state.live = null;
     if (isTraining(snap)) {
+      state.currentRanked = null;
       pushState();
       log('entraînement terminé — non compté');
       return;
     }
+    snap.ranked = state.currentRanked !== null
+      ? state.currentRanked : config.get().mmrCounts !== false;
+    state.currentRanked = null;
     store.addMatch(snap);
     // Pseudo pas encore configuré : on le devine (joueur présent dans tous
     // les derniers matchs). Zéro saisie pour l'utilisateur dans le cas normal.
@@ -222,9 +271,21 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && typeof partial.dashboardFullscreen === 'boolean') {
     windows.setDashboardFullscreen(partial.dashboardFullscreen);
   }
+  // L'overlay suit son réglage sans attendre le prochain lancement du jeu.
+  if (partial && typeof partial.overlayEnabled === 'boolean') {
+    if (partial.overlayEnabled && state.game.running) openOverlay();
+    else if (!partial.overlayEnabled) windows.closeOverlay();
+  }
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
   return config.get();
+});
+// Marque le match EN COURS comme classé ou casual.
+ipcMain.on('set-current-ranked', (_e, ranked) => {
+  if (state.live && !state.live.training) {
+    state.currentRanked = !!ranked;
+    pushState();
+  }
 });
 ipcMain.on('dashboard-fullscreen-toggle', () => {
   const on = !config.get().dashboardFullscreen;
@@ -262,10 +323,7 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => windows.showControl());
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => {
-    app.isQuitting = true;
-    clearHistoryKeepMmr('fermeture');
-  });
+  app.on('before-quit', () => { app.isQuitting = true; });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}
@@ -273,10 +331,10 @@ if (!gotLock) {
     const firstRun = !configExists();
     config.init(app.getPath('userData'));
     store = new SessionStore(app.getPath('userData'));
-    // Chaque lancement repart de zéro (stats + historique), MMR conservé.
-    // Fait aussi au démarrage pour rattraper une fermeture brutale (crash,
-    // extinction du PC) où le before-quit n'a pas pu s'exécuter.
-    clearHistoryKeepMmr('démarrage');
+    // Chaque lancement démarre une nouvelle liste de « matchs récents ».
+    // Le journal complet est conservé : courbe MMR, 7 jours et records
+    // continuent de tout voir.
+    store.resetSession();
     state.autostart = autostartEnabled();
     refreshSession();
 

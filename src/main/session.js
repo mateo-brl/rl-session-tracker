@@ -1,21 +1,25 @@
-// session.js — Journal des matchs et statistiques de session.
+// session.js — Journal des matchs et statistiques.
 //
-// Chaque match terminé (évènement `ended` de la Stats API) est enregistré
-// BRUT dans userData/matches.json : score, vainqueur, et stats de tous les
-// joueurs. Le résultat (victoire/défaite) et les stats personnelles sont
-// dérivés au moment du calcul, à partir du pseudo configuré — changer de
-// pseudo recalcule donc tout l'historique rétroactivement.
+// Chaque match terminé (ou abandonné) est enregistré BRUT dans
+// userData/matches.json : score, vainqueur, stats de tous les joueurs,
+// classé/casual, forfait. Le point de vue du joueur suivi (victoire/défaite,
+// stats perso, MVP) est dérivé au calcul à partir du pseudo configuré —
+// changer de pseudo recalcule donc tout rétroactivement.
 //
-// Une « session » = les matchs récents sans coupure de plus de 2 h, et
-// postérieurs au dernier « Réinitialiser la session » manuel.
+// Le journal est PERMANENT (borné aux 2000 derniers matchs) : il alimente la
+// courbe d'évolution du MMR, le bilan des 7 derniers jours et les records.
+// La liste des « matchs récents », elle, repart de zéro à chaque lancement
+// (ou via le bouton « Vider »), simple curseur dans le journal.
 
 const fs = require('fs');
 const path = require('path');
 
-const MAX_MATCHES = 500;                       // borne la taille du journal
+const MAX_MATCHES = 2000;                      // borne la taille du journal
 const SESSION_GAP_MS = 2 * 60 * 60 * 1000;     // 2 h sans match = nouvelle session
 const HISTORY_SHOWN = 30;                      // matchs envoyés au dashboard
 const MMR_STEP = 9;                            // gain/perte moyen d'un match classé
+const EVOLUTION_POINTS = 80;                   // points max de la courbe MMR
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function norm(s) {
   return String(s || '').trim().toLowerCase();
@@ -25,7 +29,7 @@ class SessionStore {
   constructor(userDataDir) {
     this.file = path.join(userDataDir, 'matches.json');
     this.matches = [];        // ordre chronologique, données brutes
-    this.resetAt = 0;         // borne du « Réinitialiser la session »
+    this.resetAt = 0;         // début de la liste des « matchs récents »
     this.playersSeen = [];    // pseudos croisés récemment (aide à la config)
     this._load();
   }
@@ -52,8 +56,9 @@ class SessionStore {
     } catch (e) { /* le journal en mémoire reste valable */ }
   }
 
-  // Enregistre un match terminé. `snap` : snapshot `ended` de la Stats API
-  // ({ mode, score, isOT, winnerTeam, players, endedAt }).
+  // Enregistre un match. `snap` : snapshot de la Stats API ({ mode, score,
+  // isOT, winnerTeam, players, endedAt }), enrichi par l'appelant de
+  // `ranked` (classé ou casual) et `forfeit` (abandon).
   addMatch(snap) {
     const players = Array.isArray(snap.players) ? snap.players : [];
     if (players.length < 2) return;   // entraînement / piste libre — jamais compté
@@ -66,6 +71,8 @@ class SessionStore {
       score: Array.isArray(snap.score) ? snap.score : null,
       isOT: !!snap.isOT,
       winnerTeam: (snap.winnerTeam === 0 || snap.winnerTeam === 1) ? snap.winnerTeam : null,
+      ranked: snap.ranked !== false,
+      forfeit: !!snap.forfeit,
       players: players.map((p) => ({
         name: p.name, team: p.team,
         goals: p.goals | 0, saves: p.saves | 0, assists: p.assists | 0,
@@ -89,31 +96,11 @@ class SessionStore {
     this.playersSeen = this.playersSeen.slice(0, 12);
   }
 
+  // Vide la liste des matchs récents (le journal, lui, est conservé : la
+  // courbe d'évolution et les records continuent de tout voir).
   resetSession() {
     this.resetAt = Date.now();
     this._persist();
-  }
-
-  // Vide stats et historique en PRÉSERVANT le MMR : l'estimation courante de
-  // chaque mode calibré est figée comme nouvelle base (sinon, effacer les
-  // matchs ferait reculer le MMR jusqu'au dernier calibrage manuel).
-  // Retourne les nouvelles bases, à enregistrer dans la configuration.
-  clearHistory(cfg, pseudo) {
-    const folded = {};
-    const mmrCfg = (cfg && cfg.mmr) || {};
-    const counts = !cfg || cfg.mmrCounts !== false;
-    for (const mode of Object.keys(mmrCfg)) {
-      const entry = mmrCfg[mode];
-      if (!entry || !Number.isFinite(entry.base)) continue;
-      folded[mode] = {
-        base: counts ? this._mmrForMode(mode, entry, pseudo) : entry.base,
-        setAt: Date.now(),
-      };
-    }
-    this.matches = [];
-    this.resetAt = 0;
-    this._persist();        // playersSeen est conservé (aide à la config)
-    return folded;
   }
 
   // Devine le pseudo du joueur suivi sans rien demander : c'est le seul nom
@@ -140,24 +127,29 @@ class SessionStore {
   _evaluate(m, pseudo) {
     const me = m.players.find((p) => norm(p.name) === norm(pseudo)) || null;
 
-    // Vainqueur : annoncé par le jeu, sinon déduit du score.
-    let winner = m.winnerTeam;
-    if (winner === null && m.score && m.score[0] !== m.score[1]) {
-      winner = m.score[0] > m.score[1] ? 0 : 1;
-    }
-
     let result = null;                  // 'W' | 'L' | null (joueur non identifié)
-    if (me && winner !== null) result = me.team === winner ? 'W' : 'L';
-
-    // MVP : meilleur score du match ET dans l'équipe gagnante (règle du jeu).
     let mvp = false;
-    if (me && result === 'W' && me.score > 0) {
-      mvp = m.players.every((p) => p === me || p.score <= me.score);
+    if (m.forfeit) {
+      // Abandon : défaite, quel que soit le score au moment du départ.
+      if (me) result = 'L';
+    } else {
+      // Vainqueur : annoncé par le jeu, sinon déduit du score.
+      let winner = m.winnerTeam;
+      if (winner === null && m.score && m.score[0] !== m.score[1]) {
+        winner = m.score[0] > m.score[1] ? 0 : 1;
+      }
+      if (me && winner !== null) result = me.team === winner ? 'W' : 'L';
+      // MVP : meilleur score du match ET dans l'équipe gagnante (règle du jeu).
+      if (me && result === 'W' && me.score > 0) {
+        mvp = m.players.every((p) => p === me || p.score <= me.score);
+      }
     }
 
     return {
       id: m.id, endedAt: m.endedAt, mode: m.mode,
       score: m.score, isOT: m.isOT,
+      ranked: m.ranked !== false,
+      forfeit: !!m.forfeit,
       result: result,
       myTeam: me ? me.team : null,
       me: me ? {
@@ -167,8 +159,66 @@ class SessionStore {
     };
   }
 
-  // Matchs de la session courante : depuis le dernier reset manuel, sans
-  // coupure de plus de 2 h entre deux matchs.
+  // Seuls les matchs CLASSÉS font bouger le MMR estimé.
+  _mmrForMode(mode, entry, pseudo) {
+    let v = entry.base;
+    for (const m of this.matches) {
+      if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
+      const r = this._evaluate(m, pseudo).result;
+      if (r === 'W') v += MMR_STEP;
+      else if (r === 'L') v -= MMR_STEP;
+    }
+    return v;
+  }
+
+  // Courbe d'évolution du MMR d'un mode : un point par match classé depuis
+  // le calibrage, en partant de la base.
+  _evolutionForMode(mode, entry, pseudo) {
+    const points = [{ t: entry.setAt, v: entry.base }];
+    let v = entry.base;
+    for (const m of this.matches) {
+      if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
+      const r = this._evaluate(m, pseudo).result;
+      if (r === 'W') v += MMR_STEP;
+      else if (r === 'L') v -= MMR_STEP;
+      else continue;
+      points.push({ t: m.endedAt, v: v });
+    }
+    return points.slice(-EVOLUTION_POINTS);
+  }
+
+  // Bilan des 7 derniers jours + records de tous les temps.
+  _longTerm(pseudo) {
+    const weekStart = Date.now() - WEEK_MS;
+    const week = { played: 0, wins: 0, losses: 0, winrate: null };
+    const records = { bestWinStreak: 0, bestDayWins: 0, totalPlayed: 0 };
+    const dayWins = {};
+    let run = 0;
+    for (const raw of this.matches) {
+      const m = this._evaluate(raw, pseudo);
+      records.totalPlayed++;
+      if (m.endedAt >= weekStart) {
+        week.played++;
+        if (m.result === 'W') week.wins++;
+        else if (m.result === 'L') week.losses++;
+      }
+      if (m.result === 'W') {
+        run++;
+        if (run > records.bestWinStreak) records.bestWinStreak = run;
+        const day = new Date(m.endedAt).toISOString().slice(0, 10);
+        dayWins[day] = (dayWins[day] || 0) + 1;
+        if (dayWins[day] > records.bestDayWins) records.bestDayWins = dayWins[day];
+      } else if (m.result === 'L') {
+        run = 0;
+      }
+    }
+    const decided = week.wins + week.losses;
+    week.winrate = decided ? Math.round((week.wins / decided) * 100) : null;
+    return { week, records };
+  }
+
+  // Matchs récents : depuis le dernier « Vider » (ou le lancement de
+  // l'application), sans coupure de plus de 2 h entre deux matchs.
   _sessionMatches() {
     const out = [];
     for (let i = this.matches.length - 1; i >= 0; i--) {
@@ -178,21 +228,6 @@ class SessionStore {
       out.unshift(m);
     }
     return out;
-  }
-
-  // MMR estimé d'un mode : base recopiée du jeu par l'utilisateur (le MMR est
-  // visible en jeu depuis la saison 22), ajustée de ±MMR_STEP par match joué
-  // depuis le calibrage. La Stats API ne diffusant pas le MMR, c'est la
-  // solution la plus fiable sans dépendre d'un site externe.
-  _mmrForMode(mode, entry, pseudo) {
-    let v = entry.base;
-    for (const m of this.matches) {
-      if (m.mode !== mode || m.endedAt <= entry.setAt) continue;
-      const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') v += MMR_STEP;
-      else if (r === 'L') v -= MMR_STEP;
-    }
-    return v;
   }
 
   // Statistiques agrégées envoyées aux fenêtres.
@@ -205,7 +240,7 @@ class SessionStore {
       wins: 0, losses: 0, unknown: 0,
       streak: { type: null, count: 0 },
       bestWinStreak: 0,
-      perMode: {},        // '2v2' → { played, wins, losses, streak }
+      perMode: {},        // '2v2' → { played, wins, losses, streak, rankedDiff }
       totals: { goals: 0, saves: 0, assists: 0, shots: 0, score: 0, mvps: 0 },
     };
 
@@ -223,13 +258,17 @@ class SessionStore {
       }
 
       const mode = agg.perMode[m.mode] ||
-        (agg.perMode[m.mode] = { played: 0, wins: 0, losses: 0, streak: { type: null, count: 0 } });
+        (agg.perMode[m.mode] = {
+          played: 0, wins: 0, losses: 0,
+          streak: { type: null, count: 0 }, rankedDiff: 0,
+        });
       mode.played++;
       if (m.result === 'W') mode.wins++;
       else if (m.result === 'L') mode.losses++;
       if (m.result === 'W' || m.result === 'L') {
         if (mode.streak.type === m.result) mode.streak.count++;
         else { mode.streak.type = m.result; mode.streak.count = 1; }
+        if (m.ranked) mode.rankedDiff += (m.result === 'W' ? 1 : -1);
       }
 
       if (m.me) {
@@ -247,24 +286,30 @@ class SessionStore {
     const decided = agg.wins + agg.losses;
     agg.winrate = decided ? Math.round((agg.wins / decided) * 100) : null;
 
-    // MMR estimé par mode calibré + delta de la session courante.
+    // MMR estimé + courbe d'évolution, par mode calibré.
     agg.mmr = {};
+    const evolution = {};
     const mmrCfg = (cfg && cfg.mmr) || {};
-    const counts = !cfg || cfg.mmrCounts !== false;
     for (const mode of Object.keys(mmrCfg)) {
       const entry = mmrCfg[mode];
       if (!entry || !Number.isFinite(entry.base)) continue;
       const pm = agg.perMode[mode];
       agg.mmr[mode] = {
-        value: counts ? this._mmrForMode(mode, entry, pseudo) : entry.base,
-        delta: (counts && pm) ? MMR_STEP * (pm.wins - pm.losses) : 0,
+        value: this._mmrForMode(mode, entry, pseudo),
+        delta: pm ? MMR_STEP * pm.rankedDiff : 0,
       };
+      evolution[mode] = this._evolutionForMode(mode, entry, pseudo);
     }
+
+    const lt = this._longTerm(pseudo);
 
     return {
       session: agg,
       history: session.slice(-HISTORY_SHOWN).reverse(),
       playersSeen: this.playersSeen,
+      evolution: evolution,
+      week: lt.week,
+      records: lt.records,
     };
   }
 }
