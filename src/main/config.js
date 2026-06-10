@@ -28,7 +28,14 @@ const DEFAULTS = {
     scale: 1,            // 0.85 | 1 | 1.25
     opacity: 1,          // 1 | 0.85 | 0.7
   },
+  anim: {                // animations du dashboard
+    preset: 'broadcast', // broadcast | minimal | arcade
+    endMatch: true,      // écran victoire / défaite
+    goal: true,          // flash à chaque but
+  },
 };
+
+const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade'];
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -104,6 +111,13 @@ function update(partial) {
         };
       }
       config.layout = Object.keys(out).length ? out : null;
+    }
+    // Animations : style + interrupteurs.
+    if (partial.anim && typeof partial.anim === 'object') {
+      const a = config.anim = { ...DEFAULTS.anim, ...(config.anim || {}) };
+      if (ANIM_PRESETS.includes(partial.anim.preset)) a.preset = partial.anim.preset;
+      if (typeof partial.anim.endMatch === 'boolean') a.endMatch = partial.anim.endMatch;
+      if (typeof partial.anim.goal === 'boolean') a.goal = partial.anim.goal;
     }
     // Mini-overlay : contenu, échelle, opacité.
     if (partial.overlayCfg && typeof partial.overlayCfg === 'object') {
