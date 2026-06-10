@@ -3,145 +3,179 @@
 <head>
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
 <title>RL Session Tracker</title>
 <style>
+  @font-face { font-family:'Barlow Condensed'; font-weight:600; font-style:normal;
+    src:url('fonts/barlow-condensed-latin-600-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
+    src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
+    src:url('fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
+    src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+
   :root {
-    --bg:#0a0c12; --card:#11141d; --card2:#161a26; --line:#232838;
-    --text:#e7e9f0; --muted:#8b90a3; --cyan:#00e5ff; --pink:#ff3d71;
-    --ok:#2ee6a6; --warn:#ffb020; --err:#ff5d6c;
+    --bg:#0c0e11; --panel:#13161b; --panel2:#1a1e25; --line:#272d37;
+    --text:#eef1f5; --muted:#8b93a1;
+    --blue:#2f9bff; --blue-deep:#1466b8;
+    --orange:#ff8a1e; --orange-deep:#c45f00;
+    --gold:#ffc233;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
   body {
-    background:
-      radial-gradient(640px 360px at 88% -10%, rgba(0,229,255,.12), transparent),
-      radial-gradient(520px 340px at -8% 110%, rgba(255,61,113,.12), transparent),
-      var(--bg);
-    color:var(--text);
-    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
-    -webkit-user-select:none; user-select:none;
-    overflow:hidden;
+    background:var(--bg); color:var(--text);
+    font-family:'Segoe UI',ui-sans-serif,system-ui,sans-serif;
+    -webkit-user-select:none; user-select:none; overflow:hidden;
   }
+  .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
 
-  /* ─── Barre de titre sur mesure (fenêtre sans cadre) ─── */
+  /* ─── Barre de titre (fenêtre sans cadre) ─── */
   .titlebar {
-    height:40px; display:flex; align-items:center; justify-content:space-between;
-    padding-left:14px; -webkit-app-region:drag;
-    border-bottom:1px solid var(--line);
+    height:42px; display:flex; align-items:center; justify-content:space-between;
+    padding-left:16px; -webkit-app-region:drag;
+    border-bottom:1px solid var(--line); background:var(--panel);
   }
-  .tb-title { font-size:12.5px; font-weight:700; letter-spacing:.02em; }
-  .tb-title .dotmark { color:var(--cyan); }
+  .tb-title {
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:16px; letter-spacing:.05em;
+    text-transform:uppercase;
+  }
+  .tb-title b { color:var(--blue); }
   .tb-buttons { display:flex; -webkit-app-region:no-drag; }
   .tb-btn {
-    width:44px; height:40px; border:0; background:transparent; cursor:pointer;
+    width:44px; height:42px; border:0; background:transparent; cursor:pointer;
     color:var(--muted); font-size:14px; font-family:inherit;
   }
-  .tb-btn:hover { background:rgba(255,255,255,.06); color:var(--text); }
-  .tb-btn.close:hover { background:#e3344b; color:#fff; }
+  .tb-btn:hover { background:var(--panel2); color:var(--text); }
+  .tb-btn.close:hover { background:var(--orange-deep); color:#fff; }
 
-  .body { height:calc(100vh - 40px); padding:18px 22px 14px; overflow-y:auto; }
+  .body { height:calc(100vh - 42px); padding:16px 20px 12px; overflow-y:auto; }
+  .body::-webkit-scrollbar { width:8px; }
+  .body::-webkit-scrollbar-thumb { background:var(--line); }
 
-  .status { display:flex; align-items:center; gap:11px; margin:2px 0 14px;
-    font-size:17px; font-weight:600; }
-  .dot { width:12px; height:12px; border-radius:50%; background:var(--muted); flex:none; }
-  .dot.ok   { background:var(--ok);   box-shadow:0 0 12px rgba(46,230,166,.7); }
-  .dot.warn { background:var(--warn); box-shadow:0 0 12px rgba(255,176,32,.55); }
+  /* ─── Statut ─── */
+  .status { display:flex; align-items:center; gap:10px; margin:2px 0 14px; }
+  .sq { width:10px; height:10px; background:var(--muted); flex:none; }
+  .sq.ok { background:var(--blue); }
+  .sq.warn { background:var(--orange); }
+  .status span {
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:19px; letter-spacing:.06em;
+    text-transform:uppercase;
+  }
 
   .rows {
-    background:var(--card); border:1px solid var(--line); border-radius:14px;
-    padding:2px 16px; margin-bottom:14px;
+    background:var(--panel); border:1px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    padding:2px 16px; margin-bottom:13px;
   }
   .row { display:flex; justify-content:space-between; align-items:center;
-    padding:11px 0; font-size:13.5px; }
+    padding:10px 0; font-size:13px; }
   .row + .row { border-top:1px solid var(--line); }
   .row span { color:var(--muted); }
   .row b { font-weight:600; }
-  .row b.live { color:var(--cyan); }
-  .row b.win  { color:var(--ok); }
-  .row b.loss { color:var(--err); }
+  .row b.live { color:var(--blue); }
+  .row b .w { color:var(--blue); font-weight:700; }
+  .row b .l { color:var(--orange); font-weight:700; }
 
+  /* ─── Cartes ─── */
   .card {
-    background:var(--card); border:1px solid var(--line); border-radius:14px;
-    padding:14px 16px; margin-bottom:14px;
+    background:var(--panel); border:1px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+    padding:13px 16px 15px; margin-bottom:13px;
   }
-  .card h2 { font-size:11.5px; text-transform:uppercase; letter-spacing:.09em;
-    color:var(--muted); margin-bottom:11px; }
+  .card h2 {
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:13px; text-transform:uppercase;
+    letter-spacing:.14em; color:var(--muted); margin-bottom:11px;
+    border-left:3px solid var(--blue); padding-left:8px;
+  }
+  .card p.txt { font-size:13px; color:var(--muted); line-height:1.55; }
+  .card p.txt b { color:var(--text); }
 
-  label.field { display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px; }
-  input[type=text] {
-    width:100%; background:var(--card2); border:1px solid var(--line);
-    border-radius:10px; color:var(--text); font-size:14.5px; padding:10px 12px;
-    font-family:inherit;
+  label.field { display:block; font-size:12.5px; color:var(--muted);
+    margin-bottom:5px; }
+  input[type=text], input[type=number] {
+    width:100%; background:var(--panel2); border:1px solid var(--line);
+    color:var(--text); font-size:14px; padding:9px 11px; font-family:inherit;
+    border-radius:0;
   }
-  input[type=text]:focus { outline:none; border-color:var(--cyan);
-    box-shadow:0 0 0 3px rgba(0,229,255,.14); }
-  .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.45; }
-
-  .check { display:flex; align-items:center; gap:9px; padding:7px 0;
-    font-size:13.5px; cursor:pointer; }
-  .check input { accent-color:var(--cyan); width:15px; height:15px; cursor:pointer; }
-
-  button.primary {
-    width:100%; border:0; border-radius:11px; padding:12px;
-    font-size:14px; font-weight:700; font-family:inherit; cursor:pointer;
-    color:#06121a; background:linear-gradient(90deg,var(--cyan),#51f0ff);
-  }
-  button.primary:disabled { opacity:.55; cursor:progress; }
-  button.ghost {
-    width:100%; border:1px solid var(--line); background:var(--card2);
-    color:var(--text); border-radius:11px; padding:11px; font-size:13.5px;
-    font-weight:600; font-family:inherit; cursor:pointer; margin-top:8px;
-  }
-  button.ghost:hover { border-color:var(--cyan); }
-  button.ghost.danger:hover { border-color:var(--err); color:var(--err); }
-
-  /* ─── Mise à jour ─── */
-  .upd-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .upd-txt { font-size:13px; color:var(--muted); line-height:1.45; }
-  .upd-txt b { color:var(--text); }
-  .upd-btn {
-    border:0; border-radius:9px; padding:9px 14px; font-size:13px; font-weight:700;
-    font-family:inherit; cursor:pointer; color:#06121a; white-space:nowrap;
-    background:linear-gradient(90deg,var(--ok),#5ff0c0);
-  }
-  .upd-btn.ghosty { background:var(--card2); color:var(--text);
-    border:1px solid var(--line); font-weight:600; }
-  .progress { height:7px; border-radius:5px; background:var(--card2);
-    border:1px solid var(--line); margin-top:10px; overflow:hidden; }
-  .progress i { display:block; height:100%; width:0;
-    background:linear-gradient(90deg,var(--cyan),var(--ok)); transition:width .3s; }
-  .upd-err { color:var(--err); font-size:12px; margin-top:8px; }
-
-  .mmr-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
-  .mmr-cell span { display:block; font-size:11px; color:var(--cyan);
-    font-weight:700; margin-bottom:4px; }
-  input[type=number] {
-    width:100%; background:var(--card2); border:1px solid var(--line);
-    border-radius:10px; color:var(--text); font-size:14.5px; padding:9px 10px;
-    font-family:inherit; -moz-appearance:textfield;
-  }
+  input:focus { outline:none; border-color:var(--blue); }
+  input[type=number] { -moz-appearance:textfield; }
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
-  input[type=number]:focus { outline:none; border-color:var(--cyan);
-    box-shadow:0 0 0 3px rgba(0,229,255,.14); }
+  .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.5; }
+
+  .mmr-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+  .mmr-cell span {
+    display:block; font-family:'Barlow Condensed',sans-serif;
+    font-style:italic; font-weight:800; font-size:12px; color:var(--text);
+    letter-spacing:.08em; margin-bottom:4px; text-transform:uppercase;
+  }
+  .mmr-cell input { font-variant-numeric:tabular-nums; }
+
+  .check { display:flex; align-items:center; gap:9px; padding:6px 0;
+    font-size:13px; cursor:pointer; }
+  .check input { accent-color:var(--blue); width:15px; height:15px;
+    cursor:pointer; }
 
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip {
-    border:1px solid var(--line); background:var(--card2); color:var(--text);
-    border-radius:999px; padding:8px 16px; font-size:13.5px; font-weight:600;
+    border:1px solid var(--line); background:var(--panel2); color:var(--text);
+    transform:skewX(-12deg); padding:7px 16px; font-size:13px; font-weight:600;
     font-family:inherit; cursor:pointer;
   }
-  .chip:hover { border-color:var(--cyan); color:var(--cyan); }
+  .chip > span { display:inline-block; transform:skewX(12deg); }
+  .chip:hover { border-color:var(--blue); color:var(--blue); }
 
-  .foot { color:var(--muted); font-size:11px; text-align:center; margin-top:4px;
-    padding-bottom:6px; }
+  /* ─── Boutons ─── */
+  button.primary {
+    width:100%; border:0; padding:12px; cursor:pointer;
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:16px; letter-spacing:.1em;
+    text-transform:uppercase; color:#fff; background:var(--blue-deep);
+  }
+  button.primary:hover { background:var(--blue); }
+  button.primary:disabled { opacity:.55; cursor:progress; }
+  button.ghost {
+    width:100%; border:1px solid var(--line); background:var(--panel);
+    color:var(--text); padding:10px; font-size:12.5px; font-weight:600;
+    font-family:inherit; cursor:pointer; margin-top:8px;
+    text-transform:uppercase; letter-spacing:.06em;
+  }
+  button.ghost:hover { border-color:var(--blue); }
+  button.ghost.danger:hover { border-color:var(--orange); color:var(--orange); }
+
+  /* ─── Mise à jour ─── */
+  .upd-row { display:flex; align-items:center; justify-content:space-between;
+    gap:10px; }
+  .upd-txt { font-size:13px; color:var(--muted); line-height:1.5; }
+  .upd-txt b { color:var(--text); }
+  .upd-btn {
+    border:0; padding:9px 16px; cursor:pointer; white-space:nowrap;
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:14px; letter-spacing:.08em;
+    text-transform:uppercase; color:#fff; background:var(--blue-deep);
+  }
+  .upd-btn:hover { background:var(--blue); }
+  .upd-btn.ghosty { background:var(--panel2); color:var(--text);
+    border:1px solid var(--line); }
+  .progress { height:8px; background:var(--panel2);
+    border:1px solid var(--line); margin-top:10px; overflow:hidden; }
+  .progress i { display:block; height:100%; width:0; background:var(--blue);
+    transition:width .3s; }
+  .upd-err { color:var(--orange); font-size:12px; margin-top:8px; }
+
+  .foot { color:var(--muted); font-size:11px; text-align:center;
+    margin-top:4px; padding-bottom:6px; }
 </style>
 </head>
 <body>
 
   <div class="titlebar">
-    <div class="tb-title"><span class="dotmark">●</span> RL Session Tracker</div>
+    <div class="tb-title">RL <b>Session Tracker</b></div>
     <div class="tb-buttons">
       <button class="tb-btn" id="min" title="Réduire">&#9472;</button>
       <button class="tb-btn close" id="close" title="Fermer">&#10005;</button>
@@ -151,8 +185,8 @@
   <div class="body">
 
     <div class="status">
-      <span class="dot" id="dot"></span>
-      <span id="statusText">Démarrage…</span>
+      <span class="sq" id="dot"></span>
+      <span id="statusText">Démarrage</span>
     </div>
 
     <div class="rows">
@@ -163,16 +197,16 @@
     </div>
 
     <div class="card" id="welcomeCard" style="display:none">
-      <h2>Bienvenue 👋</h2>
-      <div class="upd-txt">Il n'y a rien à configurer : <b>lance Rocket League
-        et joue un match</b>. L'application détecte tout — ton pseudo, tes
-        victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</div>
+      <h2>Bienvenue</h2>
+      <p class="txt">Il n'y a rien à configurer : <b>lance Rocket League et
+        joue un match</b>. L'application détecte tout — ton pseudo, tes
+        victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
     </div>
 
     <div class="card" id="whoCard" style="display:none">
       <h2>Qui es-tu ?</h2>
-      <div class="upd-txt" style="margin-bottom:10px">Plusieurs joueurs
-        reviennent dans tes matchs — clique sur ton pseudo :</div>
+      <p class="txt" style="margin-bottom:10px">Plusieurs joueurs reviennent
+        dans tes matchs — clique sur ton pseudo :</p>
       <div id="whoChips" class="chips"></div>
     </div>
 
@@ -207,8 +241,8 @@
       </div>
       <div class="hint">Recopie le MMR affiché dans le jeu (Paramètres →
         Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli
-        l'estime toute seule match après match (≈ ±9) — reviens le corriger
-        quand tu veux.</div>
+        l'estime toute seule match après match (environ ±9) — reviens le
+        corriger quand tu veux.</div>
       <div style="height:10px"></div>
       <label class="check"><input type="checkbox" id="optRanked" />
         Compter mes matchs dans le MMR estimé (je joue en classé)</label>
@@ -248,7 +282,7 @@
 
     var game = s.game || {};
     var running = !!game.running;
-    $('dot').className = 'dot ' + (running ? 'ok' : 'warn');
+    $('dot').className = 'sq ' + (running ? 'ok' : 'warn');
     $('statusText').textContent = running
       ? (s.live ? 'Match en cours' : 'Rocket League détecté')
       : 'En attente de Rocket League';
@@ -276,10 +310,11 @@
 
     var ses = s.session;
     if (ses && ses.played) {
-      $('rSession').innerHTML = '<b class="win">' + ses.wins + ' V</b> — <b class="loss">'
-        + ses.losses + ' D</b>'
+      $('rSession').innerHTML = '<span class="w">' + ses.wins + ' V</span> — '
+        + '<span class="l">' + ses.losses + ' D</span>'
         + (ses.streak.count >= 2
-          ? ' · série de ' + ses.streak.count + (ses.streak.type === 'W' ? ' 🔥' : ' ❄️')
+          ? ' · série de ' + ses.streak.count
+            + (ses.streak.type === 'W' ? ' victoires' : ' défaites')
           : '');
     } else {
       $('rSession').textContent = 'aucun match';
@@ -324,7 +359,9 @@
     cand.forEach(function (n) {
       var b = document.createElement('button');
       b.className = 'chip';
-      b.textContent = n;
+      var inner = document.createElement('span');
+      inner.textContent = n;
+      b.appendChild(inner);
       b.onclick = function () { api.setConfig && api.setConfig({ pseudo: n }); };
       chips.appendChild(b);
     });
@@ -426,7 +463,7 @@
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
   $('resetBtn').onclick = function () {
     if (confirm('Repartir de zéro ? Les compteurs de la session repassent à 0 '
-        + '(l’historique des matchs est conservé).')) {
+        + '(le MMR est conservé).')) {
       api.resetSession && api.resetSession();
     }
   };
