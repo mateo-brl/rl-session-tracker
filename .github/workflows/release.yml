@@ -10,12 +10,15 @@
 
 name: release
 
-# Déclenchement manuel possible depuis l'onglet Actions (ou l'API) : utile
-# quand on ne peut pas pousser de tag — electron-builder crée alors lui-même
-# la release vX.Y.Z à partir de la version du package.json.
+# Trois façons de publier (electron-builder crée la release vX.Y.Z à partir
+# de la version du package.json) :
+#   1. pousser un tag v*  (npm version minor && git push --follow-tags)
+#   2. bouton « Run workflow » dans l'onglet Actions
+#   3. pousser sur main un commit dont le message contient [release]
 on:
   push:
     tags: ['v*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +26,11 @@ permissions:
 
 jobs:
   build:
+    # Sur main, ne publie que si le commit le demande explicitement.
+    if: >-
+      startsWith(github.ref, 'refs/tags/')
+      || github.event_name == 'workflow_dispatch'
+      || contains(github.event.head_commit.message, '[release]')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
