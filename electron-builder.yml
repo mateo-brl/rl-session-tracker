@@ -41,3 +41,6 @@ publish:
   provider: github
   owner: mateo-brl
   repo: rl-session-tracker
+  # Release publiée directement (pas de brouillon) : indispensable pour que
+  # les applications installées voient la mise à jour sans action manuelle.
+  releaseType: release
