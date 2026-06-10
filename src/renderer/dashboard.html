@@ -106,16 +106,55 @@
   }
 
   /* ─── Grille ─── */
-  main {
-    flex:1; min-height:0; display:grid; gap:16px;
-    grid-template-columns:1.25fr 1fr;
-    grid-template-rows:auto auto 1fr auto;
-    grid-template-areas:"hero live" "modes live" "evo history" "totals history";
-    padding:18px 26px 22px;
+  /* Toile à widgets : chaque carte est positionnée en % et peut être
+     déplacée / redimensionnée / masquée en mode « Personnaliser ». */
+  main { flex:1; min-height:0; padding:18px 26px 22px; }
+  #canvas { position:relative; width:100%; height:100%; }
+  #canvas .card { position:absolute; }
+
+  body.editing #canvas .card {
+    outline:1px dashed var(--blue); cursor:move;
   }
+  body.editing #canvas .card > *:not(.rsz):not(.hidebtn) {
+    pointer-events:none;
+  }
+  .rsz {
+    display:none; position:absolute; right:0; bottom:0; width:18px; height:18px;
+    cursor:nwse-resize;
+    background:linear-gradient(135deg, transparent 55%, var(--blue) 55%);
+  }
+  .hidebtn {
+    display:none; position:absolute; top:4px; right:22px; width:22px; height:22px;
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    font-size:12px; line-height:1; cursor:pointer; font-family:inherit;
+  }
+  .hidebtn:hover { color:var(--orange); border-color:var(--orange); }
+  body.editing .rsz, body.editing .hidebtn { display:block; }
+
+  .hdr-btn {
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    transform:skewX(-12deg); padding:7px 14px; cursor:pointer;
+    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase;
+  }
+  .hdr-btn > span { display:inline-block; transform:skewX(12deg); }
+  .hdr-btn:hover { border-color:var(--blue); color:var(--text); }
+  .hdr-btn.accent { border-color:var(--blue); color:#fff;
+    background:var(--blue-deep); }
+  #editTools { display:none; align-items:center; gap:8px; }
+  body.editing #editTools { display:flex; }
+  body.editing #editBtn { display:none; }
+  .ghost-chip {
+    border:1px dashed var(--line); background:transparent; color:var(--muted);
+    transform:skewX(-12deg); padding:6px 12px; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:11.5px;
+    letter-spacing:.08em; text-transform:uppercase;
+  }
+  .ghost-chip > span { display:inline-block; transform:skewX(12deg); }
+  .ghost-chip:hover { border-color:var(--blue); color:var(--text); }
 
   /* ─── Bilan de session ─── */
-  .hero { grid-area:hero; }
+  .hero { }
   .hero-main { display:flex; align-items:center; gap:38px; flex-wrap:wrap; }
   .wl { display:flex; align-items:baseline; gap:16px;
     font-variant-numeric:tabular-nums; }
@@ -140,7 +179,7 @@
   .streak-banner.tilt { display:block; background:var(--orange-deep); color:#fff; }
 
   /* ─── Modes ─── */
-  .modes { grid-area:modes; }
+  .modes { }
   .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
   .mode {
     background:var(--panel2); border:1px solid var(--line);
@@ -169,7 +208,7 @@
   .mode.empty .mmr { opacity:1; }
 
   /* ─── Match en cours ─── */
-  .live { grid-area:live; }
+  .live { }
   .live-on, .live-off, .live-training { flex:1; display:flex;
     flex-direction:column; align-items:center; justify-content:center; gap:8px; }
   .live-off { color:var(--muted); font-size:17px; font-weight:600;
@@ -219,7 +258,7 @@
   .live.goal { animation:goalflash 1s ease-out; }
 
   /* ─── Évolution du MMR ─── */
-  .evo { grid-area:evo; }
+  .evo { }
   .evo-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .evo-tab {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
@@ -262,7 +301,7 @@
   }
 
   /* ─── Totaux ─── */
-  .totals { grid-area:totals; }
+  .totals { }
   .totals-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
     flex:1; align-content:center; }
   .tot { text-align:center; border-left:1px solid var(--line); }
@@ -273,7 +312,7 @@
     text-transform:uppercase; letter-spacing:.14em; }
 
   /* ─── Historique ─── */
-  .history { grid-area:history; }
+  .history { }
   .hist-scroll { flex:1; overflow-y:auto; min-height:0; margin:0 -8px;
     padding:0 8px; }
   .hist-scroll::-webkit-scrollbar { width:8px; }
@@ -389,11 +428,17 @@
       <span id="updTxt"></span>
       <button id="updBtn"></button>
     </div>
+    <div id="editTools">
+      <span id="hiddenChips" style="display:flex;gap:8px"></span>
+      <button class="hdr-btn" id="layoutResetBtn"><span>Réinitialiser</span></button>
+      <button class="hdr-btn accent" id="editDoneBtn"><span>Terminé</span></button>
+    </div>
+    <button class="hdr-btn" id="editBtn" title="Déplacer, redimensionner et masquer les blocs"><span>Personnaliser</span></button>
     <button class="fs-btn" id="fsBtn" title="Plein écran (F11)">⛶</button>
     <div class="clock" id="clock"></div>
   </header>
 
-  <main>
+  <main><div id="canvas">
     <!-- Bilan de session -->
     <section class="card hero">
       <div class="tag"><span>Session <span id="sessionSince"></span></span></div>
@@ -493,7 +538,7 @@
         fin de ta première partie.
       </div>
     </section>
-  </main>
+  </div></main>
 
   <div class="esc-hint">F11 plein écran — Échap quitter / fermer</div>
 
@@ -536,11 +581,170 @@
 
   var MODES = ['1v1', '2v2', '3v3'];
 
+  // ─── Thème : 4 couleurs, le reste est dérivé (panneaux, liserés) ───
+  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  function mix(a, b, f) {
+    var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    var c = [16, 8, 0].map(function (sh) {
+      var va = (pa >> sh) & 255, vb = (pb >> sh) & 255;
+      return Math.round(va + (vb - va) * f);
+    });
+    return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+  }
+  var themeApplied = '';
+  function applyTheme(t) {
+    t = Object.assign({}, THEME_DEFAULT, t || {});
+    var key = JSON.stringify(t);
+    if (key === themeApplied) return;
+    themeApplied = key;
+    var s = document.documentElement.style;
+    s.setProperty('--blue', t.win);
+    s.setProperty('--blue-deep', mix(t.win, '#000000', .42));
+    s.setProperty('--orange', t.loss);
+    s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
+    s.setProperty('--gold', t.gold);
+    s.setProperty('--bg', t.bg);
+    s.setProperty('--panel', mix(t.bg, '#ffffff', .035));
+    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
+    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+  }
+
+  // ─── Widgets : disposition libre, mémorisée ───
+  var WIDGET_LABELS = {
+    hero: 'Session', modes: 'Par mode', live: 'Match',
+    evo: 'Évolution', totals: 'Stats', history: 'Historique',
+  };
+  var LAYOUT_DEFAULT = {
+    hero: { x: 0, y: 0, w: 55, h: 30 },
+    modes: { x: 0, y: 32, w: 55, h: 23 },
+    live: { x: 56, y: 0, w: 44, h: 55 },
+    evo: { x: 0, y: 57, w: 55, h: 26 },
+    totals: { x: 0, y: 85, w: 55, h: 15 },
+    history: { x: 56, y: 57, w: 44, h: 43 },
+  };
+  function mergeLayout(cfgLayout) {
+    var out = {};
+    Object.keys(LAYOUT_DEFAULT).forEach(function (id) {
+      out[id] = Object.assign({ hidden: false }, LAYOUT_DEFAULT[id],
+        (cfgLayout || {})[id] || {});
+    });
+    return out;
+  }
+  var layout = mergeLayout(null);
+  var editing = false;
+  function widgetEl(id) { return document.querySelector('.card.' + id); }
+
+  function applyLayout() {
+    Object.keys(layout).forEach(function (id) {
+      var el = widgetEl(id);
+      if (!el) return;
+      var w = layout[id];
+      el.style.left = w.x + '%';
+      el.style.top = w.y + '%';
+      el.style.width = w.w + '%';
+      el.style.height = w.h + '%';
+      el.style.display = w.hidden ? 'none' : 'flex';
+    });
+    renderHiddenChips();
+  }
+  function renderHiddenChips() {
+    var box = $('hiddenChips');
+    box.innerHTML = '';
+    if (!editing) return;
+    Object.keys(layout).forEach(function (id) {
+      if (!layout[id].hidden) return;
+      var b = document.createElement('button');
+      b.className = 'ghost-chip';
+      var inner = document.createElement('span');
+      inner.textContent = '+ ' + WIDGET_LABELS[id];
+      b.appendChild(inner);
+      b.onclick = function () {
+        layout[id].hidden = false;
+        applyLayout();
+        saveLayout();
+      };
+      box.appendChild(b);
+    });
+  }
+  function saveLayout() { if (api.setConfig) api.setConfig({ layout: layout }); }
+  function snap(v) { return Math.round(v); }
+
+  // Poignées (masquer + redimensionner) et déplacement de chaque widget.
+  Object.keys(LAYOUT_DEFAULT).forEach(function (id) {
+    var el = widgetEl(id);
+    if (!el) return;
+    var hide = document.createElement('button');
+    hide.className = 'hidebtn';
+    hide.textContent = '×';
+    hide.title = 'Masquer ce bloc';
+    hide.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    hide.onclick = function () {
+      layout[id].hidden = true;
+      applyLayout();
+      saveLayout();
+    };
+    var rsz = document.createElement('div');
+    rsz.className = 'rsz';
+    rsz.title = 'Redimensionner';
+    el.appendChild(hide);
+    el.appendChild(rsz);
+
+    el.addEventListener('pointerdown', function (e) {
+      if (!editing || e.button !== 0) return;
+      var resize = (e.target === rsz);
+      e.preventDefault();
+      var cv = $('canvas').getBoundingClientRect();
+      var st = { px: e.clientX, py: e.clientY,
+        x: layout[id].x, y: layout[id].y, w: layout[id].w, h: layout[id].h };
+      function move(ev) {
+        var dx = (ev.clientX - st.px) / cv.width * 100;
+        var dy = (ev.clientY - st.py) / cv.height * 100;
+        var w = layout[id];
+        if (resize) {
+          w.w = snap(Math.max(16, Math.min(100 - w.x, st.w + dx)));
+          w.h = snap(Math.max(10, Math.min(100 - w.y, st.h + dy)));
+        } else {
+          w.x = snap(Math.max(0, Math.min(100 - w.w, st.x + dx)));
+          w.y = snap(Math.max(0, Math.min(100 - w.h, st.y + dy)));
+        }
+        applyLayout();
+      }
+      function up() {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        saveLayout();
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+    });
+  });
+  applyLayout();
+
+  function setEditing(on) {
+    editing = on;
+    document.body.classList.toggle('editing', on);
+    applyLayout();
+  }
+  $('editBtn').onclick = function () { setEditing(true); };
+  $('editDoneBtn').onclick = function () { setEditing(false); };
+  $('layoutResetBtn').onclick = function () {
+    layout = mergeLayout(null);
+    applyLayout();
+    if (api.setConfig) api.setConfig({ layout: null });
+  };
+
   function render(s) {
     if (!s) return;
     cur = s;
     var cfg = s.config || {};
     var ses = s.session || {};
+
+    applyTheme(cfg.theme);
+    // La disposition vient de la config — sauf pendant qu'on la modifie.
+    if (!editing) {
+      layout = mergeLayout(cfg.layout);
+      applyLayout();
+    }
 
     // En-tête.
     var running = s.game && s.game.running;
@@ -845,8 +1049,11 @@
       ? st.count + (st.type === 'W' ? ' victoires' : ' défaites') + ' d’affilée'
       : '';
     if (win) {
-      // Pluie aux couleurs des équipes — bleu dominant.
-      var colors = ['#2f9bff', '#2f9bff', '#1466b8', '#eef1f5', '#ff8a1e'];
+      // Pluie aux couleurs du thème — couleur de victoire dominante.
+      var cs = getComputedStyle(document.documentElement);
+      var cWin = cs.getPropertyValue('--blue').trim() || '#2f9bff';
+      var cLoss = cs.getPropertyValue('--orange').trim() || '#ff8a1e';
+      var colors = [cWin, cWin, mix(cWin, '#000000', .42), '#eef1f5', cLoss];
       for (var i = 0; i < 110; i++) {
         var p = document.createElement('i');
         p.className = 'confetti-piece';
@@ -871,7 +1078,8 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'F11') { e.preventDefault(); toggleFullscreen(); return; }
     if (e.key === 'Escape') {
-      // L'animation d'abord, puis le plein écran, puis la fermeture.
+      // L'édition d'abord, puis l'animation, le plein écran, la fermeture.
+      if (editing) { setEditing(false); return; }
       if ($('resultOverlay').classList.contains('show')) { hideResult(); return; }
       if (cur && cur.config && cur.config.dashboardFullscreen) {
         toggleFullscreen();
