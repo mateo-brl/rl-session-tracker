@@ -13,6 +13,7 @@ const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
 
 let control = null;
 let dashboard = null;
+let overlay = null;
 
 // ───────── Fenêtre de contrôle ─────────
 function createControl(show, onReady) {
@@ -130,9 +131,57 @@ function getDashboard() {
   return (dashboard && !dashboard.isDestroyed()) ? dashboard : null;
 }
 
+// ───────── Mini-overlay (toujours au premier plan) ─────────
+// Petit bandeau W–L / série / score live, pour jouer sur un seul écran.
+function openOverlay(pos, onMoved) {
+  if (overlay && !overlay.isDestroyed()) { overlay.show(); return overlay; }
+  const wa = screen.getPrimaryDisplay().workArea;
+  overlay = new BrowserWindow({
+    x: (pos && Number.isFinite(pos.x)) ? pos.x : wa.x + wa.width - 300,
+    y: (pos && Number.isFinite(pos.y)) ? pos.y : wa.y + 16,
+    width: 284,
+    height: 92,
+    frame: false,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
+    focusable: false,
+    backgroundColor: '#0c0e11',
+    show: false,
+    icon: ICON,
+    title: 'RL Session Tracker — Overlay',
+    webPreferences: {
+      preload: PRELOAD,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  overlay.setAlwaysOnTop(true, 'screen-saver');
+  overlay.loadFile(path.join(RENDERER, 'overlay.html'));
+  overlay.once('ready-to-show', () => overlay.show());
+  overlay.on('moved', () => {
+    if (onMoved && overlay && !overlay.isDestroyed()) {
+      const b = overlay.getBounds();
+      onMoved({ x: b.x, y: b.y });
+    }
+  });
+  overlay.on('closed', () => { overlay = null; });
+  return overlay;
+}
+
+function closeOverlay() {
+  if (overlay && !overlay.isDestroyed()) overlay.destroy();
+  overlay = null;
+}
+
+function getOverlay() {
+  return (overlay && !overlay.isDestroyed()) ? overlay : null;
+}
+
 // Pousse l'état vers toutes les fenêtres ouvertes.
 function broadcast(channel, payload) {
-  for (const w of [getControl(), getDashboard()]) {
+  for (const w of [getControl(), getDashboard(), getOverlay()]) {
     if (w && w.webContents) {
       try { w.webContents.send(channel, payload); } catch (e) {}
     }
@@ -143,5 +192,6 @@ module.exports = {
   createControl, showControl, getControl,
   openDashboard, closeDashboard, getDashboard,
   setDashboardFullscreen,
+  openOverlay, closeOverlay, getOverlay,
   broadcast,
 };

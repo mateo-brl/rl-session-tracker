@@ -109,8 +109,8 @@
   main {
     flex:1; min-height:0; display:grid; gap:16px;
     grid-template-columns:1.25fr 1fr;
-    grid-template-rows:auto auto 1fr;
-    grid-template-areas:"hero live" "modes live" "totals history";
+    grid-template-rows:auto auto 1fr auto;
+    grid-template-areas:"hero live" "modes live" "evo history" "totals history";
     padding:18px 26px 22px;
   }
 
@@ -217,6 +217,49 @@
     30% { border-color:var(--blue); }
   }
   .live.goal { animation:goalflash 1s ease-out; }
+
+  /* ─── Évolution du MMR ─── */
+  .evo { grid-area:evo; }
+  .evo-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .evo-tab {
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    transform:skewX(-12deg); padding:4px 12px; cursor:pointer;
+    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
+    letter-spacing:.08em; text-transform:uppercase;
+  }
+  .evo-tab > span { display:inline-block; transform:skewX(12deg); }
+  .evo-tab.on { border-color:var(--blue); color:var(--text);
+    background:var(--blue-deep); }
+  .evo-chart { flex:1; min-height:74px; position:relative; }
+  .evo-chart svg { position:absolute; inset:0; width:100%; height:100%; }
+  .evo-empty { flex:1; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:14px; font-weight:600; text-align:center;
+    line-height:1.6; min-height:74px; }
+  .evo-range { display:flex; justify-content:space-between; font-size:12px;
+    font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .evo-foot { display:flex; gap:22px; margin-top:10px; padding-top:9px;
+    border-top:1px solid var(--line); font-size:13px; font-weight:600;
+    color:var(--muted); letter-spacing:.04em; text-transform:uppercase;
+    font-variant-numeric:tabular-nums; }
+  .evo-foot b { color:var(--text); font-weight:800; font-size:15px; }
+
+  /* ─── Classé / casual du match en cours ─── */
+  .ranked-toggle { display:flex; gap:6px; margin-top:10px; }
+  .ranked-toggle button {
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    transform:skewX(-12deg); padding:5px 14px; cursor:pointer;
+    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
+    letter-spacing:.1em; text-transform:uppercase;
+  }
+  .ranked-toggle button > span { display:inline-block; transform:skewX(12deg); }
+  .ranked-toggle button.on { border-color:var(--blue); color:#fff;
+    background:var(--blue-deep); }
+
+  .ff-chip {
+    display:inline-block; font-style:italic; font-weight:800; font-size:10.5px;
+    letter-spacing:.1em; padding:1px 6px; margin-left:6px; vertical-align:2px;
+    background:var(--orange-deep); color:#fff;
+  }
 
   /* ─── Totaux ─── */
   .totals { grid-area:totals; }
@@ -398,7 +441,32 @@
         </div>
         <div class="live-time"><span id="liveTime"></span><span class="ot"
           id="liveOT" style="display:none">Overtime</span></div>
+        <div class="ranked-toggle">
+          <button id="rkOn"><span>Classé</span></button>
+          <button id="rkOff"><span>Casual</span></button>
+        </div>
         <table class="live-players" id="livePlayers"></table>
+      </div>
+    </section>
+
+    <!-- Évolution du MMR -->
+    <section class="card evo">
+      <div class="tag"><span>Évolution MMR</span></div>
+      <div class="evo-head" id="evoTabs"></div>
+      <div class="evo-chart" id="evoChart" style="display:none">
+        <svg id="evoSvg" preserveAspectRatio="none" viewBox="0 0 100 40"></svg>
+      </div>
+      <div class="evo-range" id="evoRange" style="display:none">
+        <span id="evoMin"></span><span id="evoMax"></span>
+      </div>
+      <div class="evo-empty" id="evoEmpty">
+        Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite
+        match après match.
+      </div>
+      <div class="evo-foot">
+        <span>7 jours <b id="wkLine">—</b></span>
+        <span>Record série <b id="recStreak">—</b></span>
+        <span>Record victoires / jour <b id="recDay">—</b></span>
       </div>
     </section>
 
@@ -557,8 +625,13 @@
       $('ls1').textContent = live.score ? live.score[1] : 0;
       $('liveTime').textContent = fmtTime(live.timeSeconds);
       $('liveOT').style.display = live.isOT ? 'inline-block' : 'none';
+      var rk = s.currentRanked !== false;
+      $('rkOn').className = rk ? 'on' : '';
+      $('rkOff').className = rk ? '' : 'on';
       renderLivePlayers(live, cfg.pseudo);
     }
+
+    renderEvolution(s);
 
     // Totaux.
     var t = ses.totals || {};
@@ -582,12 +655,14 @@
           + '</b> P&nbsp;&nbsp;<b>' + m.me.saves + '</b> A'
           + (m.me.mvp ? ' <span class="mvp-chip">MVP</span>' : '')
         : '';
+      var marks = (m.isOT ? ' <span class="ot-mini">OT</span>' : '')
+        + (m.forfeit ? ' <span class="ff-chip">FF</span>' : '')
+        + (m.ranked === false ? ' <span class="ot-mini">Cas</span>' : '');
       rows += '<tr>'
         + '<td class="res"><span class="res-chip ' + cls + '"><span>'
           + res + '</span></span></td>'
         + '<td class="hmode">' + esc(m.mode) + '</td>'
-        + '<td class="hscore">' + sc
-          + (m.isOT ? ' <span class="ot-mini">OT</span>' : '') + '</td>'
+        + '<td class="hscore">' + sc + marks + '</td>'
         + '<td class="htime">' + fmtHour(m.endedAt) + '</td>'
         + '<td class="hstats">' + stats + '</td>'
         + '</tr>';
@@ -617,6 +692,108 @@
         + '</tr>';
     });
     $('livePlayers').innerHTML = html;
+  }
+
+  // ─── Évolution du MMR + bilan long terme ───
+  var evoMode = null;     // mode affiché ; choix de l'utilisateur conservé
+  function renderEvolution(s) {
+    var evo = s.evolution || {};
+    var modes = Object.keys(evo).filter(function (k) {
+      return evo[k] && evo[k].length;
+    });
+    if (!modes.length) {
+      $('evoTabs').innerHTML = '';
+      $('evoChart').style.display = 'none';
+      $('evoRange').style.display = 'none';
+      $('evoEmpty').style.display = 'flex';
+    } else {
+      if (modes.indexOf(evoMode) === -1) {
+        // Par défaut : le mode le plus joué (courbe la plus fournie).
+        evoMode = modes.slice().sort(function (a, b) {
+          return evo[b].length - evo[a].length;
+        })[0];
+      }
+      var tabs = $('evoTabs');
+      tabs.innerHTML = '';
+      modes.forEach(function (k) {
+        var b = document.createElement('button');
+        b.className = 'evo-tab' + (k === evoMode ? ' on' : '');
+        var inner = document.createElement('span');
+        inner.textContent = k;
+        b.appendChild(inner);
+        b.onclick = function () { evoMode = k; renderEvolution(cur); };
+        tabs.appendChild(b);
+      });
+      drawEvolution(evo[evoMode]);
+      $('evoChart').style.display = 'block';
+      $('evoRange').style.display = 'flex';
+      $('evoEmpty').style.display = 'none';
+    }
+
+    var wk = s.week;
+    $('wkLine').textContent = (wk && wk.played)
+      ? wk.played + ' matchs · ' + (wk.winrate == null ? '—' : wk.winrate + ' % V')
+      : '—';
+    var rec = s.records || {};
+    $('recStreak').textContent = rec.bestWinStreak ? rec.bestWinStreak + ' V' : '—';
+    $('recDay').textContent = rec.bestDayWins ? rec.bestDayWins + ' V' : '—';
+  }
+
+  function drawEvolution(points) {
+    var svg = $('evoSvg');
+    var vs = points.map(function (p) { return p.v; });
+    var min = Math.min.apply(null, vs), max = Math.max.apply(null, vs);
+    if (max - min < 10) { var mid = (max + min) / 2; min = mid - 5; max = mid + 5; }
+    var W = 100, H = 40, PAD = 2;
+    function x(i) {
+      return points.length < 2 ? W / 2 : PAD + (i / (points.length - 1)) * (W - 2 * PAD);
+    }
+    function y(v) { return H - PAD - ((v - min) / (max - min)) * (H - 2 * PAD); }
+    var line = points.map(function (p, i) {
+      return x(i).toFixed(2) + ',' + y(p.v).toFixed(2);
+    }).join(' ');
+    var up = vs[vs.length - 1] >= vs[0];
+    var color = up ? '#2f9bff' : '#ff8a1e';
+    var last = points[points.length - 1];
+    svg.innerHTML =
+      '<polyline points="' + line + '" fill="none" stroke="' + color
+        + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'
+      + '<circle cx="' + x(points.length - 1).toFixed(2) + '" cy="'
+        + y(last.v).toFixed(2) + '" r="1.8" fill="' + color + '"/>';
+    $('evoMin').textContent = Math.round(min);
+    $('evoMax').textContent = Math.round(max);
+  }
+
+  // ─── Classé / casual du match en cours ───
+  $('rkOn').onclick = function () {
+    if (api.setCurrentRanked) api.setCurrentRanked(true);
+  };
+  $('rkOff').onclick = function () {
+    if (api.setCurrentRanked) api.setCurrentRanked(false);
+  };
+
+  // ─── Jingles victoire / défaite (synthèse WebAudio, aucun fichier) ───
+  var audioCtx = null;
+  function playJingle(win) {
+    try {
+      if (!audioCtx) audioCtx = new AudioContext();
+      var t0 = audioCtx.currentTime;
+      var notes = win
+        ? [[440, 0, .14], [554, .12, .14], [659, .24, .26]]    // arpège montant
+        : [[330, 0, .2], [262, .2, .34]];                       // deux tons descendants
+      notes.forEach(function (n) {
+        var o = audioCtx.createOscillator();
+        var g = audioCtx.createGain();
+        o.type = 'triangle';
+        o.frequency.value = n[0];
+        g.gain.setValueAtTime(0, t0 + n[1]);
+        g.gain.linearRampToValueAtTime(.22, t0 + n[1] + .02);
+        g.gain.exponentialRampToValueAtTime(.001, t0 + n[1] + n[2]);
+        o.connect(g).connect(audioCtx.destination);
+        o.start(t0 + n[1]);
+        o.stop(t0 + n[1] + n[2] + .05);
+      });
+    } catch (e) { /* audio indisponible : silencieux */ }
   }
 
   function renderUpdate(u) {
@@ -656,11 +833,13 @@
     var win = m.result === 'W';
     var ov = $('resultOverlay');
     $('resultText').textContent = win ? 'Victoire' : 'Défaite';
-    $('resultSub').textContent =
-      (m.score ? m.score[0] + ' – ' + m.score[1] : '')
-      + (m.isOT ? ' (OT)' : '')
-      + (m.mode ? '  ·  ' + m.mode : '')
-      + (m.me && m.me.mvp ? '  ·  MVP' : '');
+    $('resultSub').textContent = m.forfeit
+      ? 'Forfait' + (m.mode ? '  ·  ' + m.mode : '')
+      : (m.score ? m.score[0] + ' – ' + m.score[1] : '')
+        + (m.isOT ? ' (OT)' : '')
+        + (m.mode ? '  ·  ' + m.mode : '')
+        + (m.me && m.me.mvp ? '  ·  MVP' : '');
+    if (!cur || !cur.config || cur.config.sounds !== false) playJingle(win);
     var st = cur && cur.session && cur.session.streak;
     $('resultStreak').textContent = (st && st.count >= 2)
       ? st.count + (st.type === 'W' ? ' victoires' : ' défaites') + ' d’affilée'

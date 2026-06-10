@@ -223,7 +223,16 @@ class RLStatsAPI extends EventEmitter {
         break;
       case 'matchdestroyed':
         this._clearStateTimer();
-        this.match = null;
+        // Destruction SANS matchended préalable = abandon (forfait, départ en
+        // cours de match, déconnexion). On émet le dernier état connu pour
+        // que l'application puisse en tenir compte.
+        if (this.match) {
+          const snap = this.snapshot();
+          snap.endedAt = Date.now();
+          snap.forfeit = true;
+          this.match = null;
+          this.emit('abandoned', snap);
+        }
         this.emit('match', { phase: 'destroyed' });
         break;
       default:
