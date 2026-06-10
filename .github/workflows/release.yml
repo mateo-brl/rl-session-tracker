@@ -42,6 +42,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Tests avant publication
+        run: node --test
+
       - run: npx electron-builder --win --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

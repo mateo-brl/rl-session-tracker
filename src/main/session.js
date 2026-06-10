@@ -223,7 +223,9 @@ class SessionStore {
     const out = [];
     for (let i = this.matches.length - 1; i >= 0; i--) {
       const m = this.matches[i];
-      if (m.endedAt < this.resetAt) break;
+      // <= : un match enregistré dans la même milliseconde que le « Vider »
+      // appartient au passé, lui aussi.
+      if (m.endedAt <= this.resetAt) break;
       if (out.length && out[0].endedAt - m.endedAt > SESSION_GAP_MS) break;
       out.unshift(m);
     }

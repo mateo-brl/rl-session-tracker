@@ -1,0 +1,47 @@
+# ci.yml — Filet de sécurité : tests + vérification de syntaxe à chaque push.
+#
+# Rapide et gratuit (repo public) : pas de binaire Electron téléchargé, pas
+# de build Windows — uniquement la logique (session, config) et la validité
+# des scripts des trois fenêtres.
+
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Tests unitaires
+        run: node --test
+
+      - name: Syntaxe des processus principaux
+        run: |
+          for f in src/main/*.js src/preload.js; do node --check "$f"; done
+
+      - name: Syntaxe des scripts des fenêtres
+        run: |
+          node -e '
+            const fs = require("fs");
+            for (const f of ["src/renderer/control.html",
+                             "src/renderer/dashboard.html",
+                             "src/renderer/overlay.html"]) {
+              const m = fs.readFileSync(f, "utf8")
+                .match(/<script>([\s\S]*?)<\/script>/);
+              new Function(m[1]);
+              console.log(f, "OK");
+            }'

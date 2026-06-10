@@ -21,7 +21,10 @@ const DEFAULTS = {
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
   // ── Personnalisation ──
   theme: null,           // { win, loss, bg, gold } — null = thème par défaut
-  layout: null,          // disposition des widgets du dashboard — null = défaut
+  layouts: {},           // profils de disposition du dashboard : '1'|'2'|'3'
+  layoutSlot: '1',       // profil actif
+  sessionGoal: 50,       // objectif de MMR de la session (widget)
+  lang: 'auto',          // langue de l'interface : auto | fr | en
   overlayCfg: {          // contenu et apparence du mini-overlay
     showStreak: true,    // série / % victoires
     showLive: true,      // score du match en cours / dernier match
@@ -49,6 +52,12 @@ function init(userDataDir) {
     config = { ...DEFAULTS, ...raw };
   } catch (e) {
     config = { ...DEFAULTS };
+  }
+  // Migration : l'ancienne disposition unique devient le profil 1.
+  if (config.layout && typeof config.layout === 'object') {
+    if (!config.layouts || typeof config.layouts !== 'object') config.layouts = {};
+    if (!config.layouts['1']) config.layouts['1'] = config.layout;
+    delete config.layout;
   }
   return config;
 }
@@ -96,9 +105,15 @@ function update(partial) {
       }
       config.theme = Object.keys(t).length ? { ...(config.theme || {}), ...t } : config.theme;
     }
-    // Disposition des widgets : { id: { x, y, w, h, hidden } } en % bornés.
-    if (partial.layout === null) config.layout = null;
-    else if (partial.layout && typeof partial.layout === 'object') {
+    // Disposition des widgets : { id: { x, y, w, h, hidden } } en % bornés,
+    // écrite dans le profil actif (1, 2 ou 3).
+    if (typeof config.layouts !== 'object' || !config.layouts) config.layouts = {};
+    if (['1', '2', '3'].includes(partial.layoutSlot)) {
+      config.layoutSlot = partial.layoutSlot;
+    }
+    if (partial.layout === null) {
+      config.layouts[config.layoutSlot] = null;
+    } else if (partial.layout && typeof partial.layout === 'object') {
       const out = {};
       for (const id of Object.keys(partial.layout).slice(0, 12)) {
         const w = partial.layout[id];
@@ -110,8 +125,14 @@ function update(partial) {
           hidden: !!w.hidden,
         };
       }
-      config.layout = Object.keys(out).length ? out : null;
+      if (Object.keys(out).length) config.layouts[config.layoutSlot] = out;
     }
+    // Objectif de session (widget) et langue.
+    const goal = Number(partial.sessionGoal);
+    if (Number.isFinite(goal) && goal >= 10 && goal <= 500) {
+      config.sessionGoal = Math.round(goal);
+    }
+    if (['auto', 'fr', 'en'].includes(partial.lang)) config.lang = partial.lang;
     // Animations : style + interrupteurs.
     if (partial.anim && typeof partial.anim === 'object') {
       const a = config.anim = { ...DEFAULTS.anim, ...(config.anim || {}) };
