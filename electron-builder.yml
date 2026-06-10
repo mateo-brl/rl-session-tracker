@@ -1,0 +1,43 @@
+# electron-builder.yml — Empaquetage et publication de RL Session Tracker.
+#
+# Produit un installeur Windows NSIS « un clic » et publie sur GitHub Releases.
+# C'est cette publication (latest.yml + .exe) que electron-updater consulte
+# pour proposer les mises à jour automatiques dans l'application.
+#
+#   npm run dist      → installeur local dans dist/
+#   npm run release   → build + publication GitHub (GH_TOKEN requis)
+#
+# La publication normale passe par le workflow .github/workflows/release.yml
+# déclenché par un tag v*.
+
+appId: com.rlsessiontracker.app
+productName: RL Session Tracker
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - src/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  # L'application n'est pas signée : ne pas exiger une signature identique
+  # entre la version installée et la mise à jour téléchargée.
+  verifyUpdateCodeSignature: false
+
+nsis:
+  oneClick: true
+  perMachine: false
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  artifactName: RL-Session-Tracker-Setup-${version}.${ext}
+
+publish:
+  provider: github
+  owner: mateo-brl
+  repo: rl-session-tracker

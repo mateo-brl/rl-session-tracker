@@ -5,9 +5,9 @@
 // jeu est désormais la seule source temps réel compatible EAC : un socket TCP
 // brut sur 127.0.0.1:49123 qui diffuse du JSON concaténé pendant un match.
 //
-// Ici on s'en sert comme déclencheur et vue live : elle signale à la seconde
-// le début / la fin d'un match et expose le score en direct. Le MMR et le
-// résultat W/L font toujours autorité via tracker.gg.
+// Elle signale à la seconde le début / la fin d'un match, expose le score en
+// direct et fournit les stats finales par joueur — c'est la seule source de
+// données de l'application, tout est local.
 
 const net = require('net');
 const EventEmitter = require('events');

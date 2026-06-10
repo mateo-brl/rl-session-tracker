@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+<title>RL Session Tracker — Dashboard</title>
+<style>
+  :root {
+    --bg:#0a0c12; --card:#11141d; --card2:#161a26; --line:#232838;
+    --text:#e7e9f0; --muted:#8b90a3; --cyan:#00e5ff; --pink:#ff3d71;
+    --ok:#2ee6a6; --warn:#ffb020; --err:#ff5d6c;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; }
+  body {
+    background:
+      radial-gradient(1100px 600px at 90% -15%, rgba(0,229,255,.10), transparent),
+      radial-gradient(900px 560px at -10% 115%, rgba(255,61,113,.10), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
+    -webkit-user-select:none; user-select:none;
+    overflow:hidden;
+    display:flex; flex-direction:column;
+  }
+
+  /* ─── En-tête ─── */
+  header {
+    display:flex; align-items:center; gap:16px;
+    padding:18px 28px 14px; border-bottom:1px solid var(--line);
+  }
+  .logo { font-size:17px; font-weight:800; letter-spacing:.02em; }
+  .logo .dotmark { color:var(--cyan); }
+  .pill {
+    display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);
+    background:var(--card); border:1px solid var(--line); border-radius:999px;
+    padding:6px 14px;
+  }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); }
+  .dot.ok   { background:var(--ok);   box-shadow:0 0 10px rgba(46,230,166,.7); }
+  .dot.warn { background:var(--warn); }
+  .pill b { color:var(--text); font-weight:600; }
+  .spacer { flex:1; }
+  .upd-pill {
+    display:none; align-items:center; gap:10px; font-size:13px;
+    background:rgba(46,230,166,.10); border:1px solid rgba(46,230,166,.4);
+    border-radius:999px; padding:6px 8px 6px 14px; color:var(--text);
+  }
+  .upd-pill button {
+    border:0; border-radius:999px; padding:6px 13px; font-size:12.5px;
+    font-weight:700; font-family:inherit; cursor:pointer; color:#06121a;
+    background:linear-gradient(90deg,var(--ok),#5ff0c0); white-space:nowrap;
+  }
+  .clock { font-size:14px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  /* ─── Grille principale ─── */
+  main {
+    flex:1; min-height:0; display:grid; gap:18px;
+    grid-template-columns: 1.25fr 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "hero    live"
+      "modes   live"
+      "totals  history";
+    padding:20px 28px 24px;
+  }
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    padding:18px 22px; min-height:0; display:flex; flex-direction:column;
+  }
+  .card h2 {
+    font-size:12px; text-transform:uppercase; letter-spacing:.1em;
+    color:var(--muted); margin-bottom:12px; flex:none;
+  }
+
+  /* ─── Héros : bilan de session ─── */
+  .hero { grid-area:hero; }
+  .hero-main { display:flex; align-items:center; gap:34px; flex-wrap:wrap; }
+  .wl { display:flex; align-items:baseline; gap:14px;
+    font-variant-numeric:tabular-nums; }
+  .wl .w { font-size:84px; font-weight:800; color:var(--ok); line-height:1; }
+  .wl .sep { font-size:46px; color:var(--line); font-weight:300; }
+  .wl .l { font-size:84px; font-weight:800; color:var(--err); line-height:1; }
+  .wl-cap { display:flex; gap:46px; margin-top:6px; }
+  .wl-cap span { font-size:12px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.1em; }
+  .hero-side { display:flex; flex-direction:column; gap:12px; }
+  .kv { display:flex; align-items:baseline; gap:10px; }
+  .kv b { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .kv span { font-size:12.5px; color:var(--muted); }
+  .streak-badge {
+    display:none; align-items:center; gap:9px; margin-top:14px;
+    border-radius:12px; padding:10px 16px; font-size:15px; font-weight:700;
+    width:max-content;
+  }
+  .streak-badge.hot { display:flex; background:rgba(46,230,166,.10);
+    border:1px solid rgba(46,230,166,.45); color:var(--ok); }
+  .streak-badge.tilt { display:flex; background:rgba(255,93,108,.10);
+    border:1px solid rgba(255,93,108,.45); color:var(--err); }
+
+  /* ─── Modes ─── */
+  .modes { grid-area:modes; }
+  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .mode {
+    background:var(--card2); border:1px solid var(--line); border-radius:14px;
+    padding:13px 16px;
+  }
+  .mode .name { font-size:13px; font-weight:700; color:var(--cyan);
+    margin-bottom:8px; }
+  .mode .rec { font-size:23px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .mode .rec .mw { color:var(--ok); }
+  .mode .rec .ml { color:var(--err); }
+  .mode .sub { font-size:11.5px; color:var(--muted); margin-top:4px; }
+  .mode .mmr { font-size:12.5px; color:var(--muted); margin-top:7px;
+    padding-top:7px; border-top:1px solid var(--line);
+    font-variant-numeric:tabular-nums; }
+  .mode .mmr b { color:var(--text); font-size:14px; }
+  .mode .mmr .up { color:var(--ok); font-weight:700; }
+  .mode .mmr .down { color:var(--err); font-weight:700; }
+  .mode.empty { opacity:.38; }
+  .mode.empty .mmr { opacity:1; }
+
+  /* ─── Match en cours ─── */
+  .live { grid-area:live; }
+  .live-on, .live-off { flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:10px; }
+  .live-off { color:var(--muted); font-size:14.5px; text-align:center;
+    line-height:1.6; }
+  .live-mode { font-size:14px; font-weight:700; color:var(--cyan);
+    text-transform:uppercase; letter-spacing:.12em; }
+  .live-score { display:flex; align-items:center; gap:26px;
+    font-variant-numeric:tabular-nums; }
+  .live-score .s0 { font-size:96px; font-weight:800; color:var(--cyan); line-height:1; }
+  .live-score .s1 { font-size:96px; font-weight:800; color:var(--pink); line-height:1; }
+  .live-score .vs { font-size:30px; color:var(--muted); font-weight:300; }
+  .live-time { font-size:24px; color:var(--text); font-weight:700;
+    font-variant-numeric:tabular-nums; }
+  .live-time .ot { color:var(--warn); font-size:14px; font-weight:800;
+    margin-left:8px; letter-spacing:.1em; }
+  .live-players { width:100%; margin-top:14px; font-size:13px;
+    border-collapse:collapse; }
+  .live-players td { padding:5px 8px; border-top:1px solid var(--line);
+    font-variant-numeric:tabular-nums; }
+  .live-players td.n { max-width:150px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; }
+  .live-players tr.t0 td.n { color:var(--cyan); }
+  .live-players tr.t1 td.n { color:var(--pink); }
+  .live-players tr.me td.n { font-weight:800; }
+  .live-players td.num { text-align:right; color:var(--muted); width:44px; }
+  .live-players thead td { color:var(--muted); font-size:11px;
+    text-transform:uppercase; letter-spacing:.07em; border-top:0; }
+  @keyframes goalflash {
+    0% { box-shadow:0 0 0 0 rgba(0,229,255,.0); }
+    25% { box-shadow:0 0 60px 8px rgba(0,229,255,.45); }
+    100% { box-shadow:0 0 0 0 rgba(0,229,255,.0); }
+  }
+  .live.goal { animation:goalflash 1.2s ease-out; }
+
+  /* ─── Totaux ─── */
+  .totals { grid-area:totals; }
+  .totals-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
+    flex:1; align-content:center; }
+  .tot { text-align:center; }
+  .tot b { display:block; font-size:34px; font-weight:800;
+    font-variant-numeric:tabular-nums; }
+  .tot span { font-size:11.5px; color:var(--muted); text-transform:uppercase;
+    letter-spacing:.08em; }
+
+  /* ─── Historique ─── */
+  .history { grid-area:history; }
+  .hist-scroll { flex:1; overflow-y:auto; min-height:0; margin:0 -8px;
+    padding:0 8px; }
+  .hist-scroll::-webkit-scrollbar { width:8px; }
+  .hist-scroll::-webkit-scrollbar-thumb { background:var(--line);
+    border-radius:4px; }
+  table.hist { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.hist td { padding:8px 8px; border-top:1px solid var(--line);
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  table.hist tr:first-child td { border-top:0; }
+  td.res { font-weight:800; width:34px; }
+  td.res.W { color:var(--ok); }
+  td.res.L { color:var(--err); }
+  td.res.U { color:var(--muted); }
+  td.hmode { color:var(--cyan); font-weight:600; width:52px; }
+  td.hscore { font-weight:700; width:70px; }
+  td.htime, td.hstats { color:var(--muted); }
+  td.hstats { text-align:right; font-size:12.5px; }
+  .mvp { color:var(--warn); }
+  .empty-hint { flex:1; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-size:14.5px; text-align:center; line-height:1.7; }
+
+  .esc-hint { position:fixed; bottom:10px; right:16px; font-size:11px;
+    color:var(--muted); opacity:.6; }
+</style>
+</head>
+<body>
+
+  <header>
+    <div class="logo"><span class="dotmark">●</span> RL Session Tracker</div>
+    <div class="pill"><span class="dot" id="gameDot"></span>
+      <span id="gameTxt">Rocket League…</span></div>
+    <div class="pill" id="pseudoPill" style="display:none">👤 <b id="pseudoTxt"></b></div>
+    <div class="spacer"></div>
+    <div class="upd-pill" id="updPill">
+      <span id="updTxt"></span>
+      <button id="updBtn"></button>
+    </div>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <main>
+    <!-- Bilan de session -->
+    <section class="card hero">
+      <h2>Session <span id="sessionSince" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div class="hero-main">
+        <div>
+          <div class="wl">
+            <span class="w" id="wins">0</span>
+            <span class="sep">—</span>
+            <span class="l" id="losses">0</span>
+          </div>
+          <div class="wl-cap"><span>Victoires</span><span>Défaites</span></div>
+        </div>
+        <div class="hero-side">
+          <div class="kv"><b id="winrate">—</b><span>de victoires</span></div>
+          <div class="kv"><b id="played">0</b><span>matchs joués</span></div>
+          <div class="kv"><b id="bestStreak">—</b><span>meilleure série</span></div>
+        </div>
+      </div>
+      <div class="streak-badge" id="streakBadge"></div>
+    </section>
+
+    <!-- Par mode -->
+    <section class="card modes">
+      <h2>Par mode</h2>
+      <div class="modes-grid" id="modesGrid"></div>
+    </section>
+
+    <!-- Match en cours -->
+    <section class="card live" id="liveCard">
+      <h2 id="liveTitle">Match en cours</h2>
+      <div class="live-off" id="liveOff">
+        En attente d'un match…<br/>Lance une partie, le score s'affichera ici
+        en direct.
+      </div>
+      <div class="live-on" id="liveOn" style="display:none">
+        <div class="live-mode" id="liveMode"></div>
+        <div class="live-score">
+          <span class="s0" id="ls0">0</span>
+          <span class="vs">·</span>
+          <span class="s1" id="ls1">0</span>
+        </div>
+        <div class="live-time"><span id="liveTime"></span><span class="ot"
+          id="liveOT" style="display:none">OVERTIME</span></div>
+        <table class="live-players" id="livePlayers"></table>
+      </div>
+    </section>
+
+    <!-- Totaux -->
+    <section class="card totals">
+      <h2>Mes stats de la session</h2>
+      <div class="totals-grid">
+        <div class="tot"><b id="tGoals">0</b><span>Buts</span></div>
+        <div class="tot"><b id="tAssists">0</b><span>Passes</span></div>
+        <div class="tot"><b id="tSaves">0</b><span>Arrêts</span></div>
+        <div class="tot"><b id="tShots">0</b><span>Tirs</span></div>
+        <div class="tot"><b id="tMvps">0</b><span>MVP</span></div>
+      </div>
+    </section>
+
+    <!-- Historique -->
+    <section class="card history">
+      <h2>Derniers matchs</h2>
+      <div class="hist-scroll" id="histScroll" style="display:none">
+        <table class="hist"><tbody id="histBody"></tbody></table>
+      </div>
+      <div class="empty-hint" id="histEmpty">
+        Aucun match pour l'instant.<br/>Tout se remplit automatiquement dès la
+        fin de ta première partie. 🚀
+      </div>
+    </section>
+  </main>
+
+  <div class="esc-hint">Échap pour fermer</div>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+  var api = window.rl || {};
+
+  // ─── Horloge ───
+  function tickClock() {
+    $('clock').textContent = new Date().toLocaleTimeString('fr-FR',
+      { hour: '2-digit', minute: '2-digit' });
+  }
+  tickClock();
+  setInterval(tickClock, 10000);
+
+  function fmtTime(sec) {
+    if (typeof sec !== 'number' || !isFinite(sec)) return '';
+    sec = Math.max(0, Math.round(sec));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }
+  function fmtHour(ts) {
+    return new Date(ts).toLocaleTimeString('fr-FR',
+      { hour: '2-digit', minute: '2-digit' });
+  }
+  function esc(s) {
+    var d = document.createElement('span');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+  }
+
+  var MODES = ['1v1', '2v2', '3v3'];
+
+  function render(s) {
+    if (!s) return;
+    var cfg = s.config || {};
+    var ses = s.session || {};
+
+    // En-tête.
+    var running = s.game && s.game.running;
+    $('gameDot').className = 'dot ' + (running ? 'ok' : 'warn');
+    $('gameTxt').textContent = running ? 'Rocket League détecté' : 'En attente du jeu';
+    if (cfg.pseudo) {
+      $('pseudoPill').style.display = 'flex';
+      $('pseudoTxt').textContent = cfg.pseudo;
+    } else {
+      $('pseudoPill').style.display = 'none';
+    }
+    renderUpdate(s.update || {});
+
+    // Bilan.
+    $('wins').textContent = ses.wins || 0;
+    $('losses').textContent = ses.losses || 0;
+    $('played').textContent = ses.played || 0;
+    $('winrate').textContent = ses.winrate == null ? '—' : ses.winrate + ' %';
+    $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + ' V' : '—';
+    $('sessionSince').textContent = ses.startedAt
+      ? '· depuis ' + fmtHour(ses.startedAt) : '';
+
+    var badge = $('streakBadge');
+    var st = ses.streak || { count: 0 };
+    if (st.type === 'W' && st.count >= 3) {
+      badge.className = 'streak-badge hot';
+      badge.textContent = '🔥 ' + st.count + ' victoires d’affilée — on ne s’arrête plus !';
+    } else if (st.type === 'L' && st.count >= 3) {
+      badge.className = 'streak-badge tilt';
+      badge.textContent = '🧊 ' + st.count + ' défaites d’affilée — petite pause hydratation ?';
+    } else {
+      badge.className = 'streak-badge';
+    }
+
+    // Modes.
+    var pm = ses.perMode || {};
+    var mmr = ses.mmr || {};
+    var keys = MODES.concat(Object.keys(pm).filter(function (k) {
+      return MODES.indexOf(k) === -1;
+    }));
+    var html = '';
+    keys.forEach(function (k) {
+      var m = pm[k];
+      var r = mmr[k];
+      var mmrLine = r
+        ? '<div class="mmr">MMR ≈ <b>' + r.value + '</b>'
+          + (r.delta ? ' <span class="' + (r.delta > 0 ? 'up' : 'down') + '">('
+            + (r.delta > 0 ? '+' : '') + r.delta + ')</span>' : '')
+          + '</div>'
+        : '';
+      if (m) {
+        var stm = m.streak && m.streak.count >= 2
+          ? 'série de ' + m.streak.count + (m.streak.type === 'W' ? ' 🔥' : ' ❄️')
+          : m.played + (m.played > 1 ? ' matchs' : ' match');
+        html += '<div class="mode"><div class="name">' + esc(k) + '</div>'
+          + '<div class="rec"><span class="mw">' + m.wins + '</span>'
+          + ' – <span class="ml">' + m.losses + '</span></div>'
+          + '<div class="sub">' + stm + '</div>' + mmrLine + '</div>';
+      } else if (MODES.indexOf(k) !== -1) {
+        html += '<div class="mode empty"><div class="name">' + esc(k) + '</div>'
+          + '<div class="rec">—</div><div class="sub">pas joué</div>'
+          + mmrLine + '</div>';
+      }
+    });
+    $('modesGrid').innerHTML = html;
+
+    // Match en cours.
+    var live = s.live;
+    $('liveOff').style.display = live ? 'none' : 'flex';
+    $('liveOn').style.display = live ? 'flex' : 'none';
+    if (live) {
+      $('liveMode').textContent = live.mode || 'match';
+      $('ls0').textContent = live.score ? live.score[0] : 0;
+      $('ls1').textContent = live.score ? live.score[1] : 0;
+      $('liveTime').textContent = fmtTime(live.timeSeconds);
+      $('liveOT').style.display = live.isOT ? 'inline' : 'none';
+      renderLivePlayers(live, cfg.pseudo);
+    }
+
+    // Totaux.
+    var t = ses.totals || {};
+    $('tGoals').textContent = t.goals || 0;
+    $('tAssists').textContent = t.assists || 0;
+    $('tSaves').textContent = t.saves || 0;
+    $('tShots').textContent = t.shots || 0;
+    $('tMvps').textContent = t.mvps || 0;
+
+    // Historique.
+    var hist = s.history || [];
+    $('histScroll').style.display = hist.length ? 'block' : 'none';
+    $('histEmpty').style.display = hist.length ? 'none' : 'flex';
+    var rows = '';
+    hist.forEach(function (m) {
+      var res = m.result === 'W' ? 'V' : m.result === 'L' ? 'D' : '·';
+      var cls = m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'U';
+      var sc = m.score ? m.score[0] + ' – ' + m.score[1] : '—';
+      var stats = m.me
+        ? '⚽ ' + m.me.goals + ' · 🅰 ' + m.me.assists + ' · 🧤 ' + m.me.saves
+          + (m.me.mvp ? ' · <span class="mvp">★ MVP</span>' : '')
+        : '';
+      rows += '<tr>'
+        + '<td class="res ' + cls + '">' + res + '</td>'
+        + '<td class="hmode">' + esc(m.mode) + '</td>'
+        + '<td class="hscore">' + sc + (m.isOT ? ' <span class="mvp">OT</span>' : '') + '</td>'
+        + '<td class="htime">' + fmtHour(m.endedAt) + '</td>'
+        + '<td class="hstats">' + stats + '</td>'
+        + '</tr>';
+    });
+    $('histBody').innerHTML = rows;
+  }
+
+  function renderLivePlayers(live, pseudo) {
+    var players = live.players || [];
+    if (!players.length) { $('livePlayers').innerHTML = ''; return; }
+    var me = String(pseudo || '').trim().toLowerCase();
+    var sorted = players.slice().sort(function (a, b) {
+      return (a.team - b.team) || (b.score - a.score);
+    });
+    var html = '<thead><tr><td>Joueur</td><td class="num">But</td>'
+      + '<td class="num">Pass</td><td class="num">Arr</td><td class="num">Pts</td>'
+      + '</tr></thead>';
+    sorted.forEach(function (p) {
+      var isMe = me && String(p.name).trim().toLowerCase() === me;
+      html += '<tr class="t' + (p.team === 1 ? 1 : 0) + (isMe ? ' me' : '') + '">'
+        + '<td class="n">' + (isMe ? '👤 ' : '') + esc(p.name) + '</td>'
+        + '<td class="num">' + p.goals + '</td>'
+        + '<td class="num">' + p.assists + '</td>'
+        + '<td class="num">' + p.saves + '</td>'
+        + '<td class="num">' + p.score + '</td>'
+        + '</tr>';
+    });
+    $('livePlayers').innerHTML = html;
+  }
+
+  function renderUpdate(u) {
+    var pill = $('updPill'), btn = $('updBtn'), txt = $('updTxt');
+    if (u.status === 'available') {
+      pill.style.display = 'flex';
+      txt.textContent = 'Nouvelle version v' + u.next;
+      btn.textContent = 'Mettre à jour';
+      btn.onclick = function () { api.updateDownload && api.updateDownload(); };
+    } else if (u.status === 'downloading') {
+      pill.style.display = 'flex';
+      txt.textContent = 'Téléchargement… ' + (u.percent || 0) + ' %';
+      btn.textContent = '…';
+      btn.onclick = null;
+    } else if (u.status === 'downloaded') {
+      pill.style.display = 'flex';
+      txt.textContent = 'v' + u.next + ' prête';
+      btn.textContent = 'Redémarrer';
+      btn.onclick = function () { api.updateInstall && api.updateInstall(); };
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+
+  // Flash « but » sur la carte live.
+  if (api.onGoal) {
+    api.onGoal(function () {
+      var c = $('liveCard');
+      c.classList.remove('goal');
+      void c.offsetWidth;               // relance l'animation
+      c.classList.add('goal');
+    });
+  }
+
+  // Échap ferme le dashboard.
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (api.closeDashboard) api.closeDashboard(); else window.close();
+    }
+  });
+
+  if (api.onState) api.onState(render);
+  if (api.getState) api.getState().then(render);
+})();
+</script>
+</body>
+</html>
