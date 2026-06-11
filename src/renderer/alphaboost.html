@@ -106,24 +106,27 @@ function bandFor(speed, cur) {
   return idx;
 }
 
-function makeSource(idx) {
+function makeSource(idx, atStart) {
   var buf = buffers[bands()[idx].file];
   if (!buf) return null;
   var src = ctx.createBufferSource();
   src.buffer = buf;
   src.loop = true;
-  // Départ à un point aléatoire de la boucle : deux accélérations de suite
-  // ne sonnent pas exactement pareil.
   var gain = ctx.createGain();
   src.connect(gain);
   gain.connect(env);
-  src.start(0, Math.random() * buf.duration);
+  // Nouvel appui sur boost : le sample part de son début, comme dans le jeu
+  // d'origine — c'est ce qui donne l'attaque du son, puis son évolution tant
+  // qu'on reste appuyé. En revanche, un changement de palier EN PLEIN boost
+  // reprend à un point quelconque : le fondu enchaîné reste fluide et on ne
+  // ré-entend pas une attaque à chaque palier.
+  src.start(0, atStart ? 0 : Math.random() * buf.duration);
   return { src: src, gain: gain };
 }
 
-function switchTo(idx) {
+function switchTo(idx, atStart) {
   var t = ctx.currentTime;
-  var next = makeSource(idx);
+  var next = makeSource(idx, atStart);
   if (!next) return;
   var old = active;
   active = next;
@@ -145,7 +148,7 @@ function startLoop(speed) {
   env.gain.cancelScheduledValues(t);
   env.gain.setValueAtTime(env.gain.value, t);
   env.gain.setTargetAtTime(1, t, ATTACK);
-  switchTo(bandFor(speed, null));
+  switchTo(bandFor(speed, null), true);
 }
 
 function stopLoop() {
