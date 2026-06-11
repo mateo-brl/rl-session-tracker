@@ -42,7 +42,9 @@
   .info .top.hot { color:var(--blue); }
   .info .top.tilt { color:var(--orange); }
   .info .bottom { font-weight:700; font-size:15px; color:var(--text);
-    font-variant-numeric:tabular-nums; white-space:nowrap; }
+    font-variant-numeric:tabular-nums; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; }
+  .h2h { color:var(--muted); font-size:13px; font-weight:700; }
   .live-dot { display:inline-block; width:7px; height:7px;
     background:var(--blue); margin-right:6px; vertical-align:1px; }
 </style>
@@ -91,11 +93,19 @@
 
   var I18N = {
     fr: { session: 'Session', last: 'Dernier : ', wr: ' % V',
-      streak: function (n, w) { return 'Série de ' + n + (w ? ' victoires' : ' défaites'); } },
+      streak: function (n, w) { return 'Série de ' + n + (w ? ' victoires' : ' défaites'); },
+      h2h: function (w, l) { return w + 'V–' + l + 'D'; } },
     en: { session: 'Session', last: 'Last: ', wr: '% W',
-      streak: function (n, w) { return 'Streak of ' + n + (w ? ' wins' : ' losses'); } },
+      streak: function (n, w) { return 'Streak of ' + n + (w ? ' wins' : ' losses'); },
+      h2h: function (w, l) { return w + 'W–' + l + 'L'; } },
   };
   var T = I18N.fr;
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
 
   function render(s) {
     if (!s) return;
@@ -127,9 +137,17 @@
 
     var live = s.live;
     if (live && !live.training && live.score) {
+      // « Déjà croisé » : en 1v1 (un seul adversaire connu), son bilan.
+      var h2h = '';
+      var names = s.h2h ? Object.keys(s.h2h) : [];
+      if (names.length === 1) {
+        var h = s.h2h[names[0]];
+        h2h = '  <span class="h2h">vs ' + esc(names[0]) + ' · '
+          + T.h2h(h.wins, h.losses) + '</span>';
+      }
       $('bottom').innerHTML = '<span class="live-dot"></span>'
         + (live.mode ? live.mode + '  ' : '')
-        + live.score[0] + ' : ' + live.score[1];
+        + live.score[0] + ' : ' + live.score[1] + h2h;
     } else {
       var last = s.history && s.history[0];
       $('bottom').textContent = last && last.score

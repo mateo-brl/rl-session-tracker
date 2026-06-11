@@ -157,3 +157,41 @@ test('persistance : relecture depuis le fichier', () => {
   assert.equal(s2.matches.length, 1);
   assert.ok(s2.playersSeen.includes('Mateo'));
 });
+
+// ───────── Head-to-head (« déjà croisé ») ─────────
+
+test('head-to-head : bilan contre un adversaire récurrent', () => {
+  const s = tmpStore();
+  // « Rival » nous bat une fois, perd deux fois.
+  s.addMatch(snap({ players: [
+    { name: 'Mateo', team: 0, goals: 1, saves: 0, assists: 0, shots: 2, score: 300 },
+    { name: 'Rival', team: 1, goals: 3, saves: 1, assists: 0, shots: 5, score: 500 },
+  ], mode: '1v1', winnerTeam: 1, score: [1, 3] }));
+  s.addMatch(snap({ players: [
+    { name: 'Mateo', team: 0, goals: 4, saves: 0, assists: 0, shots: 6, score: 700 },
+    { name: 'Rival', team: 1, goals: 1, saves: 2, assists: 0, shots: 3, score: 350 },
+  ], mode: '1v1', winnerTeam: 0, score: [4, 1] }));
+  s.addMatch(snap({ players: [
+    { name: 'Mateo', team: 1, goals: 2, saves: 0, assists: 0, shots: 3, score: 400 },
+    { name: 'RIVAL', team: 0, goals: 0, saves: 1, assists: 0, shots: 1, score: 150 },
+  ], mode: '1v1', winnerTeam: 1, score: [0, 2] }));    // équipes inversées + casse
+  const h = s.headToHead(['Rival'], 'mateo');
+  assert.equal(h.Rival.played, 3);
+  assert.equal(h.Rival.wins, 2);
+  assert.equal(h.Rival.losses, 1);
+});
+
+test('head-to-head : un coéquipier ne compte pas comme adversaire', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));   // « Mate1 » est dans notre équipe
+  const h = s.headToHead(['Mate1'], 'Mateo');
+  assert.equal(h.Mate1, undefined);
+});
+
+test('head-to-head : inconnu, soi-même ou pseudo absent = vide', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));
+  assert.deepEqual(s.headToHead(['Personne'], 'Mateo'), {});
+  assert.deepEqual(s.headToHead(['Mateo'], 'Mateo'), {});
+  assert.deepEqual(s.headToHead(['Adv1a'], ''), {});
+});

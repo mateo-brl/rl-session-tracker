@@ -101,6 +101,15 @@ test('alpha boost : volume et profil validés', () => {
   assert.equal(c.get().alphaBoost.enabled, true);    // intact
 });
 
+test('statut Discord : booléen strict', () => {
+  const c = freshConfig();
+  assert.equal(c.get().discordRpc, false);           // désactivé par défaut
+  c.update({ discordRpc: true });
+  assert.equal(c.get().discordRpc, true);
+  c.update({ discordRpc: 'oui' });                   // rejeté
+  assert.equal(c.get().discordRpc, true);
+});
+
 test('persistance : relecture depuis le fichier', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cfg-'));
   config.init(dir);

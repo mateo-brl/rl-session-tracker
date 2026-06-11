@@ -15,6 +15,7 @@ const path = require('path');
 const config = require('./config');
 const windows = require('./windows');
 const updater = require('./updater');
+const discord = require('./discord-rpc');
 const SessionStore = require('./session');
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
@@ -56,8 +57,33 @@ const state = {
   evolution: {},         // courbes MMR par mode calibré
   week: null,            // bilan des 7 derniers jours
   records: null,         // records de tous les temps
+  h2h: null,             // « déjà croisé » : bilan contre les adversaires du match en cours
   update: updater.getState(),
 };
+
+// ── Head-to-head : recalculé uniquement quand la liste d'adversaires change ──
+let h2hKey = '';
+function refreshH2h() {
+  const live = state.live;
+  const pseudo = (config.get().pseudo || '').trim().toLowerCase();
+  if (!live || live.training || !pseudo || !Array.isArray(live.players)) {
+    state.h2h = null;
+    h2hKey = '';
+    return;
+  }
+  const mine = live.players.find((p) => String(p.name).trim().toLowerCase() === pseudo);
+  if (!mine) { state.h2h = null; h2hKey = ''; return; }
+  const opponents = live.players.filter((p) => p.team !== mine.team).map((p) => p.name);
+  const key = opponents.slice().sort().join('|');
+  if (key === h2hKey) return;
+  h2hKey = key;
+  const all = store.headToHead(opponents, config.get().pseudo);
+  const seen = {};
+  for (const name of Object.keys(all)) {
+    if (all[name].played > 0) seen[name] = all[name];
+  }
+  state.h2h = Object.keys(seen).length ? seen : null;
+}
 
 function refreshSession() {
   const snap = store.snapshot(config.get().pseudo, config.get());
@@ -80,6 +106,8 @@ function resolveLang() {
 function pushState() {
   state.config = config.get();
   state.lang = resolveLang();
+  refreshH2h();
+  discord.refresh(state);
   windows.broadcast('state', state);
 }
 
@@ -352,6 +380,9 @@ ipcMain.handle('set-config', (_e, partial) => {
     }
   }
   if (partial && partial.lang) buildTrayMenu();
+  if (partial && typeof partial.discordRpc === 'boolean') {
+    discord.setEnabled(partial.discordRpc, log);
+  }
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
   return config.get();
@@ -446,7 +477,7 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => windows.showControl());
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => { app.isQuitting = true; });
+  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}
@@ -465,6 +496,7 @@ if (!gotLock) {
     windows.createControl(!SILENT, () => pushState());
 
     updater.init((u) => { state.update = u; pushState(); }, log);
+    discord.setEnabled(config.get().discordRpc, log);
     startStatsApi();
 
     const watcher = new GameWatcher();
