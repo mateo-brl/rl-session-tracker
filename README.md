@@ -55,8 +55,8 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 </p>
 
 <p align="center">
-  <img src="docs/obs.png" width="58%" alt="Overlay OBS — bandeau live et bannière de victoire" /><br/>
-  <i>Mode streamer : l'overlay OBS pendant un match, puis sa bannière de fin de match.</i>
+  <img src="docs/obs.png" width="58%" alt="Overlay OBS — styles Broadcast, Compact et Vertical, puis bannière de victoire" /><br/>
+  <i>Mode streamer : l'overlay OBS en 3 styles — Broadcast, Compact, Vertical — et sa bannière de fin de match. Style, taille, fond et contenu se règlent depuis l'application, appliqués en direct dans OBS.</i>
 </p>
 
 ### ✨ Ce que ça fait
@@ -74,7 +74,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🎮 **Statut Discord** | Rich Presence optionnelle : tes amis voient « Classé 2v2 · 3 – 2 » et ta série en cours, en direct. |
-| 📺 **Mode streamer (OBS)** | Un overlay de stream servi en local (`http://127.0.0.1:49350/overlay`) à capturer en source Navigateur : session, série, score en direct, flash de but et bannière de fin de match — aux couleurs de ton thème, fond transparent. |
+| 📺 **Mode streamer (OBS)** | Un overlay de stream servi en local (`http://127.0.0.1:49350/overlay`) à capturer en source Navigateur — **100 % personnalisable** : 3 styles (Broadcast, Compact, Vertical), taille, opacité du fond, chaque élément activable (série, score live, déjà croisé, flash de but, bannière), réglé depuis l'app et appliqué en direct dans OBS. Aux couleurs de ton thème, fond transparent. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
 | 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). 8 thèmes de couleurs prédéfinis (ou totalement libres), 5 styles d'animations et 4 jingles testables en un clic, overlay réglable. |
@@ -310,8 +310,8 @@ and it's the only "thank you" this app will ever ask for.**
 </p>
 
 <p align="center">
-  <img src="docs/obs.png" width="58%" alt="OBS overlay — live bar and victory banner" /><br/>
-  <i>Streamer mode: the OBS overlay during a match, then its end-of-match banner.</i>
+  <img src="docs/obs.png" width="58%" alt="OBS overlay — Broadcast, Compact and Vertical styles, then victory banner" /><br/>
+  <i>Streamer mode: the OBS overlay in 3 styles — Broadcast, Compact, Vertical — and its end-of-match banner. Style, size, background and content are set from the app and applied live in OBS.</i>
 </p>
 
 ### ✨ Features
@@ -329,7 +329,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
 | 🎮 **Discord status** | Optional Rich Presence: your friends see "Ranked 2v2 · 3 – 2" and your current streak, live. |
-| 📺 **Streamer mode (OBS)** | A locally served stream overlay (`http://127.0.0.1:49350/overlay`) to capture as a Browser source: session, streak, live score, goal flash and end-of-match banner — in your theme colors, transparent background. |
+| 📺 **Streamer mode (OBS)** | A locally served stream overlay (`http://127.0.0.1:49350/overlay`) to capture as a Browser source — **fully customizable**: 3 styles (Broadcast, Compact, Vertical), size, background opacity, every element toggleable (streak, live score, seen-before, goal flash, banner), set from the app and applied live in OBS. In your theme colors, transparent background. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
 | 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). 8 built-in color themes (or fully custom), 5 animation styles and 4 jingles testable in one click, adjustable overlay. |

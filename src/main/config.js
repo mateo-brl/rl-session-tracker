@@ -46,12 +46,22 @@ const DEFAULTS = {
   obs: {                 // mode streamer : overlay local à capturer dans OBS
     enabled: false,
     port: 49350,
+    // Personnalisation de l'overlay (appliquée en direct, sans recharger OBS)
+    style: 'broadcast',  // broadcast (bandeau) | compact (ligne) | vertical (carte)
+    scale: 1,            // 0.7 → 1.6
+    bgOpacity: 0.93,     // opacité du fond du bandeau : 0.2 → 1
+    showStreak: true,    // la série remplace le titre « Session » dès 2 d'affilée
+    showLive: true,      // bloc score du match en cours
+    showH2h: true,       // « déjà croisé » à côté du score (1v1)
+    banner: true,        // bannière victoire / défaite en fin de match
+    goalFlash: true,     // balayage lumineux à chaque but
   },
 };
 
 const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade', 'neon', 'cinema'];
 const SOUND_PRESETS = ['broadcast', 'arcade', 'soft', 'epic'];
 const ALPHA_PROFILES = ['quality', 'classic'];
+const OBS_STYLES = ['broadcast', 'compact', 'vertical'];
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -160,12 +170,20 @@ function update(partial) {
     if (typeof partial.discordRpc === 'boolean') {
       config.discordRpc = partial.discordRpc;
     }
-    // Mode streamer (overlay OBS) : activation + port local.
+    // Mode streamer (overlay OBS) : activation, port, style et contenu.
     if (partial.obs && typeof partial.obs === 'object') {
       const o = config.obs = { ...DEFAULTS.obs, ...(config.obs || {}) };
       if (typeof partial.obs.enabled === 'boolean') o.enabled = partial.obs.enabled;
       const p = Number(partial.obs.port);
       if (Number.isInteger(p) && p >= 1024 && p <= 65535) o.port = p;
+      if (OBS_STYLES.includes(partial.obs.style)) o.style = partial.obs.style;
+      const sc = Number(partial.obs.scale);
+      if (sc >= 0.7 && sc <= 1.6) o.scale = sc;
+      const bo = Number(partial.obs.bgOpacity);
+      if (bo >= 0.2 && bo <= 1) o.bgOpacity = bo;
+      for (const k of ['showStreak', 'showLive', 'showH2h', 'banner', 'goalFlash']) {
+        if (typeof partial.obs[k] === 'boolean') o[k] = partial.obs[k];
+      }
     }
     // Son Alpha Boost : activation, volume, profil sonore.
     if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
