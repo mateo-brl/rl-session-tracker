@@ -79,6 +79,11 @@ L'application :
 > de Rocket League (Interface), recopie les valeurs dans la fenêtre de
 > l'application, et le dashboard suivra ton MMR estimé (≈ ±9 par match
 > classé). Tu peux le corriger quand tu veux.
+>
+> ⚠️ **Matchs de placement** (début de saison) : les gains y sont bien plus
+> gros (souvent ±15 et dégressifs), l'estimation dérive forcément pendant
+> cette période. Recopie ton MMR en jeu une fois tes placements terminés —
+> l'application te signale d'ailleurs les gros écarts quand tu recalibres.
 
 #### ❓ Petits soucis courants
 
@@ -270,6 +275,11 @@ The app:
 > (Interface), copy the values into the app window, and the dashboard will
 > track your estimated MMR (≈ ±9 per ranked match). You can correct it
 > anytime.
+>
+> ⚠️ **Placement matches** (start of season): gains are much bigger there
+> (often ±15 and decreasing), so the estimate inevitably drifts during that
+> period. Copy your in-game MMR again once placements are done — the app
+> also flags big gaps when you recalibrate.
 
 #### ❓ Troubleshooting
 
