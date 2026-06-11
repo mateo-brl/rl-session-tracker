@@ -11,14 +11,12 @@ Le tracker de session Rocket League nouvelle génération — temps réel, 100 %
 The next-generation Rocket League session tracker — real-time, 100% local, anti-cheat safe.
 
 [![Release](https://img.shields.io/github/v/release/mateo-brl/rl-session-tracker?style=flat-square&label=version&color=2f9bff)](https://github.com/mateo-brl/rl-session-tracker/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/mateo-brl/rl-session-tracker/total?style=flat-square&color=ff8a1e)](https://github.com/mateo-brl/rl-session-tracker/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/mateo-brl/rl-session-tracker/ci.yml?style=flat-square&label=tests)](https://github.com/mateo-brl/rl-session-tracker/actions)
 [![License](https://img.shields.io/badge/licence-MIT-blue?style=flat-square)](LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078d4?style=flat-square&logo=windows&logoColor=white)
+![Local](https://img.shields.io/badge/100%25-local-2ee6a6?style=flat-square)
 
-[![Stars](https://img.shields.io/github/stars/mateo-brl/rl-session-tracker?style=social)](https://github.com/mateo-brl/rl-session-tracker/stargazers)
-
-**[🇫🇷 Français](#-français) · [🇬🇧 English](#-english)**
+**[⬇️ Télécharger / Download](https://github.com/mateo-brl/rl-session-tracker/releases/latest) · [🇫🇷 Français](#-français) · [🇬🇧 English](#-english)**
 
 <br/>
 
