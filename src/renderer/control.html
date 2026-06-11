@@ -354,6 +354,22 @@
         ci-dessous pour une réactivité parfaite, puis redémarre Rocket League.</div>
     </div>
 
+    <div class="card">
+      <h2 data-i18n="hObs">Mode streamer (OBS)</h2>
+      <label class="check"><input type="checkbox" id="obsOn" /><span data-i18n="cObs">Servir l'overlay de stream en local</span></label>
+      <div class="duo" id="obsUrlRow" style="display:none">
+        <input type="text" id="obsUrl" readonly />
+        <button class="ghost" style="margin-top:0" id="obsCopy" data-i18n="bCopy">Copier l'URL</button>
+      </div>
+      <div class="hint warn" id="obsErr" style="display:none"></div>
+      <div class="hint" data-i18n="hintObs">Dans OBS : Sources → + →
+        Navigateur, colle l'URL (taille conseillée 860 × 220, fond
+        transparent automatique). Le bandeau affiche ta session, la série, le
+        score en direct — avec flash de but et bannière de fin de match. Les
+        boutons « Tester victoire / défaite » ci-dessus l'animent aussi.
+        Local uniquement : rien n'est exposé à internet.</div>
+    </div>
+
     <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
     <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
     <button class="ghost" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
@@ -413,6 +429,11 @@
       oVol1: 'Tr\u00e8s doux', oVol2: 'Doux', oVol3: 'Normal', oVol4: 'Fort', oVol5: 'Maximum',
       bAbTest: '\u00c9couter un essai',
       hintAlpha: 'Le son est jou\u00e9 par l\u2019application elle-m\u00eame, \u00e0 partir de la Stats API : aucun fichier du jeu n\u2019est touch\u00e9, rien d\u2019inject\u00e9 \u2014 compatible anti-triche, comme tout le reste. Adapt\u00e9 du projet communautaire trznx/Rocket_League-Alpha_Boost (MIT). Apr\u00e8s la mise \u00e0 jour, clique une fois sur \u00ab R\u00e9activer la Stats API du jeu \u00bb ci-dessous pour une r\u00e9activit\u00e9 parfaite, puis red\u00e9marre Rocket League.',
+      hObs: 'Mode streamer (OBS)',
+      cObs: 'Servir l\u2019overlay de stream en local',
+      bCopy: 'Copier l\u2019URL', bCopied: 'Copi\u00e9e !',
+      obsErr: function (port) { return 'Port ' + port + ' indisponible \u2014 un autre logiciel l\u2019utilise. Modifie \u00ab obs.port \u00bb dans config.json ou ferme l\u2019autre application.'; },
+      hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb ci-dessus l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
       bStatsApi: 'R\u00e9activer la Stats API du jeu',
       foot: ' \u2014 tu peux fermer cette fen\u00eatre, l\u2019application reste active dans la barre des t\u00e2ches.',
@@ -477,6 +498,11 @@
       oVol1: 'Very soft', oVol2: 'Soft', oVol3: 'Normal', oVol4: 'Loud', oVol5: 'Maximum',
       bAbTest: 'Play a sample',
       hintAlpha: 'The sound is played by the app itself, from the Stats API: no game file is touched, nothing is injected \u2014 anti-cheat safe, like everything else here. Adapted from the community project trznx/Rocket_League-Alpha_Boost (MIT). After updating, click \u201cRe-enable the game Stats API\u201d below once for perfect responsiveness, then restart Rocket League.',
+      hObs: 'Streamer mode (OBS)',
+      cObs: 'Serve the stream overlay locally',
+      bCopy: 'Copy URL', bCopied: 'Copied!',
+      obsErr: function (port) { return 'Port ' + port + ' unavailable — another program is using it. Change “obs.port” in config.json or close the other app.'; },
+      hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons above animate it too. Local only: nothing is exposed to the internet.',
       bDash: 'Open the dashboard', bClear: 'Clear recent matches',
       bStatsApi: 'Re-enable the game Stats API',
       foot: ' \u2014 you can close this window, the app stays active in the system tray.',
@@ -643,6 +669,22 @@
     }
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
+
+    // Mode streamer : URL à copier quand le serveur tourne, erreur sinon.
+    var oc2 = cfg.obs || {};
+    $('obsOn').checked = !!oc2.enabled;
+    var obsSt = s.obs || {};
+    $('obsUrlRow').style.display = obsSt.running ? 'grid' : 'none';
+    if (obsSt.running) {
+      $('obsUrl').value = 'http://127.0.0.1:' + obsSt.port + '/overlay';
+    }
+    var oe = $('obsErr');
+    if (oc2.enabled && obsSt.error) {
+      oe.textContent = T.obsErr(obsSt.port || oc2.port);
+      oe.style.display = 'block';
+    } else {
+      oe.style.display = 'none';
+    }
 
     var ab = cfg.alphaBoost || {};
     $('abOn').checked = !!ab.enabled;
@@ -852,6 +894,27 @@
     Promise.resolve(saveAlpha()).then(function () {
       if (api.alphaTest) api.alphaTest();
     });
+  };
+
+  // ─── Mode streamer (OBS) ───
+  $('obsOn').onchange = function () {
+    api.setConfig && api.setConfig({ obs: { enabled: $('obsOn').checked } });
+  };
+  $('obsCopy').onclick = function () {
+    var input = $('obsUrl');
+    input.select();
+    var done = function () {
+      var b = $('obsCopy');
+      b.textContent = T.bCopied;
+      clearTimeout(b._t);
+      b._t = setTimeout(function () { b.textContent = T.bCopy; }, 2000);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value).then(done, done);
+    } else {
+      document.execCommand('copy');
+      done();
+    }
   };
 
   // ─── Mini-overlay ───

@@ -40,7 +40,8 @@ jobs:
             for (const f of ["src/renderer/control.html",
                              "src/renderer/dashboard.html",
                              "src/renderer/overlay.html",
-                             "src/renderer/alphaboost.html"]) {
+                             "src/renderer/alphaboost.html",
+                             "src/renderer/obs.html"]) {
               const m = fs.readFileSync(f, "utf8")
                 .match(/<script>([\s\S]*?)<\/script>/);
               new Function(m[1]);
