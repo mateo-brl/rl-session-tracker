@@ -54,6 +54,11 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
   <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
 </p>
 
+<p align="center">
+  <img src="docs/obs.png" width="58%" alt="Overlay OBS — bandeau live et bannière de victoire" /><br/>
+  <i>Mode streamer : l'overlay OBS pendant un match, puis sa bannière de fin de match.</i>
+</p>
+
 ### ✨ Ce que ça fait
 
 | | |
@@ -302,6 +307,11 @@ and it's the only "thank you" this app will ever ask for.**
   <img src="docs/control.png" width="38%" alt="Settings window" />
   &nbsp;&nbsp;
   <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
+</p>
+
+<p align="center">
+  <img src="docs/obs.png" width="58%" alt="OBS overlay — live bar and victory banner" /><br/>
+  <i>Streamer mode: the OBS overlay during a match, then its end-of-match banner.</i>
 </p>
 
 ### ✨ Features
