@@ -123,6 +123,39 @@ class SessionStore {
     return { auto: candidates.length === 1 ? candidates[0] : null, candidates };
   }
 
+  // Bilan « déjà croisé » : pour chaque adversaire du match en cours, tous
+  // les matchs du journal où ce joueur était dans l'équipe ADVERSE, et le
+  // résultat de notre point de vue. Le match en cours n'est pas encore dans
+  // le journal : le bilan est purement historique.
+  headToHead(names, pseudo) {
+    const me = norm(pseudo);
+    const out = {};
+    if (!me || !Array.isArray(names) || !names.length) return out;
+    const wanted = new Map();              // nom normalisé → nom affiché
+    for (const n of names) {
+      const k = norm(n);
+      if (k && k !== me) wanted.set(k, String(n));
+    }
+    if (!wanted.size) return out;
+
+    for (const m of this.matches) {
+      const mine = m.players.find((p) => norm(p.name) === me);
+      if (!mine) continue;
+      let result;                          // évalué au premier adversaire trouvé
+      for (const p of m.players) {
+        const k = norm(p.name);
+        if (!wanted.has(k) || p.team === mine.team) continue;
+        if (result === undefined) result = this._evaluate(m, pseudo).result;
+        const h = out[wanted.get(k)] ||
+          (out[wanted.get(k)] = { played: 0, wins: 0, losses: 0 });
+        h.played++;
+        if (result === 'W') h.wins++;
+        else if (result === 'L') h.losses++;
+      }
+    }
+    return out;
+  }
+
   // Dérive le point de vue du joueur suivi sur un match brut.
   _evaluate(m, pseudo) {
     const me = m.players.find((p) => norm(p.name) === norm(pseudo)) || null;

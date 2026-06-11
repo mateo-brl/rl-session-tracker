@@ -268,6 +268,7 @@
       <label class="check"><input type="checkbox" id="optFull" /><span data-i18n="cFull">Dashboard en plein écran (2ᵉ écran si présent)</span></label>
       <label class="check"><input type="checkbox" id="optOverlay" /><span data-i18n="cOverlay">Mini-overlay au premier plan pendant le jeu</span></label>
       <label class="check"><input type="checkbox" id="optSounds" /><span data-i18n="cSounds">Jingle de victoire / défaite</span></label>
+      <label class="check"><input type="checkbox" id="optDiscord" /><span data-i18n="cDiscord">Statut Discord pendant le jeu (Rich Presence)</span></label>
       <label class="check"><input type="checkbox" id="optBoot" /><span data-i18n="cBoot">Lancer au démarrage de Windows</span></label>
     </div>
 
@@ -388,6 +389,7 @@
       cFull: 'Dashboard en plein \u00e9cran (2\u1d49 \u00e9cran si pr\u00e9sent)',
       cOverlay: 'Mini-overlay au premier plan pendant le jeu',
       cSounds: 'Jingle de victoire / d\u00e9faite',
+      cDiscord: 'Statut Discord pendant le jeu (Rich Presence)',
       cBoot: 'Lancer au d\u00e9marrage de Windows',
       hAnim: 'Animations', lStyle: 'Style',
       oBroadcast: 'Broadcast \u2014 liser\u00e9s TV + confettis',
@@ -451,6 +453,7 @@
       cFull: 'Fullscreen dashboard (second screen if present)',
       cOverlay: 'Always-on-top mini-overlay while playing',
       cSounds: 'Win / loss jingle',
+      cDiscord: 'Discord status while playing (Rich Presence)',
       cBoot: 'Start with Windows',
       hAnim: 'Animations', lStyle: 'Style',
       oBroadcast: 'Broadcast \u2014 TV stripes + confetti',
@@ -617,6 +620,7 @@
     $('optRanked').checked = cfg.mmrCounts !== false;
     $('optOverlay').checked = !!cfg.overlayEnabled;
     $('optSounds').checked = cfg.sounds !== false;
+    $('optDiscord').checked = !!cfg.discordRpc;
     $('optBoot').checked = !!s.autostart;
 
     // Apparence + mini-overlay (sans écraser une saisie en cours).
@@ -788,6 +792,9 @@
   };
   $('optOverlay').onchange = function () {
     api.setConfig && api.setConfig({ overlayEnabled: $('optOverlay').checked });
+  };
+  $('optDiscord').onchange = function () {
+    api.setConfig && api.setConfig({ discordRpc: $('optDiscord').checked });
   };
   $('optSounds').onchange = function () {
     api.setConfig && api.setConfig({ sounds: $('optSounds').checked });
