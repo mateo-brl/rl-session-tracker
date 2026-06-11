@@ -53,6 +53,7 @@ tu lances le jeu.
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
+| 🔉 **Son Alpha Boost** | Le boost légendaire de l'alpha, rejoué quand tu boostes — la sonorité suit ta vitesse en direct. 100 % externe via la Stats API : **aucun fichier du jeu n'est touché, rien d'injecté**, compatible anti-triche. Marche aussi à la manette. |
 | 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). Thèmes de couleurs prédéfinis ou libres, 3 styles d'animations testables, overlay réglable. |
 | 🌍 **FR / EN** | Interface bilingue : langue du système détectée automatiquement, modifiable dans les réglages. |
 
@@ -150,6 +151,17 @@ arrêt), et les API tierces exigent des clés privées. Depuis la saison 22 le
 MMR est visible **dans le jeu** : on le recopie une fois, l'appli fait le
 reste. Fiable, hors-ligne, et ça ne peut pas casser.
 
+**Et le son Alpha Boost, c'est risqué ?** Non — et c'est tout l'intérêt de
+cette approche. Les mods qui remplacent les fichiers audio du jeu vivent dans
+une zone grise depuis Easy Anti-Cheat ; ici le son est joué **par
+l'application, à côté du jeu**, à partir des champs `Speed` / `Boost` /
+`bBoosting` que la Stats API diffuse déjà. Aucun fichier modifié, aucune
+injection, aucun hook clavier/souris. L'idée et les samples viennent du
+projet communautaire
+[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
+(MIT) — merci à lui. Notre version y ajoute le support manette (détection
+100 % Stats API) et un fondu enchaîné entre les paliers de vitesse.
+
 ### 🧰 Pour les développeurs
 
 | Côté | Technologies |
@@ -200,6 +212,8 @@ rl-session-tracker/
 │       ├── control.html       # Fenêtre de contrôle / réglages
 │       ├── dashboard.html     # Le tracker plein écran
 │       ├── overlay.html       # Mini-overlay toujours au premier plan
+│       ├── alphaboost.html    # Moteur audio Alpha Boost (fenêtre invisible)
+│       ├── sounds/alpha/      # Samples Alpha Boost (projet trznx, MIT)
 │       └── fonts/             # Barlow Condensed (licence OFL-1.1)
 ├── build/icon.ico             # Icône de l'application
 ├── electron-builder.yml       # Empaquetage NSIS + publication GitHub
@@ -210,7 +224,9 @@ rl-session-tracker/
 
 ### 📄 Licence
 
-MIT — fais-en ce que tu veux.
+MIT — fais-en ce que tu veux. Les samples du son Alpha Boost proviennent du
+projet [trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
+(MIT) et la police Barlow Condensed est sous licence OFL-1.1.
 
 ---
 
@@ -250,6 +266,7 @@ screen that opens by itself when you launch the game.
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
+| 🔉 **Alpha Boost sound** | The legendary alpha boost sound, replayed while you boost — the tone follows your live speed. 100% external through the Stats API: **no game file is touched, nothing is injected**, anti-cheat safe. Works on controller too. |
 | 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). Built-in or fully custom color themes, 3 testable animation styles, adjustable overlay. |
 | 🌍 **FR / EN** | Bilingual interface: system language auto-detected, changeable in the settings. |
 
@@ -345,6 +362,16 @@ and third-party APIs require private keys. Since Season 22 the MMR is
 visible **in the game**: copy it once, the app does the rest. Reliable,
 offline, and it can never break.
 
+**Is the Alpha Boost sound risky?** No — that's the whole point of this
+approach. Mods that replace the game's audio files live in a gray zone since
+Easy Anti-Cheat; here the sound is played **by the app, next to the game**,
+from the `Speed` / `Boost` / `bBoosting` fields the Stats API already
+broadcasts. No modified file, no injection, no keyboard/mouse hook. The idea
+and the samples come from the community project
+[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
+(MIT) — kudos to them. Our version adds controller support (100% Stats API
+detection) and crossfading between speed tiers.
+
 ### 🧰 For developers
 
 | Side | Technologies |
@@ -394,6 +421,8 @@ rl-session-tracker/
 │       ├── control.html       # Control / settings window
 │       ├── dashboard.html     # The fullscreen tracker
 │       ├── overlay.html       # Always-on-top mini-overlay
+│       ├── alphaboost.html    # Alpha Boost audio engine (hidden window)
+│       ├── sounds/alpha/      # Alpha Boost samples (trznx project, MIT)
 │       └── fonts/             # Barlow Condensed (OFL-1.1 license)
 ├── build/icon.ico             # App icon
 ├── electron-builder.yml       # NSIS packaging + GitHub publishing
@@ -404,4 +433,6 @@ rl-session-tracker/
 
 ### 📄 License
 
-MIT — do whatever you want with it.
+MIT — do whatever you want with it. The Alpha Boost samples come from the
+[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
+project (MIT), and the Barlow Condensed font is licensed under OFL-1.1.

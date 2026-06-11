@@ -22,6 +22,17 @@ contextBridge.exposeInMainWorld('rl', {
   setCurrentRanked: (on) => ipcRenderer.send('set-current-ranked', on),
   previewAnimation: (result) => ipcRenderer.send('preview-animation', result),
 
+  // Son Alpha Boost : essai (réglages) et flux vers le moteur audio caché.
+  alphaTest: () => ipcRenderer.send('alpha-test'),
+  onAlphaCfg: (cb) => ipcRenderer.on('alpha-cfg', (_e, c) => cb(c)),
+  onAlphaTelemetry: (cb) => ipcRenderer.on('alpha-telemetry', (_e, t) => cb(t)),
+  onAlphaTest: (cb) => ipcRenderer.on('alpha-test', () => cb()),
+  // Lecture d'un sample audio : fetch() refuse file:// et le preload est
+  // sandboxé (pas de fs) — c'est donc le processus principal qui lit le
+  // fichier (fs y est patché pour l'asar une fois l'application empaquetée).
+  readSound: (name) => ipcRenderer.invoke('alpha-read-sound', name)
+    .then((u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)),
+
   // Mises à jour.
   updateCheck: () => ipcRenderer.send('update-check'),
   updateDownload: () => ipcRenderer.send('update-download'),

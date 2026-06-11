@@ -2,7 +2,7 @@
 #
 # Rapide et gratuit (repo public) : pas de binaire Electron téléchargé, pas
 # de build Windows — uniquement la logique (session, config) et la validité
-# des scripts des trois fenêtres.
+# des scripts des fenêtres.
 
 name: ci
 
@@ -39,7 +39,8 @@ jobs:
             const fs = require("fs");
             for (const f of ["src/renderer/control.html",
                              "src/renderer/dashboard.html",
-                             "src/renderer/overlay.html"]) {
+                             "src/renderer/overlay.html",
+                             "src/renderer/alphaboost.html"]) {
               const m = fs.readFileSync(f, "utf8")
                 .match(/<script>([\s\S]*?)<\/script>/);
               new Function(m[1]);

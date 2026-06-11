@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<!--
+  alphaboost.html — Moteur audio du son Alpha Boost (fenêtre invisible).
+
+  Adapté du projet communautaire trznx/Rocket_League-Alpha_Boost (MIT), qui a
+  prouvé qu'on peut rejouer le son Alpha Boost SANS toucher au jeu : la Stats
+  API diffuse Speed / Boost / bBoosting, il suffit de jouer le son à côté.
+
+  Différences avec l'original :
+   • zéro hook clavier / souris — tout vient de la Stats API, donc le son
+     marche aussi à la manette (l'original exigeait un clic souris) ;
+   • fondu enchaîné entre les paliers de vitesse (l'original coupait net le
+     sample en cours pour relancer le suivant) ;
+   • hystérésis sur les frontières de palier (pas de bagottement à 600 uu/s).
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>RL Session Tracker — Audio</title>
+</head>
+<body>
+<script>
+'use strict';
+
+// Paliers de vitesse (uu/s) → samples, repris du profil « quality » du projet
+// d'origine. Le profil « classic » joue un seul sample quelle que soit la
+// vitesse (équivalent de son profil « normal »).
+var PROFILES = {
+  quality: [
+    { max: 300, file: 'q150' },
+    { max: 600, file: 'q450' },
+    { max: 900, file: 'q750' },
+    { max: 1200, file: 'q1050' },
+    { max: 1500, file: 'q1350' },
+    { max: Infinity, file: 'q1650' },
+  ],
+  classic: [
+    { max: Infinity, file: 'classic' },
+  ],
+};
+
+var XFADE = 0.18;        // fondu enchaîné entre deux paliers (s)
+var RELEASE = 0.12;      // constante de temps du fondu de sortie (~360 ms perçus)
+var ATTACK = 0.02;       // constante de temps de l'attaque
+var HYST = 40;           // hystérésis autour d'une frontière de palier (uu/s)
+
+var cfg = { enabled: false, volume: 0.45, profile: 'quality' };
+var ctx = null;          // AudioContext, créé au premier besoin
+var master = null;       // volume utilisateur
+var env = null;          // enveloppe marche / arrêt
+var buffers = {};        // nom de fichier → AudioBuffer
+var loading = {};        // nom de fichier → Promise en cours
+var ready = false;       // tous les samples du profil actif sont décodés
+var playing = false;
+var band = null;         // index du palier actif
+var active = null;       // { src, gain } du sample en cours
+var lastTele = null;     // dernière télémétrie reçue pendant le chargement
+
+function bands() {
+  return PROFILES[cfg.profile] || PROFILES.quality;
+}
+
+function ensureCtx() {
+  if (ctx) return;
+  ctx = new AudioContext();
+  master = ctx.createGain();
+  master.gain.value = cfg.volume;
+  master.connect(ctx.destination);
+  env = ctx.createGain();
+  env.gain.value = 0;
+  env.connect(master);
+}
+
+function load(file) {
+  if (buffers[file]) return Promise.resolve(buffers[file]);
+  if (!loading[file]) {
+    loading[file] = Promise.resolve()
+      .then(function () { return window.rl.readSound(file); })
+      .then(function (ab) { return ctx.decodeAudioData(ab); })
+      .then(function (buf) { buffers[file] = buf; return buf; })
+      .catch(function () { delete loading[file]; return null; });
+  }
+  return loading[file];
+}
+
+function loadProfile() {
+  ensureCtx();
+  ready = false;
+  Promise.all(bands().map(function (b) { return load(b.file); })).then(function () {
+    ready = true;
+    // Une télémétrie est arrivée pendant le décodage : on la rejoue.
+    if (lastTele) onTelemetry(lastTele);
+  });
+}
+
+// Palier correspondant à la vitesse, avec hystérésis : près d'une frontière,
+// on reste sur le palier en cours pour éviter les allers-retours audibles.
+function bandFor(speed, cur) {
+  var bs = bands();
+  var idx = 0;
+  while (idx < bs.length - 1 && speed > bs[idx].max) idx++;
+  if (cur !== null && cur !== undefined && idx !== cur && cur < bs.length) {
+    if (idx > cur && speed <= bs[cur].max + HYST) return cur;
+    if (idx < cur && speed > bs[idx].max - HYST) return cur;
+  }
+  return idx;
+}
+
+function makeSource(idx) {
+  var buf = buffers[bands()[idx].file];
+  if (!buf) return null;
+  var src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  // Départ à un point aléatoire de la boucle : deux accélérations de suite
+  // ne sonnent pas exactement pareil.
+  var gain = ctx.createGain();
+  src.connect(gain);
+  gain.connect(env);
+  src.start(0, Math.random() * buf.duration);
+  return { src: src, gain: gain };
+}
+
+function switchTo(idx) {
+  var t = ctx.currentTime;
+  var next = makeSource(idx);
+  if (!next) return;
+  var old = active;
+  active = next;
+  band = idx;
+  next.gain.gain.setValueAtTime(old ? 0 : 1, t);
+  if (old) {
+    // Fondu enchaîné : l'ancien palier s'efface pendant que le nouveau monte.
+    next.gain.gain.linearRampToValueAtTime(1, t + XFADE);
+    old.gain.gain.setValueAtTime(old.gain.gain.value, t);
+    old.gain.gain.linearRampToValueAtTime(0, t + XFADE);
+    try { old.src.stop(t + XFADE + 0.05); } catch (e) {}
+  }
+}
+
+function startLoop(speed) {
+  if (playing) return;
+  playing = true;
+  var t = ctx.currentTime;
+  env.gain.cancelScheduledValues(t);
+  env.gain.setValueAtTime(env.gain.value, t);
+  env.gain.setTargetAtTime(1, t, ATTACK);
+  switchTo(bandFor(speed, null));
+}
+
+function stopLoop() {
+  if (!playing) return;
+  playing = false;
+  var t = ctx.currentTime;
+  env.gain.cancelScheduledValues(t);
+  env.gain.setValueAtTime(env.gain.value, t);
+  env.gain.setTargetAtTime(0, t, RELEASE);
+  if (active) {
+    try { active.src.stop(t + 0.8); } catch (e) {}
+  }
+  active = null;
+  band = null;
+}
+
+function onTelemetry(d) {
+  if (!cfg.enabled && !testing) { stopLoop(); return; }
+  if (!ready) { lastTele = d; return; }
+  lastTele = null;
+  if (d.boosting) {
+    if (!playing) startLoop(d.speed);
+    else {
+      var idx = bandFor(d.speed, band);
+      if (idx !== band) switchTo(idx);
+    }
+  } else {
+    stopLoop();
+  }
+}
+
+// ── Essai depuis les réglages : montée 0 → supersonique, puis relâche. ──
+var testing = false;
+function runTest() {
+  if (testing) return;
+  testing = true;
+  ensureCtx();
+  loadProfile();
+  var wait = setInterval(function () {
+    if (!ready) return;
+    clearInterval(wait);
+    var speed = 0;
+    var ramp = setInterval(function () {
+      speed += 75;
+      onTelemetry({ boosting: true, boost: 50, speed: speed });
+      if (speed >= 2300) {
+        clearInterval(ramp);
+        setTimeout(function () {
+          onTelemetry({ boosting: false, boost: 0, speed: 0 });
+          testing = false;
+        }, 700);
+      }
+    }, 40);
+  }, 60);
+}
+
+window.rl.onAlphaCfg(function (c) {
+  var prevProfile = cfg.profile;
+  cfg = Object.assign({}, cfg, c || {});
+  ensureCtx();
+  master.gain.value = cfg.volume;
+  if (!cfg.enabled && !testing) stopLoop();
+  if (cfg.profile !== prevProfile && playing) { stopLoop(); }
+  loadProfile();
+});
+
+window.rl.onAlphaTelemetry(onTelemetry);
+window.rl.onAlphaTest(runTest);
+</script>
+</body>
+</html>

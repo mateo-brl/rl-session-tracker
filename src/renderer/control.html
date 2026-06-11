@@ -326,6 +326,33 @@
         devant le jeu — c'est pareil pour tous les overlays.</div>
     </div>
 
+    <div class="card">
+      <h2>Alpha Boost</h2>
+      <label class="check"><input type="checkbox" id="abOn" /><span data-i18n="cAlpha">Jouer le son Alpha Boost quand je booste</span></label>
+      <div class="duo">
+        <label class="field"><span data-i18n="lAbSound">Sonorité</span>
+          <select id="abProfile">
+            <option value="quality" data-i18n="oAbQuality">Dynamique — suit la vitesse</option>
+            <option value="classic" data-i18n="oAbClassic">Classique — son fixe</option>
+          </select></label>
+        <label class="field"><span data-i18n="lAbVolume">Volume</span>
+          <select id="abVolume">
+            <option value="0.1" data-i18n="oVol1">Très doux</option>
+            <option value="0.25" data-i18n="oVol2">Doux</option>
+            <option value="0.45" data-i18n="oVol3">Normal</option>
+            <option value="0.7" data-i18n="oVol4">Fort</option>
+            <option value="1" data-i18n="oVol5">Maximum</option>
+          </select></label>
+      </div>
+      <button class="ghost" id="abTest" data-i18n="bAbTest">Écouter un essai</button>
+      <div class="hint" data-i18n="hintAlpha">Le son est joué par l'application
+        elle-même, à partir de la Stats API : aucun fichier du jeu n'est touché,
+        rien d'injecté — compatible anti-triche, comme tout le reste. Adapté du
+        projet communautaire trznx/Rocket_League-Alpha_Boost (MIT). Après la
+        mise à jour, clique une fois sur « Réactiver la Stats API du jeu »
+        ci-dessous pour une réactivité parfaite, puis redémarre Rocket League.</div>
+    </div>
+
     <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
     <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
     <button class="ghost" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
@@ -377,6 +404,13 @@
       lSize: 'Taille', oSmall: 'Petit', oNormal: 'Normal', oBig: 'Grand',
       lOpacity: 'Opacit\u00e9',
       hintOverlay: 'Important : mets l\u2019affichage de Rocket League en \u00ab\u00a0Fen\u00eatr\u00e9 sans bordure\u00a0\u00bb (Param\u00e8tres \u2192 Vid\u00e9o). En \u00ab\u00a0Plein \u00e9cran\u00a0\u00bb exclusif, Windows ne laisse aucune fen\u00eatre passer devant le jeu \u2014 c\u2019est pareil pour tous les overlays.',
+      cAlpha: 'Jouer le son Alpha Boost quand je booste',
+      lAbSound: 'Sonorit\u00e9', lAbVolume: 'Volume',
+      oAbQuality: 'Dynamique \u2014 suit la vitesse',
+      oAbClassic: 'Classique \u2014 son fixe',
+      oVol1: 'Tr\u00e8s doux', oVol2: 'Doux', oVol3: 'Normal', oVol4: 'Fort', oVol5: 'Maximum',
+      bAbTest: '\u00c9couter un essai',
+      hintAlpha: 'Le son est jou\u00e9 par l\u2019application elle-m\u00eame, \u00e0 partir de la Stats API : aucun fichier du jeu n\u2019est touch\u00e9, rien d\u2019inject\u00e9 \u2014 compatible anti-triche, comme tout le reste. Adapt\u00e9 du projet communautaire trznx/Rocket_League-Alpha_Boost (MIT). Apr\u00e8s la mise \u00e0 jour, clique une fois sur \u00ab R\u00e9activer la Stats API du jeu \u00bb ci-dessous pour une r\u00e9activit\u00e9 parfaite, puis red\u00e9marre Rocket League.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
       bStatsApi: 'R\u00e9activer la Stats API du jeu',
       foot: ' \u2014 tu peux fermer cette fen\u00eatre, l\u2019application reste active dans la barre des t\u00e2ches.',
@@ -433,6 +467,13 @@
       lSize: 'Size', oSmall: 'Small', oNormal: 'Normal', oBig: 'Large',
       lOpacity: 'Opacity',
       hintOverlay: 'Important: set Rocket League\u2019s display mode to \u201cBorderless Windowed\u201d (Settings \u2192 Video). In exclusive \u201cFullscreen\u201d, Windows lets no window appear above the game \u2014 the same goes for every overlay.',
+      cAlpha: 'Play the Alpha Boost sound when I boost',
+      lAbSound: 'Sound', lAbVolume: 'Volume',
+      oAbQuality: 'Dynamic \u2014 follows your speed',
+      oAbClassic: 'Classic \u2014 static sound',
+      oVol1: 'Very soft', oVol2: 'Soft', oVol3: 'Normal', oVol4: 'Loud', oVol5: 'Maximum',
+      bAbTest: 'Play a sample',
+      hintAlpha: 'The sound is played by the app itself, from the Stats API: no game file is touched, nothing is injected \u2014 anti-cheat safe, like everything else here. Adapted from the community project trznx/Rocket_League-Alpha_Boost (MIT). After updating, click \u201cRe-enable the game Stats API\u201d below once for perfect responsiveness, then restart Rocket League.',
       bDash: 'Open the dashboard', bClear: 'Clear recent matches',
       bStatsApi: 'Re-enable the game Stats API',
       foot: ' \u2014 you can close this window, the app stays active in the system tray.',
@@ -598,6 +639,15 @@
     }
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
+
+    var ab = cfg.alphaBoost || {};
+    $('abOn').checked = !!ab.enabled;
+    if (document.activeElement !== $('abProfile')) {
+      $('abProfile').value = ab.profile || 'quality';
+    }
+    if (document.activeElement !== $('abVolume')) {
+      $('abVolume').value = String(ab.volume != null ? ab.volume : 0.45);
+    }
 
     // MMR : on affiche l'estimation courante (pas la base de calibrage),
     // sans écraser une saisie en cours.
@@ -777,6 +827,24 @@
   };
   $('testLoss').onclick = function () {
     api.previewAnimation && api.previewAnimation('L');
+  };
+
+  // ─── Alpha Boost ───
+  function saveAlpha() {
+    return api.setConfig && api.setConfig({ alphaBoost: {
+      enabled: $('abOn').checked,
+      volume: Number($('abVolume').value),
+      profile: $('abProfile').value,
+    } });
+  }
+  ['abOn', 'abProfile', 'abVolume'].forEach(function (id) {
+    $(id).addEventListener('change', saveAlpha);
+  });
+  // L'essai joue avec les réglages affichés, même pas encore sauvegardés.
+  $('abTest').onclick = function () {
+    Promise.resolve(saveAlpha()).then(function () {
+      if (api.alphaTest) api.alphaTest();
+    });
   };
 
   // ─── Mini-overlay ───
