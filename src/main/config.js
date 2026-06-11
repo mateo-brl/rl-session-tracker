@@ -32,10 +32,11 @@ const DEFAULTS = {
     opacity: 1,          // 1 | 0.85 | 0.7
   },
   anim: {                // animations du dashboard
-    preset: 'broadcast', // broadcast | minimal | arcade
+    preset: 'broadcast', // broadcast | minimal | arcade | neon | cinema
     endMatch: true,      // écran victoire / défaite
     goal: true,          // flash à chaque but
   },
+  soundPreset: 'broadcast',  // style du jingle : broadcast | arcade | soft | epic
   alphaBoost: {          // son Alpha Boost (100 % externe, via la Stats API)
     enabled: false,
     volume: 0.45,        // 0 → 1
@@ -48,7 +49,8 @@ const DEFAULTS = {
   },
 };
 
-const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade'];
+const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade', 'neon', 'cinema'];
+const SOUND_PRESETS = ['broadcast', 'arcade', 'soft', 'epic'];
 const ALPHA_PROFILES = ['quality', 'classic'];
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -150,6 +152,10 @@ function update(partial) {
       if (ANIM_PRESETS.includes(partial.anim.preset)) a.preset = partial.anim.preset;
       if (typeof partial.anim.endMatch === 'boolean') a.endMatch = partial.anim.endMatch;
       if (typeof partial.anim.goal === 'boolean') a.goal = partial.anim.goal;
+    }
+    // Style du jingle de fin de match.
+    if (SOUND_PRESETS.includes(partial.soundPreset)) {
+      config.soundPreset = partial.soundPreset;
     }
     if (typeof partial.discordRpc === 'boolean') {
       config.discordRpc = partial.discordRpc;
