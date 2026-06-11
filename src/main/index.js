@@ -68,6 +68,7 @@ function obsState() {
   return {
     lang: state.lang,
     theme: config.get().theme,
+    obsCfg: config.get().obs,    // style, échelle, contenu — appliqués en direct
     game: state.game.running,
     live: state.live,
     currentRanked: state.currentRanked,

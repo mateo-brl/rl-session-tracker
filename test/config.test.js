@@ -127,11 +127,30 @@ test('overlay OBS : port borné', () => {
   const c = freshConfig();
   assert.equal(c.get().obs.enabled, false);
   c.update({ obs: { enabled: true, port: 50000 } });
-  assert.deepEqual(c.get().obs, { enabled: true, port: 50000 });
+  assert.equal(c.get().obs.enabled, true);
+  assert.equal(c.get().obs.port, 50000);
   c.update({ obs: { port: 80 } });                   // < 1024 : rejeté
   assert.equal(c.get().obs.port, 50000);
   c.update({ obs: { port: 'quatre' } });             // rejeté
   assert.equal(c.get().obs.port, 50000);
+});
+
+test('overlay OBS : style, échelle et contenu validés', () => {
+  const c = freshConfig();
+  assert.equal(c.get().obs.style, 'broadcast');      // défauts
+  assert.equal(c.get().obs.showLive, true);
+  c.update({ obs: { style: 'vertical', scale: 1.25, bgOpacity: 0.5,
+    showLive: false, banner: false } });
+  assert.equal(c.get().obs.style, 'vertical');
+  assert.equal(c.get().obs.scale, 1.25);
+  assert.equal(c.get().obs.bgOpacity, 0.5);
+  assert.equal(c.get().obs.showLive, false);
+  assert.equal(c.get().obs.banner, false);
+  assert.equal(c.get().obs.goalFlash, true);         // intact
+  c.update({ obs: { style: 'fantaisie', scale: 9, bgOpacity: 0 } });  // rejetés
+  assert.equal(c.get().obs.style, 'vertical');
+  assert.equal(c.get().obs.scale, 1.25);
+  assert.equal(c.get().obs.bgOpacity, 0.5);
 });
 
 test('persistance : relecture depuis le fichier', () => {
