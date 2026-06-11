@@ -110,6 +110,19 @@ test('statut Discord : booléen strict', () => {
   assert.equal(c.get().discordRpc, true);
 });
 
+test('nouveaux styles : animations neon/cinema et jingles', () => {
+  const c = freshConfig();
+  c.update({ anim: { preset: 'neon' } });
+  assert.equal(c.get().anim.preset, 'neon');
+  c.update({ anim: { preset: 'cinema' } });
+  assert.equal(c.get().anim.preset, 'cinema');
+  assert.equal(c.get().soundPreset, 'broadcast');   // défaut
+  c.update({ soundPreset: 'epic' });
+  assert.equal(c.get().soundPreset, 'epic');
+  c.update({ soundPreset: 'dubstep' });             // inconnu : rejeté
+  assert.equal(c.get().soundPreset, 'epic');
+});
+
 test('overlay OBS : port borné', () => {
   const c = freshConfig();
   assert.equal(c.get().obs.enabled, false);

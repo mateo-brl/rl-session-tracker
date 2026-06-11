@@ -507,6 +507,62 @@
     animation-timing-function:steps(14, jump-none);
   }
 
+  /* ─── Style d'animation « Néon » : enseigne qui s'allume ─── */
+  .result-overlay.preset-neon { background:rgba(7,8,11,.93); }
+  .result-overlay.preset-neon .result-stripes { display:none; }
+  .result-overlay.preset-neon::before {
+    content:''; position:absolute; inset:26px; pointer-events:none;
+    border:2px solid currentColor; opacity:.55;
+    animation:neon-flicker 1.1s both;
+  }
+  .result-overlay.preset-neon.win::before { color:var(--blue);
+    box-shadow:0 0 22px var(--blue), inset 0 0 22px var(--blue); }
+  .result-overlay.preset-neon.loss::before { color:var(--orange);
+    box-shadow:0 0 22px var(--orange), inset 0 0 22px var(--orange); }
+  .result-overlay.preset-neon .result-text {
+    color:transparent; animation:neon-flicker 1.1s both !important;
+  }
+  .result-overlay.preset-neon.win .result-text {
+    -webkit-text-stroke:3px var(--blue); text-shadow:0 0 26px var(--blue); }
+  .result-overlay.preset-neon.loss .result-text {
+    -webkit-text-stroke:3px var(--orange); text-shadow:0 0 26px var(--orange); }
+  @keyframes neon-flicker {
+    0% { opacity:0; } 8% { opacity:1; } 14% { opacity:.15; }
+    22% { opacity:1; } 30% { opacity:.4; } 38%, 100% { opacity:1; }
+  }
+  .result-overlay.preset-neon .result-sub {
+    background:transparent; border-color:currentColor;
+  }
+
+  /* ─── Style d'animation « Cinéma » : zoom lent + bandes noires ─── */
+  .result-overlay.preset-cinema { background:rgba(0,0,0,.94); }
+  .result-overlay.preset-cinema .result-stripes { display:none; }
+  .result-overlay.preset-cinema::before,
+  .result-overlay.preset-cinema::after {
+    content:''; position:absolute; left:0; right:0; height:11vh;
+    background:#000; pointer-events:none;
+  }
+  .result-overlay.preset-cinema::before { top:0; animation:cine-bar-t .8s ease-out both; }
+  .result-overlay.preset-cinema::after { bottom:0; animation:cine-bar-b .8s ease-out both; }
+  @keyframes cine-bar-t { from { transform:translateY(-100%); } }
+  @keyframes cine-bar-b { from { transform:translateY(100%); } }
+  .result-overlay.preset-cinema .result-text {
+    font-style:normal; letter-spacing:.2em; font-size:min(11vw,128px);
+    animation:cine-zoom 1.6s ease-out both !important;
+  }
+  @keyframes cine-zoom {
+    from { transform:scale(1.22); opacity:0; }
+    35% { opacity:1; }
+    to { transform:scale(1); }
+  }
+  .result-overlay.preset-cinema .result-sub {
+    background:transparent; border:0; transform:none;
+    color:var(--muted); letter-spacing:.22em;
+    animation:cine-fade 1.2s .6s both;
+  }
+  .result-overlay.preset-cinema .result-sub > span { transform:none; }
+  @keyframes cine-fade { from { opacity:0; } to { opacity:1; } }
+
   /* ─── Flash de but selon le style ─── */
   @keyframes goalflash-arcade {
     0%,100% { border-color:var(--line); background:var(--panel); }
@@ -519,6 +575,18 @@
     40% { border-color:var(--muted); }
   }
   body[data-anim="minimal"] .live.goal { animation:goalflash-minimal 1s ease-out; }
+  @keyframes goalflash-neon {
+    0%,100% { border-color:var(--line); box-shadow:none; }
+    30%,70% { border-color:var(--blue); box-shadow:0 0 18px var(--blue),
+      inset 0 0 12px var(--blue); }
+    50% { border-color:var(--line); box-shadow:none; }
+  }
+  body[data-anim="neon"] .live.goal { animation:goalflash-neon 1.1s ease-out; }
+  @keyframes goalflash-cinema {
+    0%,100% { background:var(--panel); }
+    35% { background:#000; }
+  }
+  body[data-anim="cinema"] .live.goal { animation:goalflash-cinema 1.2s ease-in-out; }
 </style>
 </head>
 <body>
@@ -1281,20 +1349,44 @@
 
   // ─── Jingles victoire / défaite (synthèse WebAudio, aucun fichier) ───
   var audioCtx = null;
+  // Styles de jingle : notes [fréquence, départ, durée]. Le volume compense
+  // la puissance perçue de chaque forme d'onde (square/sawtooth >> sine).
+  var JINGLES = {
+    broadcast: {
+      type: 'triangle', vol: .22,
+      win: [[440, 0, .14], [554, .12, .14], [659, .24, .26]],   // arpège montant
+      loss: [[330, 0, .2], [262, .2, .34]],                     // deux tons descendants
+    },
+    arcade: {
+      type: 'square', vol: .1,
+      win: [[523, 0, .09], [659, .09, .09], [784, .18, .09], [1047, .27, .24]],
+      loss: [[392, 0, .12], [330, .12, .12], [262, .24, .3]],
+    },
+    soft: {
+      type: 'sine', vol: .17,
+      win: [[523, 0, .55], [659, .07, .55], [784, .14, .6]],    // accord doux
+      loss: [[392, 0, .6], [311, .1, .65]],
+    },
+    epic: {
+      type: 'sawtooth', vol: .09,
+      win: [[131, 0, .75], [196, 0, .75], [262, 0, .75], [392, .18, .6]],
+      loss: [[131, 0, .85], [156, 0, .85], [98, .22, .7]],      // accord sombre
+    },
+  };
+
   function playJingle(win) {
     try {
       if (!audioCtx) audioCtx = new AudioContext();
+      var preset = (cur && cur.config && cur.config.soundPreset) || 'broadcast';
+      var j = JINGLES[preset] || JINGLES.broadcast;
       var t0 = audioCtx.currentTime;
-      var notes = win
-        ? [[440, 0, .14], [554, .12, .14], [659, .24, .26]]    // arpège montant
-        : [[330, 0, .2], [262, .2, .34]];                       // deux tons descendants
-      notes.forEach(function (n) {
+      (win ? j.win : j.loss).forEach(function (n) {
         var o = audioCtx.createOscillator();
         var g = audioCtx.createGain();
-        o.type = 'triangle';
+        o.type = j.type;
         o.frequency.value = n[0];
         g.gain.setValueAtTime(0, t0 + n[1]);
-        g.gain.linearRampToValueAtTime(.22, t0 + n[1] + .02);
+        g.gain.linearRampToValueAtTime(j.vol, t0 + n[1] + .02);
         g.gain.exponentialRampToValueAtTime(.001, t0 + n[1] + n[2]);
         o.connect(g).connect(audioCtx.destination);
         o.start(t0 + n[1]);
@@ -1355,7 +1447,7 @@
     $('resultStreak').textContent = (st && st.count >= 2)
       ? T.resStreak(st.count, st.type === 'W')
       : '';
-    if (win && preset !== 'minimal') {
+    if (win && preset !== 'minimal' && preset !== 'cinema') {
       // Pluie aux couleurs du thème — couleur de victoire dominante.
       var cs = getComputedStyle(document.documentElement);
       var cWin = cs.getPropertyValue('--blue').trim() || '#2f9bff';
