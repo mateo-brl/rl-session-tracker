@@ -16,6 +16,7 @@ const config = require('./config');
 const windows = require('./windows');
 const updater = require('./updater');
 const discord = require('./discord-rpc');
+const obs = require('./obs-server');
 const SessionStore = require('./session');
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
@@ -58,8 +59,31 @@ const state = {
   week: null,            // bilan des 7 derniers jours
   records: null,         // records de tous les temps
   h2h: null,             // « déjà croisé » : bilan contre les adversaires du match en cours
+  obs: { running: false, port: 0, error: null },   // serveur overlay OBS
   update: updater.getState(),
 };
+
+// ── Mode streamer : extrait de l'état envoyé à la page overlay OBS ──
+function obsState() {
+  return {
+    lang: state.lang,
+    theme: config.get().theme,
+    game: state.game.running,
+    live: state.live,
+    currentRanked: state.currentRanked,
+    session: state.session,
+    h2h: state.h2h,
+  };
+}
+
+function applyObsConfig() {
+  const o = config.get().obs || {};
+  if (o.enabled) {
+    obs.start(o.port, log, (st) => { state.obs = st; pushState(); });
+  } else if (obs.running()) {
+    obs.stop();
+  }
+}
 
 // ── Head-to-head : recalculé uniquement quand la liste d'adversaires change ──
 let h2hKey = '';
@@ -109,6 +133,7 @@ function pushState() {
   refreshH2h();
   discord.refresh(state);
   windows.broadcast('state', state);
+  obs.broadcast(obsState());
 }
 
 // ───────── Démarrage automatique avec Windows ─────────
@@ -290,12 +315,13 @@ function startStatsApi() {
     refreshSession();
     pushState();
     const last = state.history[0];
-    if (last) windows.broadcast('match-result', last);
+    if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
     log('forfait enregistré : ' + (snap.mode || '?') + ' — compté comme défaite');
   });
   api.on('goal', (d) => {
     if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
+    obs.emit('goal', d);
   });
   // Télémétrie boost → moteur audio Alpha Boost (fenêtre invisible).
   api.on('telemetry', (d) => {
@@ -334,7 +360,7 @@ function startStatsApi() {
     // Animation victoire / défaite sur le dashboard : le match qu'on vient
     // d'enregistrer est le premier de l'historique, déjà évalué (W/L, MVP).
     const last = state.history[0];
-    if (last) windows.broadcast('match-result', last);
+    if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
     log('match enregistré : ' + (snap.mode || '?') + ' '
       + (Array.isArray(snap.score) ? snap.score.join('-') : '?'));
   });
@@ -383,6 +409,7 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && typeof partial.discordRpc === 'boolean') {
     discord.setEnabled(partial.discordRpc, log);
   }
+  if (partial && partial.obs) applyObsConfig();
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
   return config.get();
@@ -403,7 +430,11 @@ ipcMain.on('preview-animation', (_e, result) => {
   const already = !!windows.getDashboard();
   windows.openDashboard({ fullscreen: config.get().dashboardFullscreen });
   // Si la fenêtre vient d'être créée, on lui laisse le temps de charger.
-  setTimeout(() => windows.broadcast('match-result', fake), already ? 50 : 900);
+  // L'overlay OBS reçoit aussi le test : le streamer voit sa bannière.
+  setTimeout(() => {
+    windows.broadcast('match-result', fake);
+    obs.emit('result', fake);
+  }, already ? 50 : 900);
 });
 
 // Lit un sample Alpha Boost pour le moteur audio (nom strictement filtré,
@@ -477,7 +508,7 @@ if (!gotLock) {
 } else {
   app.on('second-instance', () => windows.showControl());
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); });
+  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}
@@ -497,6 +528,7 @@ if (!gotLock) {
 
     updater.init((u) => { state.update = u; pushState(); }, log);
     discord.setEnabled(config.get().discordRpc, log);
+    applyObsConfig();
     startStatsApi();
 
     const watcher = new GameWatcher();
