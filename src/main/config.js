@@ -36,9 +36,15 @@ const DEFAULTS = {
     endMatch: true,      // écran victoire / défaite
     goal: true,          // flash à chaque but
   },
+  alphaBoost: {          // son Alpha Boost (100 % externe, via la Stats API)
+    enabled: false,
+    volume: 0.45,        // 0 → 1
+    profile: 'quality',  // quality (paliers de vitesse) | classic (statique)
+  },
 };
 
 const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade'];
+const ALPHA_PROFILES = ['quality', 'classic'];
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
@@ -139,6 +145,14 @@ function update(partial) {
       if (ANIM_PRESETS.includes(partial.anim.preset)) a.preset = partial.anim.preset;
       if (typeof partial.anim.endMatch === 'boolean') a.endMatch = partial.anim.endMatch;
       if (typeof partial.anim.goal === 'boolean') a.goal = partial.anim.goal;
+    }
+    // Son Alpha Boost : activation, volume, profil sonore.
+    if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
+      const ab = config.alphaBoost = { ...DEFAULTS.alphaBoost, ...(config.alphaBoost || {}) };
+      if (typeof partial.alphaBoost.enabled === 'boolean') ab.enabled = partial.alphaBoost.enabled;
+      const vol = Number(partial.alphaBoost.volume);
+      if (Number.isFinite(vol) && vol >= 0 && vol <= 1) ab.volume = vol;
+      if (ALPHA_PROFILES.includes(partial.alphaBoost.profile)) ab.profile = partial.alphaBoost.profile;
     }
     // Mini-overlay : contenu, échelle, opacité.
     if (partial.overlayCfg && typeof partial.overlayCfg === 'object') {
