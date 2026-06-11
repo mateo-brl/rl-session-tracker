@@ -37,7 +37,7 @@
   #wrap.stale { opacity:.35; }     /* application fermée : on s'efface */
   #bar {
     display:flex; align-items:stretch;
-    background:rgba(12,14,17,.93);
+    background:rgba(12,14,17,var(--bgop,.93));
     border:1px solid var(--line);
     clip-path:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
     overflow:hidden;
@@ -105,6 +105,28 @@
   #banner .stripe { position:absolute; left:0; top:0; right:0; height:3px; }
   #banner.W .stripe { background:var(--blue); }
   #banner.L .stripe { background:var(--orange); }
+
+  /* ─── Style « Compact » : une seule ligne fine, idéale près de la cam ─── */
+  body[data-style="compact"] .cell { flex-direction:row; align-items:baseline;
+    gap:10px; padding:9px 16px 8px; }
+  body[data-style="compact"] .k { margin:0; font-size:11px; }
+  body[data-style="compact"] .v { font-size:22px; }
+  body[data-style="compact"] .v .sep { font-size:16px; padding:0 4px; }
+  body[data-style="compact"] .v .pct { font-size:13px; margin-left:6px; }
+  body[data-style="compact"] .mode-chip { font-size:11px; margin-right:7px; }
+  body[data-style="compact"] .ot-chip { font-size:12px; }
+  body[data-style="compact"] .h2h { font-size:12px; }
+  body[data-style="compact"] #banner .res { font-size:24px; }
+  body[data-style="compact"] #banner .sc { font-size:20px; }
+
+  /* ─── Style « Vertical » : carte empilée, pour le bord de l'écran ─── */
+  body[data-style="vertical"] #bar { flex-direction:column; min-width:230px; }
+  body[data-style="vertical"] .cell { padding:13px 18px 11px; }
+  body[data-style="vertical"] .cell + .cell { border-left:0;
+    border-top:1px solid var(--line); }
+  body[data-style="vertical"] #banner { flex-direction:column; gap:6px; }
+  body[data-style="vertical"] #banner .res { font-size:30px; }
+  body[data-style="vertical"] #banner .sc { font-size:24px; }
 </style>
 </head>
 <body>
@@ -174,20 +196,39 @@
     s.setProperty('--line', mix(t.bg, '#ffffff', .14));
   }
 
+  // Réglages de l'overlay (style, échelle, contenu) : poussés par
+  // l'application et appliqués immédiatement, ?style= et ?scale= dans l'URL
+  // ont le dernier mot (pratique pour plusieurs sources OBS différentes).
+  var qs = new URLSearchParams(location.search);
+  var oc = {};
+  function applyCfg(c) {
+    oc = c || {};
+    var style = qs.get('style') || oc.style || 'broadcast';
+    document.body.dataset.style =
+      ['broadcast', 'compact', 'vertical'].indexOf(style) !== -1
+        ? style : 'broadcast';
+    var scale = parseFloat(qs.get('scale')) || oc.scale || 1;
+    document.body.style.zoom = Math.max(.5, Math.min(2.5, scale));
+    document.documentElement.style.setProperty('--bgop',
+      oc.bgOpacity == null ? .93 : oc.bgOpacity);
+  }
+
   function render(s) {
     if (!s) return;
     T = I18N[s.lang] || I18N.fr;
     applyTheme(s.theme);
+    applyCfg(s.obsCfg);
 
     var ses = s.session || {};
     $('w').textContent = ses.wins || 0;
     $('l').textContent = ses.losses || 0;
     $('pct').textContent = ses.winrate != null ? ses.winrate + ' %' : '';
 
-    // Titre du bloc session : la série prend le dessus dès 2 d'affilée.
+    // Titre du bloc session : la série prend le dessus dès 2 d'affilée
+    // (sauf si le streamer préfère la masquer).
     var st = ses.streak || { count: 0 };
     var k = $('sesK');
-    if (st.count >= 2) {
+    if (oc.showStreak !== false && st.count >= 2) {
       k.className = 'k ' + (st.type === 'W' ? 'hot' : 'tilt');
       k.textContent = T.streak(st.count, st.type === 'W');
     } else {
@@ -197,11 +238,11 @@
 
     // Bloc match en direct.
     var live = s.live;
-    if (live && live.active && !live.training && live.score) {
+    if (oc.showLive !== false && live && live.active && !live.training && live.score) {
       $('liveCell').style.display = 'flex';
       $('liveK').innerHTML = '<span class="live-dot"></span>' + T.live;
       var h2h = '';
-      var names = s.h2h ? Object.keys(s.h2h) : [];
+      var names = (oc.showH2h !== false && s.h2h) ? Object.keys(s.h2h) : [];
       if (names.length === 1) {
         var h = s.h2h[names[0]];
         h2h = '<span class="h2h">vs ' + esc(names[0]) + ' · '
@@ -221,6 +262,7 @@
   // Flash de but.
   var wrap = $('wrap');
   function goalFlash() {
+    if (oc.goalFlash === false) return;
     wrap.classList.remove('goal');
     void wrap.offsetWidth;          // relance l'animation
     wrap.classList.add('goal');
@@ -229,6 +271,7 @@
   // Bannière de fin de match (4 s).
   var bannerTimer = null;
   function showResult(m) {
+    if (oc.banner === false) return;
     if (!m || (m.result !== 'W' && m.result !== 'L')) return;
     var b = $('banner');
     b.className = 'on ' + m.result;

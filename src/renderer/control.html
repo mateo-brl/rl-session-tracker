@@ -372,6 +372,33 @@
         <button class="ghost" style="margin-top:0" id="obsCopy" data-i18n="bCopy">Copier l'URL</button>
       </div>
       <div class="hint warn" id="obsErr" style="display:none"></div>
+      <div class="duo">
+        <label class="field"><span data-i18n="lObsStyle">Style</span>
+          <select id="obsStyle">
+            <option value="broadcast" data-i18n="oObsBroadcast">Broadcast — bandeau deux blocs</option>
+            <option value="compact" data-i18n="oObsCompact">Compact — une ligne fine</option>
+            <option value="vertical" data-i18n="oObsVertical">Vertical — carte empilée</option>
+          </select></label>
+        <label class="field"><span data-i18n="lSize">Taille</span>
+          <select id="obsScale">
+            <option value="0.8" data-i18n="oSmall">Petit</option>
+            <option value="1" data-i18n="oNormal">Normal</option>
+            <option value="1.25" data-i18n="oBig">Grand</option>
+            <option value="1.5" data-i18n="oXl">Très grand</option>
+          </select></label>
+      </div>
+      <label class="field"><span data-i18n="lObsBg">Fond du bandeau</span>
+        <select id="obsBg">
+          <option value="0.93" data-i18n="oBgSolid">Opaque</option>
+          <option value="0.7">70 %</option>
+          <option value="0.5">50 %</option>
+          <option value="0.3">30 %</option>
+        </select></label>
+      <label class="check"><input type="checkbox" id="obsStreak" /><span data-i18n="cObsStreak">Afficher la série en cours</span></label>
+      <label class="check"><input type="checkbox" id="obsLive" /><span data-i18n="cObsLive">Afficher le score du match en direct</span></label>
+      <label class="check"><input type="checkbox" id="obsH2h" /><span data-i18n="cObsH2h">Afficher « déjà croisé » (1v1)</span></label>
+      <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
+      <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
       <div class="hint" data-i18n="hintObs">Dans OBS : Sources → + →
         Navigateur, colle l'URL (taille conseillée 860 × 220, fond
         transparent automatique). Le bandeau affiche ta session, la série, le
@@ -449,6 +476,17 @@
       hObs: 'Mode streamer (OBS)',
       cObs: 'Servir l\u2019overlay de stream en local',
       bCopy: 'Copier l\u2019URL', bCopied: 'Copi\u00e9e !',
+      lObsStyle: 'Style',
+      oObsBroadcast: 'Broadcast \u2014 bandeau deux blocs',
+      oObsCompact: 'Compact \u2014 une ligne fine',
+      oObsVertical: 'Vertical \u2014 carte empil\u00e9e',
+      oXl: 'Tr\u00e8s grand',
+      lObsBg: 'Fond du bandeau', oBgSolid: 'Opaque',
+      cObsStreak: 'Afficher la s\u00e9rie en cours',
+      cObsLive: 'Afficher le score du match en direct',
+      cObsH2h: 'Afficher \u00ab d\u00e9j\u00e0 crois\u00e9 \u00bb (1v1)',
+      cObsBanner: 'Banni\u00e8re victoire / d\u00e9faite en fin de match',
+      cObsGoal: 'Flash \u00e0 chaque but',
       obsErr: function (port) { return 'Port ' + port + ' indisponible \u2014 un autre logiciel l\u2019utilise. Modifie \u00ab obs.port \u00bb dans config.json ou ferme l\u2019autre application.'; },
       hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb ci-dessus l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
@@ -525,6 +563,17 @@
       hObs: 'Streamer mode (OBS)',
       cObs: 'Serve the stream overlay locally',
       bCopy: 'Copy URL', bCopied: 'Copied!',
+      lObsStyle: 'Style',
+      oObsBroadcast: 'Broadcast — two-block bar',
+      oObsCompact: 'Compact — one thin line',
+      oObsVertical: 'Vertical — stacked card',
+      oXl: 'Extra large',
+      lObsBg: 'Bar background', oBgSolid: 'Solid',
+      cObsStreak: 'Show the current streak',
+      cObsLive: 'Show the live match score',
+      cObsH2h: 'Show “seen before” (1v1)',
+      cObsBanner: 'Victory / defeat banner at match end',
+      cObsGoal: 'Flash on every goal',
       obsErr: function (port) { return 'Port ' + port + ' unavailable — another program is using it. Change “obs.port” in config.json or close the other app.'; },
       hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons above animate it too. Local only: nothing is exposed to the internet.',
       bDash: 'Open the dashboard', bClear: 'Clear recent matches',
@@ -704,6 +753,20 @@
     // Mode streamer : URL à copier quand le serveur tourne, erreur sinon.
     var oc2 = cfg.obs || {};
     $('obsOn').checked = !!oc2.enabled;
+    if (document.activeElement !== $('obsStyle')) {
+      $('obsStyle').value = oc2.style || 'broadcast';
+    }
+    if (document.activeElement !== $('obsScale')) {
+      $('obsScale').value = String(oc2.scale || 1);
+    }
+    if (document.activeElement !== $('obsBg')) {
+      $('obsBg').value = String(oc2.bgOpacity != null ? oc2.bgOpacity : 0.93);
+    }
+    $('obsStreak').checked = oc2.showStreak !== false;
+    $('obsLive').checked = oc2.showLive !== false;
+    $('obsH2h').checked = oc2.showH2h !== false;
+    $('obsBanner').checked = oc2.banner !== false;
+    $('obsGoal').checked = oc2.goalFlash !== false;
     var obsSt = s.obs || {};
     $('obsUrlRow').style.display = obsSt.running ? 'grid' : 'none';
     if (obsSt.running) {
@@ -928,9 +991,25 @@
   };
 
   // ─── Mode streamer (OBS) ───
-  $('obsOn').onchange = function () {
-    api.setConfig && api.setConfig({ obs: { enabled: $('obsOn').checked } });
-  };
+  // Tous les réglages s'appliquent en direct dans OBS, sans recharger la
+  // source : la page overlay reçoit la configuration par le flux SSE.
+  function saveObs() {
+    api.setConfig && api.setConfig({ obs: {
+      enabled: $('obsOn').checked,
+      style: $('obsStyle').value,
+      scale: Number($('obsScale').value),
+      bgOpacity: Number($('obsBg').value),
+      showStreak: $('obsStreak').checked,
+      showLive: $('obsLive').checked,
+      showH2h: $('obsH2h').checked,
+      banner: $('obsBanner').checked,
+      goalFlash: $('obsGoal').checked,
+    } });
+  }
+  ['obsOn', 'obsStyle', 'obsScale', 'obsBg', 'obsStreak', 'obsLive',
+    'obsH2h', 'obsBanner', 'obsGoal'].forEach(function (id) {
+    $(id).addEventListener('change', saveObs);
+  });
   $('obsCopy').onclick = function () {
     var input = $('obsUrl');
     input.select();
