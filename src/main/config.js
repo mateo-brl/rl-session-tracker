@@ -41,6 +41,7 @@ const DEFAULTS = {
     volume: 0.45,        // 0 → 1
     profile: 'quality',  // quality (paliers de vitesse) | classic (statique)
   },
+  discordRpc: false,     // statut Discord (Rich Presence) pendant le jeu
 };
 
 const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade'];
@@ -145,6 +146,9 @@ function update(partial) {
       if (ANIM_PRESETS.includes(partial.anim.preset)) a.preset = partial.anim.preset;
       if (typeof partial.anim.endMatch === 'boolean') a.endMatch = partial.anim.endMatch;
       if (typeof partial.anim.goal === 'boolean') a.goal = partial.anim.goal;
+    }
+    if (typeof partial.discordRpc === 'boolean') {
+      config.discordRpc = partial.discordRpc;
     }
     // Son Alpha Boost : activation, volume, profil sonore.
     if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
