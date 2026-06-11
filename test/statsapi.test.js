@@ -69,6 +69,99 @@ test('le match suivant repart normalement après une fin de match', () => {
   assert.equal(got.starts, 2);
 });
 
+// ───────── Télémétrie boost (son Alpha Boost) ─────────
+// Champs réels de la Stats API : Speed (km/h), Boost (0-100), bBoosting.
+// Particularité du jeu : tout champ à 0 / false est OMIS du JSON.
+
+function lastTelemetry(api) {
+  const box = { value: null, stops: 0 };
+  api.on('telemetry', (t) => {
+    box.value = t;
+    if (!t.boosting && !t.boost && !t.speed) box.stops++;
+  });
+  return box;
+}
+
+function stateWith(player) {
+  return {
+    Game: { Teams: [{ Score: 0 }, { Score: 0 }], TimeSeconds: 100 },
+    Players: { P1: player, P2: PLAYERS.P2 },
+  };
+}
+
+test('télémétrie : bBoosting + jauge pleine = boosting, vitesse convertie', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 83, Boost: 64, bBoosting: true }));
+  assert.equal(got.value.boosting, true);
+  assert.equal(got.value.boost, 64);
+  assert.equal(got.value.speed, 2300);            // 83 km/h ≈ supersonique
+});
+
+test('télémétrie : champs omis = zéro — jauge vide, pas de son', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  // bBoosting tenu mais Boost absent (= 0) : bouton enfoncé sans carburant.
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 50, bBoosting: true }));
+  assert.equal(got.value.boosting, false);
+  assert.equal(got.value.boost, 0);
+});
+
+test('télémétrie : la jauge qui descend vaut un bBoosting', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 40, Boost: 80 }));
+  assert.equal(got.value.boosting, false);        // premier paquet : référence
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 45, Boost: 71 }));
+  assert.equal(got.value.boosting, true);         // 80 → 71 : il booste
+});
+
+test('télémétrie : silence pendant le ralenti après un but', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'GoalScored', { Scorer: { Name: 'Adv', TeamNum: 1 } });
+  assert.equal(got.stops, 1);                     // arrêt immédiat du son
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 60, Boost: 50, bBoosting: true }));
+  assert.equal(got.value.boosting, false);        // replay : muet
+});
+
+test('télémétrie : le son est coupé à la fin du match', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', stateWith({ Name: 'Mateo', TeamNum: 0, Score: 0,
+    Speed: 83, Boost: 64, bBoosting: true }));
+  assert.equal(got.value.boosting, true);
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(got.value.boosting, false);
+  assert.ok(got.stops >= 1);
+});
+
+test('télémétrie : suit la cible de la caméra (Game.Target)', () => {
+  const api = new RLStatsAPI();
+  const got = lastTelemetry(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', {
+    Game: { Teams: [{ Score: 0 }, { Score: 0 }], TimeSeconds: 100,
+      bHasTarget: true, Target: { Name: 'Adv', TeamNum: 1 } },
+    Players: {
+      P1: { Name: 'Mateo', TeamNum: 0, Score: 0, Speed: 10 },
+      P2: { Name: 'Adv', TeamNum: 1, Score: 0, Speed: 83, Boost: 30, bBoosting: true },
+    },
+  });
+  assert.equal(got.value.boosting, true);         // c'est bien Adv qui est lu
+  assert.equal(got.value.speed, 2300);
+});
+
 test('les stats des joueurs arrivent dans le snapshot de fin', () => {
   const api = new RLStatsAPI();
   let snap = null;

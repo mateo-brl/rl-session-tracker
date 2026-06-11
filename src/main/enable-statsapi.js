@@ -21,7 +21,10 @@ const { spawn } = require('child_process');
 const PS_LINES = [
   "$ErrorActionPreference='SilentlyContinue'",
   '$Port=49123',
-  '$Rate=10',
+  // 120 paquets/s : nécessaire pour la réactivité du son Alpha Boost (le
+  // tracker, lui, se contenterait de 10). La diffusion d'état vers les
+  // fenêtres reste limitée à 1/s côté connecteur — aucun impact ailleurs.
+  '$Rate=120',
   // ── Élévation automatique : sans droits admin, on se relance élevé. ──
   '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
   'if(-not $pr.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)){',

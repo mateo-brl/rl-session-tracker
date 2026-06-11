@@ -111,13 +111,35 @@ function setGameRunning(running) {
   if (running) {
     if (config.get().autoDashboard) openDashboard();
     if (config.get().overlayEnabled) openOverlay();
+    if (alphaEnabled()) openAlphaAudio();
   } else {
     state.live = null;
     state.currentRanked = null;
     windows.closeDashboard();
     windows.closeOverlay();
+    windows.closeAlphaAudio();
   }
   pushState();
+}
+
+// ───────── Son Alpha Boost ─────────
+// Joué par une fenêtre invisible (WebAudio), pilotée par la télémétrie de la
+// Stats API. 100 % externe : on ne touche ni aux fichiers ni à la mémoire du
+// jeu — même approche que le reste de l'application.
+function alphaEnabled() {
+  const ab = config.get().alphaBoost;
+  return !!(ab && ab.enabled);
+}
+
+function sendAlphaCfg() {
+  const w = windows.getAlphaAudio();
+  if (w) {
+    try { w.webContents.send('alpha-cfg', config.get().alphaBoost); } catch (e) {}
+  }
+}
+
+function openAlphaAudio() {
+  windows.openAlphaAudio(() => sendAlphaCfg());
 }
 
 function openOverlay() {
@@ -247,6 +269,13 @@ function startStatsApi() {
     if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
   });
+  // Télémétrie boost → moteur audio Alpha Boost (fenêtre invisible).
+  api.on('telemetry', (d) => {
+    const w = windows.getAlphaAudio();
+    if (w) {
+      try { w.webContents.send('alpha-telemetry', d); } catch (e) {}
+    }
+  });
   api.on('ended', (snap) => {
     state.live = null;
     if (isTraining(snap)) {
@@ -313,6 +342,15 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && partial.overlayCfg) {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
+  // Le son Alpha Boost suit son réglage sans redémarrage.
+  if (partial && partial.alphaBoost) {
+    if (alphaEnabled()) {
+      if (state.game.running) openAlphaAudio();
+      sendAlphaCfg();
+    } else {
+      windows.closeAlphaAudio();
+    }
+  }
   if (partial && partial.lang) buildTrayMenu();
   refreshSession();                    // le pseudo peut changer les résultats
   pushState();
@@ -335,6 +373,34 @@ ipcMain.on('preview-animation', (_e, result) => {
   windows.openDashboard({ fullscreen: config.get().dashboardFullscreen });
   // Si la fenêtre vient d'être créée, on lui laisse le temps de charger.
   setTimeout(() => windows.broadcast('match-result', fake), already ? 50 : 900);
+});
+
+// Lit un sample Alpha Boost pour le moteur audio (nom strictement filtré,
+// dossier imposé : aucun chemin arbitraire ne peut sortir d'ici).
+ipcMain.handle('alpha-read-sound', (_e, name) => {
+  const safe = String(name).replace(/[^a-z0-9]/g, '');
+  return fs.readFileSync(
+    path.join(__dirname, '..', 'renderer', 'sounds', 'alpha', safe + '.ogg'));
+});
+
+// Essai du son Alpha Boost depuis les réglages : la fenêtre audio joue une
+// montée en vitesse simulée. Créée au besoin, refermée après si le jeu ne
+// tourne pas (pour ne pas garder un renderer inutile en mémoire).
+ipcMain.on('alpha-test', () => {
+  const existed = !!windows.getAlphaAudio();
+  windows.openAlphaAudio(() => {
+    sendAlphaCfg();
+    const w = windows.getAlphaAudio();
+    if (w) {
+      try { w.webContents.send('alpha-test'); } catch (e) {}
+    }
+  });
+  if (!existed && !state.game.running) {
+    // L'essai dure ~4 s : large marge avant de refermer la fenêtre.
+    setTimeout(() => {
+      if (!state.game.running) windows.closeAlphaAudio();
+    }, 12000);
+  }
 });
 
 // Marque le match EN COURS comme classé ou casual.
