@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+  obs.html — Overlay de stream, servi par le serveur local (obs-server.js)
+  et capturé dans OBS via une source « Navigateur » :
+
+      http://127.0.0.1:49350/overlay   (taille conseillée : 860 × 220)
+
+  Fond transparent : seul le bandeau s'affiche par-dessus le stream. La page
+  reçoit l'état par Server-Sent Events (reconnexion automatique), flashe à
+  chaque but et affiche une bannière en fin de match.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>RL Session Tracker — Overlay OBS</title>
+<style>
+  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
+    src:url('/fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
+    src:url('/fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
+  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
+    src:url('/fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+  :root {
+    --bg:#0c0e11; --panel2:#1a1e25; --line:#272d37;
+    --text:#eef1f5; --muted:#8b93a1;
+    --blue:#2f9bff; --orange:#ff8a1e; --gold:#ffc233;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    background:transparent; overflow:hidden;
+    font-family:'Barlow Condensed','Segoe UI',sans-serif;
+    color:var(--text); -webkit-user-select:none; user-select:none;
+  }
+  /* Bandeau principal — coin droit biseauté, liseré bleu/orange. */
+  #wrap { position:relative; display:inline-block; margin:12px;
+    transition:opacity .6s; }
+  #wrap.stale { opacity:.35; }     /* application fermée : on s'efface */
+  #bar {
+    display:flex; align-items:stretch;
+    background:rgba(12,14,17,.93);
+    border:1px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+    overflow:hidden;
+  }
+  .strip { position:absolute; left:0; top:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--blue) 0 50%, var(--orange) 50% 100%); }
+  .cell { display:flex; flex-direction:column; justify-content:center;
+    padding:14px 20px 12px; }
+  .cell + .cell { border-left:1px solid var(--line); }
+  .k { font-style:italic; font-weight:800; font-size:12px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--muted); margin-bottom:3px;
+    white-space:nowrap; }
+  .k.hot { color:var(--blue); }
+  .k.tilt { color:var(--orange); }
+  .v { font-weight:800; font-size:34px; line-height:1;
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .v .w { color:var(--blue); }
+  .v .sep { color:var(--line); font-size:24px; padding:0 6px; }
+  .v .l { color:var(--orange); }
+  .v .pct { font-size:17px; color:var(--muted); font-weight:700;
+    margin-left:10px; }
+  #liveCell { display:none; }
+  .live-dot { display:inline-block; width:8px; height:8px;
+    background:var(--blue); margin-right:8px; vertical-align:3px;
+    animation:pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity:.25; } }
+  .mode-chip { display:inline-block; font-style:italic; font-weight:800;
+    font-size:13px; letter-spacing:.12em; text-transform:uppercase;
+    background:var(--panel2); border:1px solid var(--line);
+    color:var(--muted); padding:1px 8px; margin-right:10px;
+    transform:skewX(-12deg); }
+  .mode-chip span { display:inline-block; transform:skewX(12deg); }
+  .ot-chip { color:var(--gold); font-size:15px; font-weight:800;
+    font-style:italic; margin-left:8px; }
+  .h2h { font-size:14px; color:var(--muted); font-weight:700; margin-left:10px; }
+
+  /* Flash de but : balayage rapide sur le bandeau. */
+  #flash { position:absolute; inset:0; pointer-events:none; opacity:0;
+    background:linear-gradient(100deg, transparent 30%,
+      rgba(255,255,255,.28) 50%, transparent 70%);
+    transform:translateX(-100%); }
+  #wrap.goal #flash { animation:sweep .9s ease-out; }
+  @keyframes sweep {
+    0% { opacity:1; transform:translateX(-100%); }
+    100% { opacity:0; transform:translateX(100%); }
+  }
+
+  /* Bannière de fin de match : recouvre le bandeau quelques secondes. */
+  #banner { position:absolute; inset:0; display:none;
+    align-items:center; justify-content:center; gap:16px;
+    background:var(--bg);
+    clip-path:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 0 100%);
+    border:1px solid var(--line); }
+  #banner.on { display:flex; animation:slidein .35s ease-out; }
+  @keyframes slidein {
+    from { transform:translateY(12px); opacity:0; }
+    to { transform:translateY(0); opacity:1; }
+  }
+  #banner .res { font-style:italic; font-weight:800; font-size:40px;
+    letter-spacing:.08em; text-transform:uppercase; line-height:1; }
+  #banner.W .res { color:var(--blue); }
+  #banner.L .res { color:var(--orange); }
+  #banner .sc { font-weight:800; font-size:32px; color:var(--text);
+    font-variant-numeric:tabular-nums; }
+  #banner .stripe { position:absolute; left:0; top:0; right:0; height:3px; }
+  #banner.W .stripe { background:var(--blue); }
+  #banner.L .stripe { background:var(--orange); }
+</style>
+</head>
+<body>
+  <div id="wrap" class="stale">
+    <div id="bar">
+      <div class="cell">
+        <div class="k" id="sesK">Session</div>
+        <div class="v"><span class="w" id="w">0</span><span class="sep">–</span><span
+          class="l" id="l">0</span><span class="pct" id="pct"></span></div>
+      </div>
+      <div class="cell" id="liveCell">
+        <div class="k" id="liveK">En direct</div>
+        <div class="v" id="liveV"></div>
+      </div>
+    </div>
+    <div class="strip"></div>
+    <div id="flash"></div>
+    <div id="banner"><div class="stripe"></div>
+      <div class="res" id="resTxt"></div><div class="sc" id="resSc"></div></div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  var I18N = {
+    fr: { session: 'Session', live: 'En direct', training: 'Entraînement',
+      win: 'Victoire', loss: 'Défaite', ot: 'OT',
+      streak: function (n, w) { return 'Série de ' + n + (w ? ' victoires' : ' défaites'); },
+      h2h: function (w, l) { return w + 'V–' + l + 'D'; } },
+    en: { session: 'Session', live: 'Live', training: 'Training',
+      win: 'Victory', loss: 'Defeat', ot: 'OT',
+      streak: function (n, w) { return 'Streak of ' + n + (w ? ' wins' : ' losses'); },
+      h2h: function (w, l) { return w + 'W–' + l + 'L'; } },
+  };
+  var T = I18N.fr;
+
+  // Thème : mêmes variables que l'application (couleurs personnalisées).
+  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  function mix(a, b, f) {
+    var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    var c = [16, 8, 0].map(function (sh) {
+      var va = (pa >> sh) & 255, vb = (pb >> sh) & 255;
+      return Math.round(va + (vb - va) * f);
+    });
+    return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+  }
+  var themeApplied = '';
+  function applyTheme(t) {
+    t = Object.assign({}, THEME_DEFAULT, t || {});
+    var key = JSON.stringify(t);
+    if (key === themeApplied) return;
+    themeApplied = key;
+    var s = document.documentElement.style;
+    s.setProperty('--blue', t.win);
+    s.setProperty('--orange', t.loss);
+    s.setProperty('--gold', t.gold);
+    s.setProperty('--bg', t.bg);
+    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
+    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+  }
+
+  function render(s) {
+    if (!s) return;
+    T = I18N[s.lang] || I18N.fr;
+    applyTheme(s.theme);
+
+    var ses = s.session || {};
+    $('w').textContent = ses.wins || 0;
+    $('l').textContent = ses.losses || 0;
+    $('pct').textContent = ses.winrate != null ? ses.winrate + ' %' : '';
+
+    // Titre du bloc session : la série prend le dessus dès 2 d'affilée.
+    var st = ses.streak || { count: 0 };
+    var k = $('sesK');
+    if (st.count >= 2) {
+      k.className = 'k ' + (st.type === 'W' ? 'hot' : 'tilt');
+      k.textContent = T.streak(st.count, st.type === 'W');
+    } else {
+      k.className = 'k';
+      k.textContent = T.session;
+    }
+
+    // Bloc match en direct.
+    var live = s.live;
+    if (live && live.active && !live.training && live.score) {
+      $('liveCell').style.display = 'flex';
+      $('liveK').innerHTML = '<span class="live-dot"></span>' + T.live;
+      var h2h = '';
+      var names = s.h2h ? Object.keys(s.h2h) : [];
+      if (names.length === 1) {
+        var h = s.h2h[names[0]];
+        h2h = '<span class="h2h">vs ' + esc(names[0]) + ' · '
+          + T.h2h(h.wins, h.losses) + '</span>';
+      }
+      $('liveV').innerHTML =
+        (live.mode ? '<span class="mode-chip"><span>' + esc(live.mode) + '</span></span>' : '')
+        + '<span class="w">' + live.score[0] + '</span><span class="sep">:</span>'
+        + '<span class="l">' + live.score[1] + '</span>'
+        + (live.isOT ? '<span class="ot-chip">' + T.ot + '</span>' : '')
+        + h2h;
+    } else {
+      $('liveCell').style.display = 'none';
+    }
+  }
+
+  // Flash de but.
+  var wrap = $('wrap');
+  function goalFlash() {
+    wrap.classList.remove('goal');
+    void wrap.offsetWidth;          // relance l'animation
+    wrap.classList.add('goal');
+  }
+
+  // Bannière de fin de match (4 s).
+  var bannerTimer = null;
+  function showResult(m) {
+    if (!m || (m.result !== 'W' && m.result !== 'L')) return;
+    var b = $('banner');
+    b.className = 'on ' + m.result;
+    $('resTxt').textContent = m.result === 'W' ? T.win : T.loss;
+    $('resSc').textContent = m.score ? m.score[0] + ' – ' + m.score[1] : '';
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () { b.className = ''; }, 4000);
+  }
+
+  // Flux d'évènements : reconnexion automatique gérée par le navigateur.
+  var es = new EventSource('/events');
+  es.addEventListener('state', function (e) {
+    wrap.classList.remove('stale');
+    try { render(JSON.parse(e.data)); } catch (err) {}
+  });
+  es.addEventListener('goal', function () { goalFlash(); });
+  es.addEventListener('result', function (e) {
+    try { showResult(JSON.parse(e.data)); } catch (err) {}
+  });
+  es.onerror = function () { wrap.classList.add('stale'); };
+})();
+</script>
+</body>
+</html>

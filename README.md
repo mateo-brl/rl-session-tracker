@@ -69,6 +69,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🎮 **Statut Discord** | Rich Presence optionnelle : tes amis voient « Classé 2v2 · 3 – 2 » et ta série en cours, en direct. |
+| 📺 **Mode streamer (OBS)** | Un overlay de stream servi en local (`http://127.0.0.1:49350/overlay`) à capturer en source Navigateur : session, série, score en direct, flash de but et bannière de fin de match — aux couleurs de ton thème, fond transparent. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
 | 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). Thèmes de couleurs prédéfinis ou libres, 3 styles d'animations testables, overlay réglable. |
@@ -244,6 +245,7 @@ rl-session-tracker/
 │   │   ├── windows.js         # Fenêtres : contrôle, dashboard, overlay
 │   │   ├── updater.js         # Mises à jour automatiques (GitHub Releases)
 │   │   ├── discord-rpc.js     # Statut Discord (pipe IPC local, sans dépendance)
+│   │   ├── obs-server.js      # Mode streamer : overlay OBS servi en local (SSE)
 │   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
 │   └── renderer/
@@ -251,6 +253,7 @@ rl-session-tracker/
 │       ├── dashboard.html     # Le tracker plein écran
 │       ├── overlay.html       # Mini-overlay toujours au premier plan
 │       ├── alphaboost.html    # Moteur audio Alpha Boost (fenêtre invisible)
+│       ├── obs.html           # Overlay de stream (capturé dans OBS)
 │       ├── sounds/alpha/      # Samples Alpha Boost (projet trznx, MIT)
 │       └── fonts/             # Barlow Condensed (licence OFL-1.1)
 ├── build/icon.ico             # Icône de l'application
@@ -316,6 +319,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
 | 🎮 **Discord status** | Optional Rich Presence: your friends see "Ranked 2v2 · 3 – 2" and your current streak, live. |
+| 📺 **Streamer mode (OBS)** | A locally served stream overlay (`http://127.0.0.1:49350/overlay`) to capture as a Browser source: session, streak, live score, goal flash and end-of-match banner — in your theme colors, transparent background. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
 | 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). Built-in or fully custom color themes, 3 testable animation styles, adjustable overlay. |
@@ -487,6 +491,7 @@ rl-session-tracker/
 │   │   ├── windows.js         # Windows: control, dashboard, overlay
 │   │   ├── updater.js         # Automatic updates (GitHub Releases)
 │   │   ├── discord-rpc.js     # Discord status (local IPC pipe, no dependency)
+│   │   ├── obs-server.js      # Streamer mode: locally served OBS overlay (SSE)
 │   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
 │   ├── preload.js             # Secure IPC bridge (contextIsolation)
 │   └── renderer/
@@ -494,6 +499,7 @@ rl-session-tracker/
 │       ├── dashboard.html     # The fullscreen tracker
 │       ├── overlay.html       # Always-on-top mini-overlay
 │       ├── alphaboost.html    # Alpha Boost audio engine (hidden window)
+│       ├── obs.html           # Stream overlay (captured in OBS)
 │       ├── sounds/alpha/      # Alpha Boost samples (trznx project, MIT)
 │       └── fonts/             # Barlow Condensed (OFL-1.1 license)
 ├── build/icon.ico             # App icon

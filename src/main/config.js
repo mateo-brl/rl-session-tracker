@@ -42,6 +42,10 @@ const DEFAULTS = {
     profile: 'quality',  // quality (paliers de vitesse) | classic (statique)
   },
   discordRpc: false,     // statut Discord (Rich Presence) pendant le jeu
+  obs: {                 // mode streamer : overlay local à capturer dans OBS
+    enabled: false,
+    port: 49350,
+  },
 };
 
 const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade'];
@@ -149,6 +153,13 @@ function update(partial) {
     }
     if (typeof partial.discordRpc === 'boolean') {
       config.discordRpc = partial.discordRpc;
+    }
+    // Mode streamer (overlay OBS) : activation + port local.
+    if (partial.obs && typeof partial.obs === 'object') {
+      const o = config.obs = { ...DEFAULTS.obs, ...(config.obs || {}) };
+      if (typeof partial.obs.enabled === 'boolean') o.enabled = partial.obs.enabled;
+      const p = Number(partial.obs.port);
+      if (Number.isInteger(p) && p >= 1024 && p <= 65535) o.port = p;
     }
     // Son Alpha Boost : activation, volume, profil sonore.
     if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {

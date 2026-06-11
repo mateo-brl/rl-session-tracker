@@ -110,6 +110,17 @@ test('statut Discord : booléen strict', () => {
   assert.equal(c.get().discordRpc, true);
 });
 
+test('overlay OBS : port borné', () => {
+  const c = freshConfig();
+  assert.equal(c.get().obs.enabled, false);
+  c.update({ obs: { enabled: true, port: 50000 } });
+  assert.deepEqual(c.get().obs, { enabled: true, port: 50000 });
+  c.update({ obs: { port: 80 } });                   // < 1024 : rejeté
+  assert.equal(c.get().obs.port, 50000);
+  c.update({ obs: { port: 'quatre' } });             // rejeté
+  assert.equal(c.get().obs.port, 50000);
+});
+
 test('persistance : relecture depuis le fichier', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cfg-'));
   config.init(dir);
