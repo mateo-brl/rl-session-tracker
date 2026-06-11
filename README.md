@@ -1,16 +1,28 @@
 <div align="center">
 
-# 🚀 RL Session Tracker
+<img src="docs/logo.png" width="96" alt="RL Session Tracker" />
 
-### Ton tracker de session Rocket League, en direct sur ton 2ᵉ écran.
-### Your live Rocket League session tracker, on your second screen.
+# RL Session Tracker
 
+**BakkesMod est banni. Pas tes stats.**
+**BakkesMod is banned. Your stats aren't.**
+
+Le tracker de session Rocket League nouvelle génération — temps réel, 100 % local, compatible anti-triche.
+The next-generation Rocket League session tracker — real-time, 100% local, anti-cheat safe.
+
+[![Release](https://img.shields.io/github/v/release/mateo-brl/rl-session-tracker?style=flat-square&label=version&color=2f9bff)](https://github.com/mateo-brl/rl-session-tracker/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/mateo-brl/rl-session-tracker/total?style=flat-square&color=ff8a1e)](https://github.com/mateo-brl/rl-session-tracker/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/mateo-brl/rl-session-tracker/ci.yml?style=flat-square&label=tests)](https://github.com/mateo-brl/rl-session-tracker/actions)
+[![License](https://img.shields.io/badge/licence-MIT-blue?style=flat-square)](LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%2F11-0078d4?style=flat-square&logo=windows&logoColor=white)
-![Electron](https://img.shields.io/badge/App-Electron-47848f?style=flat-square&logo=electron&logoColor=white)
-![Updates](https://img.shields.io/badge/Updates-automatic-2ee6a6?style=flat-square)
-![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+
+[![Stars](https://img.shields.io/github/stars/mateo-brl/rl-session-tracker?style=social)](https://github.com/mateo-brl/rl-session-tracker/stargazers)
 
 **[🇫🇷 Français](#-français) · [🇬🇧 English](#-english)**
+
+<br/>
+
+![Dashboard — vue session avec match en direct](docs/dashboard.png)
 
 </div>
 
@@ -18,18 +30,23 @@
 
 ## 🇫🇷 Français
 
-Victoires · défaites · série · stats par mode · MMR — détectés à la seconde,
-directement depuis le jeu. Aucune inscription, aucun site externe, 100 % local.
+> **Avril 2026.** L'anti-triche de Rocket League débarque et emporte BakkesMod
+> avec lui. Plus d'overlays, plus de trackers de session, plus d'Alpha Boost.
+>
+> **Sauf que.** Le jeu expose désormais une **Stats API native** — un flux
+> local, officiel, compatible anti-triche. RL Session Tracker s'en sert pour
+> tout reconstruire, en mieux : un vrai dashboard de session sur ton 2ᵉ écran,
+> qui s'ouvre tout seul quand tu lances le jeu, et qui n'envoie **rien** sur
+> internet.
 
-Depuis que l'anti-triche de Rocket League a banni BakkesMod, la **Stats API
-native du jeu** est la seule source temps réel autorisée. RL Session Tracker
-s'en sert pour faire ce que faisaient les overlays d'avant — en mieux : un
-vrai dashboard de session sur ton double écran, qui s'ouvre tout seul quand
-tu lances le jeu.
+Victoires · défaites · série · stats par mode · MMR · bilan contre tes rivaux
+· son Alpha Boost — détectés à la seconde, directement depuis le jeu. Aucune
+inscription, aucun site externe, aucun risque de ban.
+
+⭐ **L'app te sert ? Une étoile sur le dépôt aide d'autres joueurs à la
+trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 
 ### 📸 Aperçu
-
-![Dashboard — vue session avec match en direct](docs/dashboard.png)
 
 ![Écran de victoire — animation Broadcast](docs/victory.png)
 
@@ -47,19 +64,29 @@ tu lances le jeu.
 | ⚡ **Temps réel** | Score, temps, overtime, stats des joueurs — à la seconde, pendant le match. |
 | 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours, meilleure série, par mode (1v1 · 2v2 · 3v3). La liste des matchs récents repart à zéro à chaque lancement (ou d'un clic). |
 | 📈 **Évolution MMR** | Recopie une fois ton MMR affiché en jeu (saison 22+) : courbe d'évolution match après match, bilan des 7 derniers jours, records de tous les temps. |
+| 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
+| 🔉 **Son Alpha Boost** | Le boost légendaire de l'alpha, rejoué quand tu boostes — la sonorité suit ta vitesse en direct. 100 % externe via la Stats API : **aucun fichier du jeu n'est touché, rien d'injecté**. Marche aussi à la manette. |
 | ⚖️ **Comptage honnête** | Un forfait en classé compte comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
-| 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
 | 🎮 **Statut Discord** | Rich Presence optionnelle : tes amis voient « Classé 2v2 · 3 – 2 » et ta série en cours, en direct. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
-| 🔉 **Son Alpha Boost** | Le boost légendaire de l'alpha, rejoué quand tu boostes — la sonorité suit ta vitesse en direct. 100 % externe via la Stats API : **aucun fichier du jeu n'est touché, rien d'injecté**, compatible anti-triche. Marche aussi à la manette. |
 | 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). Thèmes de couleurs prédéfinis ou libres, 3 styles d'animations testables, overlay réglable. |
 | 🌍 **FR / EN** | Interface bilingue : langue du système détectée automatiquement, modifiable dans les réglages. |
 
-### 🎮 Installation (2 minutes, aucune connaissance requise)
+### 🆚 Pourquoi celui-là ?
+
+| | RL Session Tracker | Sites de tracking | Mods d'avant (BakkesMod…) |
+|---|:---:|:---:|:---:|
+| Temps réel pendant le match | ✅ | ❌ (après coup) | ✅ |
+| Compatible anti-triche (EAC) | ✅ | ✅ | ❌ banni en ligne |
+| 100 % local, zéro compte | ✅ | ❌ | ✅ |
+| Dashboard 2ᵉ écran automatique | ✅ | ❌ | ❌ |
+| Risque pour ton compte | **Aucun** | Aucun | Réel |
+
+### 🚀 Installation (2 minutes, aucune connaissance requise)
 
 1. **Télécharge** le fichier `RL-Session-Tracker-Setup-X.Y.Z.exe` depuis la
    [dernière release](https://github.com/mateo-brl/rl-session-tracker/releases/latest).
@@ -125,6 +152,14 @@ toi-même, décoche « plein écran » dans les réglages : il s'ouvrira en fen�
 normale que tu peux déplacer.
 </details>
 
+<details>
+<summary><b>Le son Alpha Boost a du retard</b></summary>
+
+Clique **« Réactiver la Stats API du jeu »** dans les réglages puis redémarre
+Rocket League : ça passe le flux du jeu à 120 paquets/seconde, et le son
+devient instantané.
+</details>
+
 > ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). L'application est
 > Windows uniquement.
 
@@ -172,12 +207,14 @@ projet communautaire
 | **Données** | Stats API native du jeu (socket TCP `127.0.0.1:49123`, JSON concaténé) |
 | **Empaquetage** | electron-builder — installeur NSIS un-clic |
 | **Mises à jour** | electron-updater + GitHub Releases (`latest.yml`) |
+| **Qualité** | 38 tests unitaires et d'intégration (`node --test`), CI à chaque push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 npm start          # lance l'application en mode développement
+node --test        # lance les tests
 npm run dist       # construit l'installeur Windows dans dist/
 ```
 
@@ -220,7 +257,7 @@ rl-session-tracker/
 │       └── fonts/             # Barlow Condensed (licence OFL-1.1)
 ├── build/icon.ico             # Icône de l'application
 ├── electron-builder.yml       # Empaquetage NSIS + publication GitHub
-├── .github/workflows/release.yml
+├── .github/workflows/         # CI (tests) + release (build Windows)
 └── enable-statsapi.bat / .ps1 # Activation manuelle de secours
 ```
 </details>
@@ -231,21 +268,32 @@ MIT — fais-en ce que tu veux. Les samples du son Alpha Boost proviennent du
 projet [trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
 (MIT) et la police Barlow Condensed est sous licence OFL-1.1.
 
+<div align="center">
+
+**Si ce projet t'a été utile, [laisse une étoile ⭐](https://github.com/mateo-brl/rl-session-tracker/stargazers) — ça prend deux secondes et ça aide énormément.**
+
+</div>
+
 ---
 
 ## 🇬🇧 English
 
-Wins · losses · streak · per-mode stats · MMR — detected the second they
-happen, straight from the game. No sign-up, no third-party website, 100% local.
+> **April 2026.** Rocket League's anti-cheat arrives and takes BakkesMod down
+> with it. No more overlays, no more session trackers, no more Alpha Boost.
+>
+> **Except.** The game now exposes a **native Stats API** — a local, official,
+> anti-cheat-friendly feed. RL Session Tracker uses it to rebuild everything,
+> better: a real session dashboard on your second screen that opens by itself
+> when you launch the game, and sends **nothing** to the internet.
 
-Since Rocket League's anti-cheat banned BakkesMod, the game's **native Stats
-API** is the only allowed real-time source. RL Session Tracker uses it to do
-what the old overlays did — better: a real session dashboard on your second
-screen that opens by itself when you launch the game.
+Wins · losses · streak · per-mode stats · MMR · record against your rivals ·
+Alpha Boost sound — detected the second they happen, straight from the game.
+No sign-up, no third-party website, no ban risk.
+
+⭐ **Found it useful? A star on the repo helps other players discover it —
+and it's the only "thank you" this app will ever ask for.**
 
 ### 📸 Preview
-
-![Dashboard — session view with a live match](docs/dashboard.png)
 
 ![Victory screen — Broadcast animation](docs/victory.png)
 
@@ -263,19 +311,29 @@ screen that opens by itself when you launch the game.
 | ⚡ **Real time** | Score, clock, overtime, player stats — to the second, during the match. |
 | 📊 **Your session** | Wins/losses, win rate, current streak, best streak, per mode (1v1 · 2v2 · 3v3). The recent-matches list starts fresh on every launch (or with one click). |
 | 📈 **MMR tracking** | Copy your in-game MMR once (Season 22+): match-by-match evolution chart, last-7-days summary, all-time records. |
+| 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
+| 🔉 **Alpha Boost sound** | The legendary alpha boost sound, replayed while you boost — the tone follows your live speed. 100% external through the Stats API: **no game file is touched, nothing is injected**. Works on controller too. |
 | ⚖️ **Honest counting** | Forfeiting a ranked match counts as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
-| 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
 | 🎮 **Discord status** | Optional Rich Presence: your friends see "Ranked 2v2 · 3 – 2" and your current streak, live. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
-| 🔉 **Alpha Boost sound** | The legendary alpha boost sound, replayed while you boost — the tone follows your live speed. 100% external through the Stats API: **no game file is touched, nothing is injected**, anti-cheat safe. Works on controller too. |
 | 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). Built-in or fully custom color themes, 3 testable animation styles, adjustable overlay. |
 | 🌍 **FR / EN** | Bilingual interface: system language auto-detected, changeable in the settings. |
 
-### 🎮 Install (2 minutes, no technical knowledge needed)
+### 🆚 Why this one?
+
+| | RL Session Tracker | Tracking websites | Old-school mods (BakkesMod…) |
+|---|:---:|:---:|:---:|
+| Real-time during the match | ✅ | ❌ (after the fact) | ✅ |
+| Anti-cheat (EAC) compatible | ✅ | ✅ | ❌ banned online |
+| 100% local, no account | ✅ | ❌ | ✅ |
+| Automatic second-screen dashboard | ✅ | ❌ | ❌ |
+| Risk for your account | **None** | None | Real |
+
+### 🚀 Install (2 minutes, no technical knowledge needed)
 
 1. **Download** `RL-Session-Tracker-Setup-X.Y.Z.exe` from the
    [latest release](https://github.com/mateo-brl/rl-session-tracker/releases/latest).
@@ -339,6 +397,14 @@ yourself, untick "fullscreen" in the settings: it opens as a normal window
 you can move around.
 </details>
 
+<details>
+<summary><b>The Alpha Boost sound lags behind</b></summary>
+
+Click **"Re-enable the game's Stats API"** in the settings, then restart
+Rocket League: it bumps the game's feed to 120 packets per second and the
+sound becomes instant.
+</details>
+
 > ⚠️ The Stats API only exists on **PC** (Epic / Steam). The app is
 > Windows-only.
 
@@ -385,12 +451,14 @@ detection) and crossfading between speed tiers.
 | **Data** | The game's native Stats API (TCP socket `127.0.0.1:49123`, concatenated JSON) |
 | **Packaging** | electron-builder — one-click NSIS installer |
 | **Updates** | electron-updater + GitHub Releases (`latest.yml`) |
+| **Quality** | 38 unit & integration tests (`node --test`), CI on every push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
 npm start          # run the app in development mode
+node --test        # run the tests
 npm run dist       # build the Windows installer into dist/
 ```
 
@@ -432,7 +500,7 @@ rl-session-tracker/
 │       └── fonts/             # Barlow Condensed (OFL-1.1 license)
 ├── build/icon.ico             # App icon
 ├── electron-builder.yml       # NSIS packaging + GitHub publishing
-├── .github/workflows/release.yml
+├── .github/workflows/         # CI (tests) + release (Windows build)
 └── enable-statsapi.bat / .ps1 # Manual fallback activation
 ```
 </details>
@@ -442,3 +510,13 @@ rl-session-tracker/
 MIT — do whatever you want with it. The Alpha Boost samples come from the
 [trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
 project (MIT), and the Barlow Condensed font is licensed under OFL-1.1.
+
+<div align="center">
+
+**If this project helped you, [drop a star ⭐](https://github.com/mateo-brl/rl-session-tracker/stargazers) — it takes two seconds and it means a lot.**
+
+<br/>
+
+*Fait par un joueur, pour les joueurs · Made by a player, for players*
+
+</div>
