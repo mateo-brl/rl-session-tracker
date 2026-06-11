@@ -107,6 +107,7 @@
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
   .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.5; }
+  .hint.warn { color:var(--orange); }
 
   .mmr-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .mmr-cell span {
@@ -259,6 +260,8 @@
           <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" /></div>
       </div>
       <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
+      <div class="hint warn" data-i18n="hintPlacement">Attention aux matchs de placement (début de saison) : les gains y sont bien plus gros (souvent ±15 et dégressifs), l'estimation dérive forcément. Recopie ton MMR en jeu une fois tes placements terminés.</div>
+      <div class="hint warn" id="mmrDrift" style="display:none"></div>
       <div style="height:10px"></div>
       <label class="check"><input type="checkbox" id="optRanked" /><span data-i18n="cRanked">Par défaut mes matchs sont classés (modifiable à chaque match sur le dashboard)</span></label>
       <label class="check"><input type="checkbox" id="optAuto" /><span data-i18n="cAuto">Ouvrir le dashboard quand Rocket League démarre</span></label>
@@ -351,6 +354,8 @@
       hintPseudo: 'Sert \u00e0 savoir quelle \u00e9quipe est la tienne pour compter victoires et d\u00e9faites. Joue un match : les pseudos d\u00e9tect\u00e9s apparaissent en suggestion.',
       lMmr: 'Mon MMR (optionnel)',
       hintMmr: 'Recopie le MMR affich\u00e9 dans le jeu (Param\u00e8tres \u2192 Interface \u2192 \u00ab Afficher le MMR \u00bb, depuis la saison 22). Ensuite l\u2019appli l\u2019estime toute seule match apr\u00e8s match (environ \u00b19) \u2014 reviens le corriger quand tu veux.',
+      hintPlacement: 'Attention aux matchs de placement (d\u00e9but de saison) : les gains y sont bien plus gros (souvent \u00b115 et d\u00e9gressifs), l\u2019estimation d\u00e9rive forc\u00e9ment. Recopie ton MMR en jeu une fois tes placements termin\u00e9s.',
+      mmrDrift: function (d) { return '\u00c9cart de ' + (d > 0 ? '+' : '') + d + ' par rapport \u00e0 l\u2019estimation \u2014 normal pendant les placements ou apr\u00e8s une pause. L\u2019estimation vient d\u2019\u00eatre recal\u00e9e sur ta valeur.'; },
       cRanked: 'Par d\u00e9faut mes matchs sont class\u00e9s (modifiable \u00e0 chaque match sur le dashboard)',
       cAuto: 'Ouvrir le dashboard quand Rocket League d\u00e9marre',
       cFull: 'Dashboard en plein \u00e9cran (2\u1d49 \u00e9cran si pr\u00e9sent)',
@@ -405,6 +410,8 @@
       hintPseudo: 'Used to know which team is yours when counting wins and losses. Play a match: detected names show up as suggestions.',
       lMmr: 'My MMR (optional)',
       hintMmr: 'Copy the MMR shown in the game (Settings \u2192 Interface \u2192 \u201cShow MMR\u201d, since Season 22). The app then estimates it match after match (about \u00b19) \u2014 come back and correct it anytime.',
+      hintPlacement: 'Beware of placement matches (start of season): gains are much bigger there (often \u00b115 and decreasing), so the estimate inevitably drifts. Copy your in-game MMR again once your placements are done.',
+      mmrDrift: function (d) { return 'Gap of ' + (d > 0 ? '+' : '') + d + ' versus the estimate \u2014 normal during placements or after a break. The estimate has just been reset to your value.'; },
       cRanked: 'My matches are ranked by default (changeable on each live match on the dashboard)',
       cAuto: 'Open the dashboard when Rocket League starts',
       cFull: 'Fullscreen dashboard (second screen if present)',
@@ -699,6 +706,18 @@
       var known = cur.session && cur.session.mmr && cur.session.mmr[mode];
       var current = known ? String(known.value) : '';
       if (v === current) return;       // rien n'a changé
+      // Gros écart avec l'estimation ? Sans doute des matchs de placement
+      // (gains \u00b115 et plus) \u2014 on explique au moment o\u00f9 c'est pertinent.
+      if (v !== '' && known) {
+        var drift = Math.round(Number(v) - Number(known.value));
+        if (Math.abs(drift) >= 12) {
+          var el = $('mmrDrift');
+          el.textContent = T.mmrDrift(drift);
+          el.style.display = 'block';
+          clearTimeout(el._t);
+          el._t = setTimeout(function () { el.style.display = 'none'; }, 15000);
+        }
+      }
       api.setConfig({ mmrSet: { mode: mode, value: v === '' ? null : Number(v) } });
     }
     input.addEventListener('change', save);
