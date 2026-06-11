@@ -292,6 +292,16 @@
         <option value="broadcast" data-i18n="oBroadcast">Broadcast — liserés TV + confettis</option>
         <option value="minimal" data-i18n="oMinimal">Minimal — fondu sobre et court</option>
         <option value="arcade" data-i18n="oArcade">Arcade — punch rétro + secousse</option>
+        <option value="neon" data-i18n="oNeon">Néon — enseigne qui s'allume</option>
+        <option value="cinema" data-i18n="oCinema">Cinéma — zoom lent + bandes noires</option>
+      </select>
+      <div style="height:10px"></div>
+      <label class="field" data-i18n="lJingle">Son de fin de match</label>
+      <select id="sndPreset">
+        <option value="broadcast" data-i18n="oSndBroadcast">Broadcast — arpège net</option>
+        <option value="arcade" data-i18n="oSndArcade">8-bit — arcade rétro</option>
+        <option value="soft" data-i18n="oSndSoft">Doux — nappes discrètes</option>
+        <option value="epic" data-i18n="oSndEpic">Épique — accord puissant</option>
       </select>
       <div style="height:10px"></div>
       <label class="check"><input type="checkbox" id="animEnd" /><span data-i18n="cAnimEnd">Écran victoire / défaite en fin de match</span></label>
@@ -411,6 +421,13 @@
       oBroadcast: 'Broadcast \u2014 liser\u00e9s TV + confettis',
       oMinimal: 'Minimal \u2014 fondu sobre et court',
       oArcade: 'Arcade \u2014 punch r\u00e9tro + secousse',
+      oNeon: 'N\u00e9on \u2014 enseigne qui s\u2019allume',
+      oCinema: 'Cin\u00e9ma \u2014 zoom lent + bandes noires',
+      lJingle: 'Son de fin de match',
+      oSndBroadcast: 'Broadcast \u2014 arp\u00e8ge net',
+      oSndArcade: '8-bit \u2014 arcade r\u00e9tro',
+      oSndSoft: 'Doux \u2014 nappes discr\u00e8tes',
+      oSndEpic: '\u00c9pique \u2014 accord puissant',
       cAnimEnd: '\u00c9cran victoire / d\u00e9faite en fin de match',
       cAnimGoal: 'Flash \u00e0 chaque but',
       bTestWin: 'Tester victoire', bTestLoss: 'Tester d\u00e9faite',
@@ -480,6 +497,13 @@
       oBroadcast: 'Broadcast \u2014 TV stripes + confetti',
       oMinimal: 'Minimal \u2014 short, subtle fade',
       oArcade: 'Arcade \u2014 retro punch + shake',
+      oNeon: 'Neon \u2014 sign flickering on',
+      oCinema: 'Cinema \u2014 slow zoom + black bars',
+      lJingle: 'End-of-match sound',
+      oSndBroadcast: 'Broadcast \u2014 clean arpeggio',
+      oSndArcade: '8-bit \u2014 retro arcade',
+      oSndSoft: 'Soft \u2014 subtle pads',
+      oSndEpic: 'Epic \u2014 powerful chord',
       cAnimEnd: 'Victory / defeat screen at match end',
       cAnimGoal: 'Flash on every goal',
       bTestWin: 'Test victory', bTestLoss: 'Test defeat',
@@ -546,6 +570,10 @@
     { name: 'Vert / Rouge', t: { win: '#2ee68a', loss: '#ff5d6c', bg: '#0c0e11', gold: '#ffc233' } },
     { name: 'Violet / Rose', t: { win: '#9d6bff', loss: '#ff4f9e', bg: '#0d0b14', gold: '#ffd166' } },
     { name: 'Mono nuit', t: { win: '#e8eef5', loss: '#5b6573', bg: '#08090c', gold: '#c9d2dd' } },
+    { name: 'Synthwave', t: { win: '#2de2e6', loss: '#ff3864', bg: '#0b0a14', gold: '#f6f740' } },
+    { name: 'Or & pourpre', t: { win: '#f5b942', loss: '#b23a64', bg: '#100c0a', gold: '#ffe9b0' } },
+    { name: 'Forêt', t: { win: '#37d67a', loss: '#e0762f', bg: '#0a100c', gold: '#ffd166' } },
+    { name: 'Glace', t: { win: '#8fd0ff', loss: '#9aa7b8', bg: '#0a0e14', gold: '#e3edf7' } },
   ];
   function mix(a, b, f) {
     var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -666,6 +694,9 @@
     var an = cfg.anim || {};
     if (document.activeElement !== $('animPreset')) {
       $('animPreset').value = an.preset || 'broadcast';
+    }
+    if (document.activeElement !== $('sndPreset')) {
+      $('sndPreset').value = cfg.soundPreset || 'broadcast';
     }
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
@@ -866,9 +897,9 @@
       preset: $('animPreset').value,
       endMatch: $('animEnd').checked,
       goal: $('animGoal').checked,
-    } });
+    }, soundPreset: $('sndPreset').value });
   }
-  ['animPreset', 'animEnd', 'animGoal'].forEach(function (id) {
+  ['animPreset', 'sndPreset', 'animEnd', 'animGoal'].forEach(function (id) {
     $(id).addEventListener('change', saveAnim);
   });
   $('testWin').onclick = function () {
