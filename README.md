@@ -157,6 +157,18 @@ normale que tu peux déplacer.
 </details>
 
 <details>
+<summary><b>Je suis sur Steam, ça marche ?</b></summary>
+
+Oui, exactement pareil que sur Epic : l'application détecte les deux
+installations automatiquement (manifestes Epic, registre Steam et toutes tes
+bibliothèques Steam, même sur un autre disque). Un point à connaître : après
+une **« Vérification de l'intégrité des fichiers »** dans Steam ou une grosse
+mise à jour du jeu, le fichier de la Stats API peut être réinitialisé — si le
+dashboard ne réagit plus, reclique **« Réactiver la Stats API du jeu »** et
+redémarre Rocket League. (Pareil pour la réparation Epic.)
+</details>
+
+<details>
 <summary><b>Le son Alpha Boost a du retard</b></summary>
 
 Clique **« Réactiver la Stats API du jeu »** dans les réglages puis redémarre
@@ -407,6 +419,17 @@ identical, and the overlay will show on top.
 It picks the **secondary** display automatically. If you'd rather place it
 yourself, untick "fullscreen" in the settings: it opens as a normal window
 you can move around.
+</details>
+
+<details>
+<summary><b>I'm on Steam, does it work?</b></summary>
+
+Yes, exactly like on Epic: the app detects both installs automatically (Epic
+manifests, the Steam registry and all your Steam libraries, even on another
+drive). One thing to know: after a **"Verify integrity of game files"** in
+Steam or a big game update, the Stats API config file can be reset — if the
+dashboard stops reacting, click **"Re-enable the game's Stats API"** again
+and restart Rocket League. (Same for Epic's repair.)
 </details>
 
 <details>
