@@ -213,6 +213,7 @@
       <div class="row"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
       <div class="row"><span data-i18n="lSession">Session</span><b id="rSession">—</b></div>
     </div>
+    <div class="hint warn" id="apiHint" style="display:none"></div>
 
     <div class="card" id="welcomeCard" style="display:none">
       <h2 data-i18n="hWelcome">Bienvenue</h2>
@@ -510,6 +511,8 @@
       confirmClear: 'Vider les matchs r\u00e9cents ? Les compteurs repassent \u00e0 0. Le MMR, la courbe d\u2019\u00e9volution et les records sont conserv\u00e9s.',
       apiBusy: 'Activation\u2026 (autorise la fen\u00eatre Windows)',
       apiDone: 'Fait \u2014 red\u00e9marre Rocket League',
+      apiFail: '\u00c9chec \u2014 aucune installation configur\u00e9e',
+      apiStuck: 'Le jeu tourne mais la Stats API ne s\u2019est jamais connect\u00e9e. Si tu es en match et que rien ne s\u2019affiche : clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb tout en bas, accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League. Toujours rien ? V\u00e9rifie que TAGame\\Config\\DefaultStatsAPI.ini existe dans le dossier du jeu (Steam : clic droit \u2192 G\u00e9rer \u2192 Parcourir les fichiers locaux).',
     },
     en: {
       lStats: 'Game Stats API', lSession: 'Session',
@@ -597,6 +600,8 @@
       confirmClear: 'Clear recent matches? Counters go back to 0. MMR, the evolution curve and records are kept.',
       apiBusy: 'Enabling\u2026 (accept the Windows prompt)',
       apiDone: 'Done \u2014 restart Rocket League',
+      apiFail: 'Failed \u2014 no install configured',
+      apiStuck: 'The game is running but the Stats API never connected. If you are in a match and nothing shows up: click \u201cRe-enable the game Stats API\u201d at the bottom, accept the admin prompt, then restart Rocket League. Still nothing? Check that TAGame\\Config\\DefaultStatsAPI.ini exists in the game folder (Steam: right-click \u2192 Manage \u2192 Browse local files).',
     },
   };
   var T = I18N.fr;
@@ -682,6 +687,13 @@
     $('rGame').className = running ? 'live' : '';
     $('rApi').textContent = game.statsConnected ? T.apiOn : T.apiWait;
     $('rApi').className = game.statsConnected ? 'live' : '';
+
+    // Le jeu tourne depuis un moment sans que la Stats API ne se soit jamais
+    // connectée : très probablement un DefaultStatsAPI.ini absent — on guide.
+    var stuck = running && !game.statsConnected && game.since
+      && (Date.now() - game.since > 2 * 60 * 1000);
+    $('apiHint').style.display = stuck ? 'block' : 'none';
+    if (stuck) $('apiHint').textContent = T.apiStuck;
 
     if (s.live && s.live.training) {
       $('rMatchLabel').textContent = T.lCur;
@@ -1051,11 +1063,14 @@
     var b = $('statsApiBtn');
     b.disabled = true; b.textContent = T.apiBusy;
     Promise.resolve(api.enableStatsApi ? api.enableStatsApi() : null)
-      .then(function () {
-        b.textContent = T.apiDone;
+      .then(function (res) {
+        // L'activation rapporte désormais son vrai résultat : on ne dit plus
+        // « Fait » quand rien n'a été écrit.
+        var failed = !res || (res.ok === false);
+        b.textContent = failed ? T.apiFail : T.apiDone;
         setTimeout(function () {
           b.disabled = false; b.textContent = T.bStatsApi;
-        }, 5000);
+        }, failed ? 8000 : 5000);
       });
   };
 

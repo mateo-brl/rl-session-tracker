@@ -3,32 +3,110 @@
 // Au premier lancement, l'agent active lui-même la Stats API : l'utilisateur
 // n'a plus rien à exécuter (fini le enable-statsapi.bat manuel).
 //
-// Sous Windows, on dépose un script PowerShell en %TEMP% et on le lance. Ce
-// script s'élève en administrateur (le dossier d'installation de Rocket League
-// est sous Program Files) puis écrit DefaultStatsAPI.ini. La détection Epic /
-// Steam reprend exactement la logique du enable-statsapi.ps1 du dépôt.
+// ARCHITECTURE (et leçon apprise sur un PC Steam) : la détection des
+// installations se fait ICI, dans le processus de l'application — donc dans
+// la session du VRAI utilisateur. Le script PowerShell élevé reçoit la liste
+// toute prête. Pourquoi : quand UAC élève vers un AUTRE compte (utilisateur
+// non-administrateur), le HKCU du script élevé est la ruche de l'admin, où
+// la clé Steam n'existe pas — Rocket League dans D:\SteamLibrary devenait
+// introuvable et l'ini n'était jamais écrit.
+//
+// Le script élevé écrit son résultat (chemins configurés, ou NONE) dans un
+// fichier que l'application relit : on peut enfin dire à l'utilisateur si
+// l'activation a réellement réussi.
 //
 // Hors Windows : opération sans objet (la Stats API n'existe que sur PC).
 
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
-// Script PowerShell embarqué (non interactif, auto-élévation). Les lignes sont
-// stockées dans un tableau pour pouvoir contenir librement les backticks de
-// PowerShell (`r`n) sans entrer en conflit avec la syntaxe JavaScript.
+// ───────── Détection des installations (session utilisateur) ─────────
+
+function regQuery(key, value) {
+  try {
+    const out = spawnSync('reg', ['query', key, '/v', value],
+      { encoding: 'utf8', windowsHide: true, timeout: 10000 });
+    const m = /REG_SZ\s+(.+)/.exec(out.stdout || '');
+    return m ? m[1].trim() : null;
+  } catch (e) { return null; }
+}
+
+// Extrait les chemins de bibliothèques d'un libraryfolders.vdf de Steam.
+function parseLibraryFolders(text) {
+  const out = [];
+  for (const m of String(text).matchAll(/"path"\s+"([^"]+)"/g)) {
+    out.push(m[1].replace(/\\\\/g, '\\'));
+  }
+  return out;
+}
+
+// Un vrai dossier d'installation de Rocket League ?
+function isRLInstall(p) {
+  try {
+    return fs.existsSync(path.join(p, 'Binaries', 'Win64', 'RocketLeague.exe'))
+      && fs.existsSync(path.join(p, 'TAGame', 'Config'));
+  } catch (e) { return false; }
+}
+
+function detectInstalls() {
+  const found = [];
+  const add = (p) => {
+    if (p && typeof p === 'string' && !found.includes(p)) found.push(p);
+  };
+
+  // Epic Games : manifestes du launcher (ProgramData, lisible sans élévation).
+  try {
+    const dir = path.join(process.env.ProgramData || 'C:\\ProgramData',
+      'Epic', 'EpicGamesLauncher', 'Data', 'Manifests');
+    for (const f of fs.readdirSync(dir)) {
+      if (!f.endsWith('.item')) continue;
+      try {
+        const m = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+        if (/rocket league/i.test(m.DisplayName || '') && m.InstallLocation) {
+          add(m.InstallLocation);
+        }
+      } catch (e) { /* manifeste illisible : suivant */ }
+    }
+  } catch (e) { /* pas d'Epic */ }
+
+  // Steam : registre + TOUTES les bibliothèques (y compris autres disques).
+  if (process.platform === 'win32') {
+    const sp = regQuery('HKCU\\Software\\Valve\\Steam', 'SteamPath');
+    if (sp) {
+      const libs = [sp];
+      try {
+        libs.push(...parseLibraryFolders(
+          fs.readFileSync(path.join(sp, 'steamapps', 'libraryfolders.vdf'), 'utf8')));
+      } catch (e) { /* vdf absent : bibliothèque principale seulement */ }
+      for (const l of libs) add(path.join(l, 'steamapps', 'common', 'rocketleague'));
+    }
+  }
+
+  // Chemins par défaut, au cas où.
+  add('C:\\Program Files\\Epic Games\\rocketleague');
+  add('C:\\Program Files (x86)\\Steam\\steamapps\\common\\rocketleague');
+
+  return found.filter(isRLInstall);
+}
+
+// ───────── Script PowerShell élevé ─────────
+// Reçoit la liste des installations (__INSTALLS__) et le fichier de résultat
+// (__RESULT__). Garde une re-détection Epic + chemins par défaut en filet de
+// sécurité, mais PLUS de lecture du registre Steam sous élévation.
 const PS_LINES = [
   "$ErrorActionPreference='SilentlyContinue'",
   '$Port=49123',
   // 120 paquets/s : nécessaire pour la réactivité du son Alpha Boost (le
-  // tracker, lui, se contenterait de 10). La diffusion d'état vers les
-  // fenêtres reste limitée à 1/s côté connecteur — aucun impact ailleurs.
+  // tracker, lui, se contenterait de 10).
   '$Rate=120',
-  // ── Élévation automatique : sans droits admin, on se relance élevé. ──
+  "$Result='__RESULT__'",
+  // ── Élévation automatique : sans droits admin, on se relance élevé et on
+  // ATTEND la fin (le résultat est écrit par l'instance élevée). ──
   '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
   'if(-not $pr.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)){',
-  "  Start-Process powershell -Verb RunAs -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',('\"'+$PSCommandPath+'\"'))",
+  "  try{ Start-Process powershell -Verb RunAs -Wait -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-WindowStyle','Hidden','-File',('\"'+$PSCommandPath+'\"')) }catch{}",
   '  exit',
   '}',
   // ── Validation d'un vrai dossier d'installation Rocket League. ──
@@ -39,8 +117,9 @@ const PS_LINES = [
   "  if(-not(Test-Path -LiteralPath (Join-Path $c 'TAGame\\Config') -PathType Container)){return $null}",
   '  return $c',
   '}',
-  '$found=@()',
-  // ── Epic Games : manifestes du launcher. ──
+  // ── Installations détectées par l'application (session utilisateur). ──
+  '$found=@(__INSTALLS__)',
+  // ── Filet de sécurité : Epic (ProgramData, indépendant du compte). ──
   "$em=Join-Path $env:ProgramData 'Epic\\EpicGamesLauncher\\Data\\Manifests'",
   'if(Test-Path $em){',
   '  Get-ChildItem $em -Filter *.item -ErrorAction SilentlyContinue|ForEach-Object{',
@@ -48,24 +127,11 @@ const PS_LINES = [
   "      if($m.DisplayName -like '*Rocket League*' -and $m.InstallLocation){$found+=$m.InstallLocation}}catch{}",
   '  }',
   '}',
-  // ── Steam : registre + bibliothèques. ──
-  "try{$sp=(Get-ItemProperty 'HKCU:\\Software\\Valve\\Steam' -Name SteamPath -ErrorAction Stop).SteamPath}catch{$sp=$null}",
-  'if($sp){',
-  '  $libs=@($sp)',
-  "  $lv=Join-Path $sp 'steamapps\\libraryfolders.vdf'",
-  '  if(Test-Path $lv){',
-  "    Select-String -Path $lv -Pattern '\"path\"\\s+\"(.+?)\"' -AllMatches|ForEach-Object{$_.Matches}|ForEach-Object{$libs+=($_.Groups[1].Value -replace '\\\\\\\\','\\')}",
-  '  }',
-  '  foreach($l in ($libs|Select-Object -Unique)){',
-  "    $cand=Join-Path $l 'steamapps\\common\\rocketleague'",
-  '    if(Test-Path $cand){$found+=$cand}',
-  '  }',
-  '}',
   "$found+='C:\\Program Files\\Epic Games\\rocketleague'",
   "$found+='C:\\Program Files (x86)\\Steam\\steamapps\\common\\rocketleague'",
   // ── Écriture du .ini dans chaque installation valide trouvée. ──
   '$ini="[TAGame.MatchStatsExporter_TA]`r`nPort=$Port`r`nPacketSendRate=$Rate`r`n"',
-  '$ok=0',
+  '$ok=@()',
   'foreach($p in ($found|Select-Object -Unique)){',
   '  $c=Test-RL $p',
   '  if($c){',
@@ -73,12 +139,18 @@ const PS_LINES = [
   '    try{',
   "      if(Test-Path $ip){Copy-Item $ip ($ip+'.bak') -Force -ErrorAction SilentlyContinue}",
   '      Set-Content -Path $ip -Value $ini -Encoding ASCII -Force',
-  '      $ok++',
+  '      $ok+=$c',
   '    }catch{}',
   '  }',
   '}',
-  'if($ok -gt 0){exit 0}else{exit 1}',
+  "if($ok.Count -gt 0){Set-Content -Path $Result -Value ($ok -join \"`r`n\") -Encoding ASCII -Force}",
+  "else{Set-Content -Path $Result -Value 'NONE' -Encoding ASCII -Force}",
 ];
+
+// Échappe un chemin pour une chaîne PowerShell entre apostrophes.
+function psQuote(s) {
+  return "'" + String(s).replace(/'/g, "''") + "'";
+}
 
 // Lance une commande et résout dès qu'elle se termine (ou expire).
 function run(cmd, args, timeoutMs) {
@@ -96,24 +168,54 @@ function run(cmd, args, timeoutMs) {
   });
 }
 
-// Active la Stats API. Best-effort : on ne peut pas connaître le résultat du
-// processus élevé (détaché), donc l'appelant ne doit pas en dépendre — le
-// diagnostic « Stats API injoignable » de l'agent reste le filet de sécurité.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Active la Stats API. Retourne { ok, installs, configured, reason? } :
+//  • installs   — installations détectées côté application ;
+//  • configured — celles où le script élevé a réellement écrit l'ini.
 async function enableStatsApi() {
   if (process.platform !== 'win32') {
     return { skipped: true, reason: 'Stats API disponible uniquement sur Windows' };
   }
+  const installs = detectInstalls();
+  const stamp = process.pid + '-' + Date.now();
+  const resultFile = path.join(os.tmpdir(), 'rl-statsapi-result-' + stamp + '.txt');
   let tmpFile;
   try {
-    tmpFile = path.join(os.tmpdir(),
-      'rl-statsapi-' + process.pid + '-' + Date.now() + '.ps1');
-    // Le script est 100 % ASCII : aucun encodage particulier requis.
-    fs.writeFileSync(tmpFile, PS_LINES.join('\r\n') + '\r\n');
+    tmpFile = path.join(os.tmpdir(), 'rl-statsapi-' + stamp + '.ps1');
+    const script = PS_LINES.join('\r\n')
+      .replace('__RESULT__', resultFile.replace(/'/g, "''"))
+      .replace('__INSTALLS__', installs.map(psQuote).join(','));
+    // Le script est 100 % ASCII hors chemins : ANSI suffit (pas d'accents
+    // attendus dans les chemins d'installation ; au pire le filet Epic +
+    // chemins par défaut couvre).
+    fs.writeFileSync(tmpFile, script + '\r\n');
   } catch (e) {
-    return { ok: false, reason: 'écriture du script impossible : ' + e.message };
+    return { ok: false, installs, configured: null,
+      reason: 'écriture du script impossible : ' + e.message };
   }
-  return run('powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpFile], 120000);
+
+  const r = await run('powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', tmpFile], 180000);
+
+  // Résultat écrit par l'instance élevée (petite marge pour le flush).
+  let raw = null;
+  for (let i = 0; i < 10 && raw === null; i++) {
+    try { raw = fs.readFileSync(resultFile, 'utf8'); } catch (e) { await sleep(300); }
+  }
+  try { fs.unlinkSync(resultFile); } catch (e) {}
+  try { fs.unlinkSync(tmpFile); } catch (e) {}
+
+  if (raw === null) {
+    return { ok: false, installs, configured: null,
+      reason: r.ok ? 'aucun résultat — fenêtre admin refusée ?' : r.reason };
+  }
+  const lines = raw.trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length || lines[0] === 'NONE') {
+    return { ok: false, installs, configured: [],
+      reason: 'aucune installation Rocket League valide trouvée' };
+  }
+  return { ok: true, installs, configured: lines };
 }
 
-module.exports = { enableStatsApi };
+module.exports = { enableStatsApi, detectInstalls, parseLibraryFolders, isRLInstall };
