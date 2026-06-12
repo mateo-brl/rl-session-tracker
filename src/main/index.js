@@ -48,7 +48,7 @@ const state = {
   lang: 'fr',            // langue résolue (réglage, sinon langue du système)
   config: null,
   autostart: false,
-  game: { processRunning: false, statsConnected: false, running: false },
+  game: { processRunning: false, statsConnected: false, running: false, since: 0 },
   live: null,            // match en cours (snapshot Stats API), ou null
   currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
   session: null,         // agrégats de session
@@ -161,6 +161,7 @@ function setAutostart(on) {
 function setGameRunning(running) {
   if (state.game.running === running) return;
   state.game.running = running;
+  state.game.since = running ? Date.now() : 0;
   log('Rocket League : ' + (running ? 'détecté' : 'fermé'));
   if (running) {
     if (config.get().autoDashboard) openDashboard();
@@ -368,6 +369,15 @@ function startStatsApi() {
   api.start();
 }
 
+// Journalise le détail d'une activation de la Stats API (diagnostic).
+function logStatsApiResult(r) {
+  if (!r) { log('Stats API : résultat vide'); return; }
+  if (r.skipped) { log('Stats API : ignorée (' + (r.reason || '') + ')'); return; }
+  log('Stats API : détectées=' + JSON.stringify(r.installs || [])
+    + ' configurées=' + JSON.stringify(r.configured || null)
+    + (r.ok ? '' : ' ÉCHEC : ' + (r.reason || '?')));
+}
+
 // ───────── Premier lancement ─────────
 async function firstRunSetup() {
   state.firstRun = true;
@@ -377,7 +387,7 @@ async function firstRunSetup() {
   if (process.platform === 'win32') {
     let r;
     try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
-    log('Stats API : ' + (r.skipped ? 'ignorée' : r.ok ? 'configurée' : 'échec ' + (r.reason || '')));
+    logStatsApiResult(r);
   }
 }
 
@@ -488,6 +498,7 @@ ipcMain.handle('set-autostart', (_e, on) => { setAutostart(!!on); pushState(); }
 ipcMain.handle('enable-statsapi', async () => {
   let r;
   try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+  logStatsApiResult(r);
   return r;
 });
 ipcMain.on('open-dashboard', () => openDashboard());
