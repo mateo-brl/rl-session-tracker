@@ -51,13 +51,25 @@ test('vainqueur déduit du score quand le jeu ne l’annonce pas', () => {
   assert.equal(s.snapshot('Mateo', CFG).history[0].result, 'L');
 });
 
-test('forfait = défaite, quel que soit le score', () => {
+test('forfait sans vainqueur connu (notre départ) = défaite, quel que soit le score', () => {
   const s = tmpStore();
   s.addMatch(snap({ forfeit: true, winnerTeam: null, score: [3, 0] }));
   const m = s.snapshot('Mateo', CFG).history[0];
   assert.equal(m.result, 'L');
   assert.equal(m.forfeit, true);
   assert.equal(m.me.mvp, false);
+});
+
+test('forfait avec vainqueur annoncé par le jeu : le vainqueur prime', () => {
+  const s = tmpStore();
+  // FF adverse : le jeu a annoncé notre équipe (0) gagnante avant la
+  // destruction du lobby — victoire, même si on menait 0-2.
+  s.addMatch(snap({ forfeit: true, winnerTeam: 0, score: [0, 2] }));
+  // FF de notre équipe : vainqueur = équipe 1 — défaite.
+  s.addMatch(snap({ forfeit: true, winnerTeam: 1, score: [2, 0] }));
+  const h = s.snapshot('Mateo', CFG).history;   // récent → ancien
+  assert.equal(h[1].result, 'W');
+  assert.equal(h[0].result, 'L');
 });
 
 test('entraînement (joueur seul) jamais enregistré', () => {

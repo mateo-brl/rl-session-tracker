@@ -69,7 +69,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 📈 **Évolution MMR** | Recopie une fois ton MMR affiché en jeu (saison 22+) : courbe d'évolution match après match, bilan des 7 derniers jours, records de tous les temps. |
 | 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
 | 🔉 **Son Alpha Boost** | Le boost légendaire de l'alpha, rejoué quand tu boostes — la sonorité suit ta vitesse en direct. 100 % externe via la Stats API : **aucun fichier du jeu n'est touché, rien d'injecté**. Marche aussi à la manette. |
-| ⚖️ **Comptage honnête** | Un forfait en classé compte comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
+| ⚖️ **Comptage honnête** | Un forfait adverse compte comme une victoire, quitter un match classé comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -163,9 +163,11 @@ Oui, exactement pareil que sur Epic : l'application détecte les deux
 installations automatiquement (manifestes Epic, registre Steam et toutes tes
 bibliothèques Steam, même sur un autre disque). Un point à connaître : après
 une **« Vérification de l'intégrité des fichiers »** dans Steam ou une grosse
-mise à jour du jeu, le fichier de la Stats API peut être réinitialisé — si le
-dashboard ne réagit plus, reclique **« Réactiver la Stats API du jeu »** et
-redémarre Rocket League. (Pareil pour la réparation Epic.)
+mise à jour du jeu, le fichier de la Stats API peut être réinitialisé.
+L'application le vérifie désormais **à chaque lancement** et le réactive
+toute seule (une fenêtre admin à accepter). Si ça arrive en pleine session,
+reclique **« Réactiver la Stats API du jeu »** et redémarre Rocket League.
+(Pareil pour la réparation Epic.)
 </details>
 
 <details>
@@ -336,7 +338,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 📈 **MMR tracking** | Copy your in-game MMR once (Season 22+): match-by-match evolution chart, last-7-days summary, all-time records. |
 | 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
 | 🔉 **Alpha Boost sound** | The legendary alpha boost sound, replayed while you boost — the tone follows your live speed. 100% external through the Stats API: **no game file is touched, nothing is injected**. Works on controller too. |
-| ⚖️ **Honest counting** | Forfeiting a ranked match counts as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
+| ⚖️ **Honest counting** | An opponent forfeit counts as a win, leaving a ranked match as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -427,9 +429,10 @@ you can move around.
 Yes, exactly like on Epic: the app detects both installs automatically (Epic
 manifests, the Steam registry and all your Steam libraries, even on another
 drive). One thing to know: after a **"Verify integrity of game files"** in
-Steam or a big game update, the Stats API config file can be reset — if the
-dashboard stops reacting, click **"Re-enable the game's Stats API"** again
-and restart Rocket League. (Same for Epic's repair.)
+Steam or a big game update, the Stats API config file can be reset. The app
+now checks this **on every launch** and re-enables it by itself (one admin
+prompt to accept). If it happens mid-session, click **"Re-enable the game's
+Stats API"** again and restart Rocket League. (Same for Epic's repair.)
 </details>
 
 <details>

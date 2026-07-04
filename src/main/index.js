@@ -20,7 +20,7 @@ const obs = require('./obs-server');
 const SessionStore = require('./session');
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
-const { enableStatsApi } = require('./enable-statsapi');
+const { enableStatsApi, checkStatsApi } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
@@ -48,7 +48,8 @@ const state = {
   lang: 'fr',            // langue résolue (réglage, sinon langue du système)
   config: null,
   autostart: false,
-  game: { processRunning: false, statsConnected: false, running: false, since: 0 },
+  game: { processRunning: false, statsConnected: false, running: false, since: 0,
+    statsApiBroken: false },   // ini réinitialisé par une màj / vérif Steam
   live: null,            // match en cours (snapshot Stats API), ou null
   currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
   session: null,         // agrégats de session
@@ -378,6 +379,39 @@ function logStatsApiResult(r) {
     + (r.ok ? '' : ' ÉCHEC : ' + (r.reason || '?')));
 }
 
+// ───────── Réparation automatique de la Stats API ─────────
+// Steam (vérification d'intégrité, grosses mises à jour) et la réparation
+// Epic réinitialisent DefaultStatsAPI.ini — jusqu'ici le tracker mourait en
+// silence et il fallait penser à cliquer « Réactiver ». Désormais : lecture
+// de l'ini (sans élévation) à chaque lancement, et réactivation automatique
+// (une invite UAC) uniquement si la panne est avérée.
+async function repairStatsApiIfNeeded(origin) {
+  let check;
+  try { check = checkStatsApi(config.get().statsApiPort); } catch (e) { return; }
+  if (!check.installs.length || !check.broken.length) {
+    if (state.game.statsApiBroken) { state.game.statsApiBroken = false; pushState(); }
+    return;
+  }
+  log('Stats API coupée dans ' + JSON.stringify(check.broken) + ' (' + origin
+    + ') — ini réinitialisé par une mise à jour / vérification du jeu, réactivation…');
+  state.game.statsApiBroken = true;
+  pushState();
+  let r;
+  try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+  logStatsApiResult(r);
+  if (r && r.ok) state.game.statsApiBroken = false;
+  pushState();
+}
+
+// Relevé sans élévation ni réparation : rafraîchit juste le drapeau pour que
+// la fenêtre de contrôle guide l'utilisateur dès le lancement du jeu.
+function refreshStatsApiFlag() {
+  try {
+    const c = checkStatsApi(config.get().statsApiPort);
+    state.game.statsApiBroken = c.installs.length > 0 && c.broken.length > 0;
+  } catch (e) { /* le drapeau garde sa valeur */ }
+}
+
 // ───────── Premier lancement ─────────
 async function firstRunSetup() {
   state.firstRun = true;
@@ -499,6 +533,7 @@ ipcMain.handle('enable-statsapi', async () => {
   let r;
   try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
   logStatsApiResult(r);
+  if (r && r.ok) { state.game.statsApiBroken = false; pushState(); }
   return r;
 });
 ipcMain.on('open-dashboard', () => openDashboard());
@@ -546,6 +581,10 @@ if (!gotLock) {
     const watcher = new GameWatcher();
     watcher.on('change', (running) => {
       state.game.processRunning = running;
+      // Le jeu démarre : l'ini a pu être réinitialisé par une mise à jour
+      // pendant que l'application tournait — on rafraîchit le drapeau (sans
+      // élévation) pour guider tout de suite au lieu du délai de 2 min.
+      if (running) refreshStatsApiFlag();
       recomputeRunning();
     });
     watcher.start();
@@ -554,6 +593,8 @@ if (!gotLock) {
       await firstRunSetup();
       windows.showControl();           // premier lancement : on se montre
       pushState();
+    } else if (process.platform === 'win32') {
+      await repairStatsApiIfNeeded('lancement');
     }
 
     log('application lancée v' + state.version + (SILENT ? ' (silencieux)' : ''));

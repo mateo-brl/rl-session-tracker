@@ -91,6 +91,35 @@ function detectInstalls() {
   return found.filter(isRLInstall);
 }
 
+// ───────── Vérification silencieuse (sans élévation) ─────────
+// Une « Vérification de l'intégrité des fichiers » Steam, une grosse mise à
+// jour du jeu ou une réparation Epic RÉINITIALISENT DefaultStatsAPI.ini : la
+// Stats API se coupe sans que l'utilisateur ait touché à rien, et le tracker
+// meurt en silence. Lire l'ini ne demande aucun droit admin : on peut donc
+// détecter la panne à chaque lancement et ne réactiver (élévation UAC) que
+// quand c'est réellement nécessaire.
+
+// L'ini d'une installation est-il configuré pour nous ?
+function iniConfigured(install, port) {
+  try {
+    const txt = fs.readFileSync(
+      path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'), 'utf8');
+    if (!/\[TAGame\.MatchStatsExporter_TA\]/i.test(txt)) return false;
+    const p = /^\s*Port\s*=\s*(\d+)/im.exec(txt);
+    const r = /^\s*PacketSendRate\s*=\s*(\d+)/im.exec(txt);
+    return !!(p && Number(p[1]) === port && r && Number(r[1]) > 0);
+  } catch (e) { return false; }   // absent ou illisible : à refaire
+}
+
+// Retourne { installs, broken } — broken : installations détectées dont
+// l'ini n'active pas (ou plus) la Stats API sur le port attendu.
+function checkStatsApi(port) {
+  if (process.platform !== 'win32') return { installs: [], broken: [] };
+  const installs = detectInstalls();
+  const want = Number(port) || 49123;
+  return { installs, broken: installs.filter((p) => !iniConfigured(p, want)) };
+}
+
 // ───────── Script PowerShell élevé ─────────
 // Reçoit la liste des installations (__INSTALLS__) et le fichier de résultat
 // (__RESULT__). Garde une re-détection Epic + chemins par défaut en filet de
@@ -143,8 +172,10 @@ const PS_LINES = [
   '    }catch{}',
   '  }',
   '}',
-  "if($ok.Count -gt 0){Set-Content -Path $Result -Value ($ok -join \"`r`n\") -Encoding ASCII -Force}",
-  "else{Set-Content -Path $Result -Value 'NONE' -Encoding ASCII -Force}",
+  // UTF8 (pas ASCII) : un chemin accentué (« D:\Jeux vidéo\… ») doit survivre
+  // au fichier de résultat. Node retire le BOM à la lecture.
+  "if($ok.Count -gt 0){Set-Content -Path $Result -Value ($ok -join \"`r`n\") -Encoding UTF8 -Force}",
+  "else{Set-Content -Path $Result -Value 'NONE' -Encoding UTF8 -Force}",
 ];
 
 // Échappe un chemin pour une chaîne PowerShell entre apostrophes.
@@ -186,10 +217,13 @@ async function enableStatsApi() {
     const script = PS_LINES.join('\r\n')
       .replace('__RESULT__', resultFile.replace(/'/g, "''"))
       .replace('__INSTALLS__', installs.map(psQuote).join(','));
-    // Le script est 100 % ASCII hors chemins : ANSI suffit (pas d'accents
-    // attendus dans les chemins d'installation ; au pire le filet Epic +
-    // chemins par défaut couvre).
-    fs.writeFileSync(tmpFile, script + '\r\n');
+    // BOM UTF-8 OBLIGATOIRE : Windows PowerShell 5.1 (celui de Windows 10)
+    // lit un .ps1 sans BOM en ANSI. Le script contient des chemins qui
+    // peuvent être accentués — dont $Result dans %TEMP%, qui inclut le nom
+    // d'utilisateur (« C:\Users\Mathéo\… ») : sans BOM, le chemin est
+    // corrompu, le résultat n'est jamais écrit et l'activation échoue en
+    // silence chez les utilisateurs au nom accentué (fréquent en français).
+    fs.writeFileSync(tmpFile, '\uFEFF' + script + '\r\n');
   } catch (e) {
     return { ok: false, installs, configured: null,
       reason: 'écriture du script impossible : ' + e.message };
@@ -210,7 +244,7 @@ async function enableStatsApi() {
     return { ok: false, installs, configured: null,
       reason: r.ok ? 'aucun résultat — fenêtre admin refusée ?' : r.reason };
   }
-  const lines = raw.trim().split(/\r?\n/).filter(Boolean);
+  const lines = raw.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length || lines[0] === 'NONE') {
     return { ok: false, installs, configured: [],
       reason: 'aucune installation Rocket League valide trouvée' };
@@ -218,4 +252,5 @@ async function enableStatsApi() {
   return { ok: true, installs, configured: lines };
 }
 
-module.exports = { enableStatsApi, detectInstalls, parseLibraryFolders, isRLInstall };
+module.exports = { enableStatsApi, checkStatsApi, iniConfigured, detectInstalls,
+  parseLibraryFolders, isRLInstall };
