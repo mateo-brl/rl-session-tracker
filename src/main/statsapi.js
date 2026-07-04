@@ -247,6 +247,9 @@ class RLStatsAPI extends EventEmitter {
         this.emit('goal', this._goal(data));
         break;
       case 'matchended':
+        // Fin déjà commise via bHasWinner (updatestate) : l'écran de fin peut
+        // quand même envoyer un matchended — ne pas compter deux fois.
+        if (this._afterEnd) break;
         this._onMatchEnd(data);
         break;
       case 'matchdestroyed':
@@ -304,6 +307,19 @@ class RLStatsAPI extends EventEmitter {
     if (players.length) {
       m.players = players;
       if (!m.mode) m.mode = modeFromCount(players.length);
+    }
+
+    // Forfait : le jeu n'envoie PAS toujours matchended — quand une équipe
+    // abandonne, le vainqueur est annoncé par bHasWinner/Winner dans le flux
+    // d'état, puis le lobby est détruit. Sans ce commit, un FF adverse
+    // passerait pour un abandon de NOTRE part (et serait compté défaite).
+    // Règle d'omission du jeu : champ absent = 0/false — donc Winner absent
+    // avec bHasWinner vrai signifie « équipe 0 gagne ».
+    if (game.bHasWinner ?? game.BHasWinner ?? game.HasWinner) {
+      this._onMatchEnd({
+        Winner: numOr(game.Winner ?? game.WinnerTeamNum ?? game.WinningTeam, 0),
+      });
+      return;
     }
 
     this._emitTelemetry(data, game);

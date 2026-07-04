@@ -69,6 +69,64 @@ test('le match suivant repart normalement après une fin de match', () => {
   assert.equal(got.starts, 2);
 });
 
+// ───────── Forfaits (FF) via bHasWinner ─────────
+// Lors d'un forfait, le jeu n'envoie pas toujours matchended : le vainqueur
+// est annoncé par bHasWinner/Winner dans updatestate, puis le lobby est
+// détruit. Sans ce commit, un FF ADVERSE passerait pour un abandon de notre
+// part — et serait compté défaite.
+
+test('FF adverse : bHasWinner sans matchended = fin normale, pas un abandon', () => {
+  const api = new RLStatsAPI();
+  const got = listen(api);
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  // Les adversaires (équipe 1) votent FF : notre équipe 0 gagne. Règle
+  // d'omission du jeu : Winner=0 est ABSENT du JSON.
+  feed(api, 'UpdateState', {
+    Game: { Teams: [{ Score: 1 }, { Score: 3 }], TimeSeconds: 12, bHasWinner: true },
+    Players: PLAYERS,
+  });
+  feed(api, 'MatchDestroyed', {});
+  assert.equal(got.ended, 1);
+  assert.equal(got.abandoned, 0);
+  assert.equal(snap.winnerTeam, 0);         // Winner omis = équipe 0
+});
+
+test('FF : bHasWinner PUIS matchended = une seule fin', () => {
+  const api = new RLStatsAPI();
+  const got = listen(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'UpdateState', {
+    Game: { Teams: [{ Score: 1 }, { Score: 3 }], TimeSeconds: 12,
+      bHasWinner: true, Winner: 1 },
+    Players: PLAYERS,
+  });
+  feed(api, 'MatchEnded', { Winner: 1 });   // l'écran de fin arrive quand même
+  feed(api, 'MatchDestroyed', {});
+  assert.equal(got.ended, 1);
+  assert.equal(got.abandoned, 0);
+});
+
+test('FF : le match suivant repart normalement après un commit bHasWinner', () => {
+  const api = new RLStatsAPI();
+  const got = listen(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', {
+    Game: { Teams: [{ Score: 0 }, { Score: 2 }], bHasWinner: true, Winner: 1 },
+    Players: PLAYERS,
+  });
+  feed(api, 'MatchDestroyed', {});
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(got.ended, 2);
+  assert.equal(got.abandoned, 0);
+  assert.equal(got.starts, 2);
+});
+
 // ───────── Télémétrie boost (son Alpha Boost) ─────────
 // Champs réels de la Stats API : Speed (km/h), Boost (0-100), bBoosting.
 // Particularité du jeu : tout champ à 0 / false est OMIS du JSON.
