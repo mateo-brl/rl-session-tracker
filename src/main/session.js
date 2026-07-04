@@ -163,8 +163,11 @@ class SessionStore {
     let result = null;                  // 'W' | 'L' | null (joueur non identifié)
     let mvp = false;
     if (m.forfeit) {
-      // Abandon : défaite, quel que soit le score au moment du départ.
-      if (me) result = 'L';
+      // Abandon : si le jeu a eu le temps d'annoncer un vainqueur (forfait
+      // ADVERSE attrapé via bHasWinner), on le respecte. Sinon c'est notre
+      // départ : défaite, quel que soit le score au moment où l'on part.
+      const w = (m.winnerTeam === 0 || m.winnerTeam === 1) ? m.winnerTeam : null;
+      if (me) result = (w === null) ? 'L' : (me.team === w ? 'W' : 'L');
     } else {
       // Vainqueur : annoncé par le jeu, sinon déduit du score.
       let winner = m.winnerTeam;
