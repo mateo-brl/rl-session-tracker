@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('rl', {
   setConfig: (partial) => ipcRenderer.invoke('set-config', partial),
   setAutostart: (on) => ipcRenderer.invoke('set-autostart', on),
   resetSession: () => ipcRenderer.invoke('reset-session'),
+  exportMatches: () => ipcRenderer.invoke('export-matches'),
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),

@@ -79,3 +79,36 @@ test('fins de ligne Windows supportées', () => {
   const r = parseLatest(queue('24.87', 18, 11).replace(/\n/g, '\r\n'));
   assert.equal(r.mmr, 597);
 });
+
+// ───────── Classé / casual déduit de la playlist ─────────
+// Avant, « classé » n'était qu'une préférence (vraie par défaut) : chaque
+// partie casual déplaçait le MMR estimé tant qu'on n'avait pas basculé le
+// commutateur à la main, à chaque match.
+
+const { parseLastQueue, playlistInfo } = require('../src/main/rl-log.js');
+
+test('playlistInfo : classé, casual, inconnu', () => {
+  assert.deepEqual(playlistInfo(11), { playlist: 11, ranked: true, mode: '2v2', known: true });
+  assert.deepEqual(playlistInfo(2), { playlist: 2, ranked: false, mode: '2v2', known: true });
+  const x = playlistInfo(999);
+  assert.equal(x.ranked, false);
+  assert.equal(x.known, false);          // inconnu : on ne prétend rien
+});
+
+test('parseLastQueue : retient la DERNIÈRE file, casual comprise', () => {
+  const log = [queue('24', 18, 11), queue('24', 18, 2)].join('\n');
+  const q = parseLastQueue(log);
+  assert.equal(q.playlist, 2);
+  assert.equal(q.ranked, false);         // la dernière file est casual
+});
+
+test('parseLastQueue : file classée', () => {
+  const q = parseLastQueue(queue('26.5', 19, 13));
+  assert.equal(q.ranked, true);
+  assert.equal(q.mode, '3v3');
+});
+
+test('parseLastQueue : aucune file dans le journal', () => {
+  assert.equal(parseLastQueue('[0001.00] Log: menu'), null);
+  assert.equal(parseLastQueue(''), null);
+});

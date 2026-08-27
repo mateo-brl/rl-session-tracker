@@ -39,6 +39,8 @@ const MAX_BUFFER = 65536;
 // Bornes anti-abus sur les données joueurs.
 const MAX_PLAYERS = 8;
 const MAX_NAME_LEN = 64;
+// Borne du journal d'évènements marquants conservé avec chaque match.
+const MAX_EVENTS = 40;
 // Diffusion de l'état limitée à 1/s (la Stats API peut envoyer jusqu'à 120/s).
 const STATE_INTERVAL = 1000;
 
@@ -114,6 +116,7 @@ class RLStatsAPI extends EventEmitter {
     if (!this.match) return { active: false };
     return {
       active: true,
+      guid: this.match.guid || null,
       mode: this.match.mode,
       score: this.match.score,
       timeSeconds: this.match.timeSeconds,
@@ -277,6 +280,10 @@ class RLStatsAPI extends EventEmitter {
         this._afterEnd = false;
         this._resetTelemetry();
         this._onMatchStart();
+        // MatchGuid n'est renseigné qu'en ligne, et il arrive vide sur
+        // matchcreated : c'est matchinitialized qui porte le vrai identifiant.
+        if (this.match && data.MatchGuid) this.match.guid = String(data.MatchGuid);
+        this._trace(name, data);
         break;
       // Podium = le jeu a bel et bien conclu le match (le cycle documenté est
       // matchended → podiumstart → matchdestroyed). C'est notre seul signal
@@ -284,6 +291,7 @@ class RLStatsAPI extends EventEmitter {
       // quitté en cours de partie » — voir le commentaire de matchdestroyed.
       case 'podiumstart':
         if (this.match) this.match.podium = true;
+        this._trace(name, data);
         break;
       case 'updatestate':
         // Après matchended, le jeu continue d'envoyer des updatestate pendant
@@ -308,9 +316,11 @@ class RLStatsAPI extends EventEmitter {
         // peut boucler de toute façon).
         this._replayMuteUntil = Date.now() + REPLAY_MUTE_MS;
         this._emitTelemetryStop();
+        this._trace(name, this._goal(data));
         this.emit('goal', this._goal(data));
         break;
       case 'matchended':
+        this._trace(name, data);
         // Fin déjà commise via bHasWinner (updatestate) : l'écran de fin peut
         // quand même envoyer un matchended — ne pas compter deux fois.
         if (this._afterEnd) break;
@@ -339,6 +349,7 @@ class RLStatsAPI extends EventEmitter {
           // part. Sans ce drapeau, quitter juste après un FF adverse se
           // retrouvait compté comme une défaite.
           snap.podium = !!this.match.podium;
+          snap.events = this.match.events || [];
           this.match = null;
           this.emit('abandoned', snap);
         }
@@ -349,12 +360,24 @@ class RLStatsAPI extends EventEmitter {
     }
   }
 
+  // Journal des évènements MARQUANTS du match (pas le flux d'état, qui arrive
+  // jusqu'à 120 fois par seconde et ne se stocke pas). Une dizaine d'entrées
+  // par match, conservées avec lui : quand la logique d'interprétation
+  // s'améliore — comme pour le forfait —, on peut relire ce qui s'est
+  // réellement passé au lieu de deviner à partir du résultat déjà calculé.
+  _trace(name, data) {
+    if (!this.match) return;
+    const t = this.match.events || (this.match.events = []);
+    if (t.length >= MAX_EVENTS) return;
+    t.push({ at: Date.now(), event: name, data: data || {} });
+  }
+
   _ensureMatch() {
     if (!this.match) {
       this.match = {
         startedAt: Date.now(), score: [0, 0],
         timeSeconds: null, isOT: false, players: [], mode: null,
-        podium: false, _roster: new Map(), _maxPlayers: 0,
+        podium: false, events: [], _roster: new Map(), _maxPlayers: 0,
       };
       this.emit('match', { phase: 'start' });
     }
@@ -554,6 +577,8 @@ class RLStatsAPI extends EventEmitter {
     const snap = this.snapshot();
     snap.winnerTeam = winnerTeam;
     snap.endedAt = Date.now();
+    snap.podium = !!this.match.podium;
+    snap.events = this.match.events || [];
     this._afterEnd = true;
     this._emitTelemetryStop();
     this.emit('ended', snap);

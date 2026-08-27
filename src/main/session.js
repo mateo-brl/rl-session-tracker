@@ -15,9 +15,19 @@ const fs = require('fs');
 const path = require('path');
 
 const MAX_MATCHES = 2000;                      // borne la taille du journal
+// Les évènements bruts ne sont conservés que pour les matchs RÉCENTS : gardés
+// sur les 2000, ils feraient gonfler matches.json de plusieurs mégaoctets, or
+// le fichier est réécrit intégralement après chaque match. Passé ce seuil,
+// seul le résultat déjà calculé subsiste — ce qui suffit largement.
+const EVENTS_KEPT = 100;
 const SESSION_GAP_MS = 2 * 60 * 60 * 1000;     // 2 h sans match = nouvelle session
 const HISTORY_SHOWN = 30;                      // matchs envoyés au dashboard
 const MMR_STEP = 9;                            // gain/perte moyen d'un match classé
+// Bornes de plausibilité du pas appris : en dessous/au-dessus, c'est que le
+// calcul a été faussé (matchs joués sur un autre compte, playlist mal
+// attribuée, relevé manqué) — on préfère alors garder la valeur par défaut.
+const MMR_STEP_MIN = 4;
+const MMR_STEP_MAX = 20;
 const EVOLUTION_POINTS = 80;                   // points max de la courbe MMR
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -79,6 +89,11 @@ class SessionStore {
   addMatch(snap) {
     const players = Array.isArray(snap.players) ? snap.players : [];
     if (players.length < 2) return;   // entraînement / piste libre — jamais compté
+    // MatchGuid : identifiant du match côté serveur (en ligne uniquement). Il
+    // rend le journal idempotent — un même match ne peut plus être enregistré
+    // deux fois, quelle que soit la route d'arrivée (fin normale puis abandon,
+    // reconnexion du socket pendant l'écran de fin...).
+    if (snap.guid && this.matches.some((m) => m.guid === snap.guid)) return;
     this._rememberPlayers(players);
 
     this.matches.push({
@@ -91,6 +106,11 @@ class SessionStore {
       ranked: snap.ranked !== false,
       forfeit: !!snap.forfeit,
       podium: !!snap.podium,
+      guid: snap.guid || null,
+      // Évènements marquants tels que le jeu les a envoyés. Conservés pour
+      // pouvoir réinterpréter un match a posteriori quand la logique
+      // s'affine, sans dépendre du résultat déjà calculé.
+      events: Array.isArray(snap.events) ? snap.events : [],
       players: players.map((p) => ({
         name: p.name, team: p.team,
         goals: p.goals | 0, saves: p.saves | 0, assists: p.assists | 0,
@@ -99,6 +119,9 @@ class SessionStore {
     });
     if (this.matches.length > MAX_MATCHES) {
       this.matches.splice(0, this.matches.length - MAX_MATCHES);
+    }
+    for (let i = 0; i < this.matches.length - EVENTS_KEPT; i++) {
+      if (this.matches[i].events) this.matches[i].events = [];
     }
     this._persist();
   }
@@ -232,28 +255,55 @@ class SessionStore {
     };
   }
 
+  // Pas réellement observé pour ce mode, quand on a pu l'apprendre en
+  // comparant deux relevés du journal du jeu ; sinon la moyenne générique.
+  // Les vrais gains varient (~6 à 12 selon l'écart de MMR), donc un pas figé
+  // à 9 introduisait une erreur systématique entre deux recalages.
+  _step(mode, cfg) {
+    const learned = cfg && cfg.mmrStep && Number(cfg.mmrStep[mode]);
+    if (Number.isFinite(learned) && learned >= MMR_STEP_MIN && learned <= MMR_STEP_MAX) {
+      return learned;
+    }
+    return MMR_STEP;
+  }
+
+  // Bilan des matchs classés d'un mode sur un intervalle : sert à apprendre le
+  // vrai pas MMR (variation réelle entre deux relevés ÷ victoires nettes).
+  decidedBetween(mode, from, to, pseudo) {
+    let wins = 0;
+    let losses = 0;
+    for (const m of this.matches) {
+      if (m.mode !== mode || m.ranked === false) continue;
+      if (m.endedAt <= from || m.endedAt > to) continue;
+      const r = this._evaluate(m, pseudo).result;
+      if (r === 'W') wins++;
+      else if (r === 'L') losses++;
+    }
+    return { wins, losses, net: wins - losses };
+  }
+
   // Seuls les matchs CLASSÉS font bouger le MMR estimé.
-  _mmrForMode(mode, entry, pseudo) {
+  _mmrForMode(mode, entry, pseudo, step) {
     let v = entry.base;
     for (const m of this.matches) {
       if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
       const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') v += MMR_STEP;
-      else if (r === 'L') v -= MMR_STEP;
+      if (r === 'W') v += step;
+      else if (r === 'L') v -= step;
     }
     return v;
   }
 
   // Courbe d'évolution du MMR d'un mode : un point par match classé depuis
   // le calibrage, en partant de la base.
-  _evolutionForMode(mode, entry, pseudo) {
+  _evolutionForMode(mode, entry, pseudo, step) {
     const points = [{ t: entry.setAt, v: entry.base }];
     let v = entry.base;
     for (const m of this.matches) {
       if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
       const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') v += MMR_STEP;
-      else if (r === 'L') v -= MMR_STEP;
+      if (r === 'W') v += step;
+      else if (r === 'L') v -= step;
       else continue;
       points.push({ t: m.endedAt, v: v });
     }
@@ -369,11 +419,15 @@ class SessionStore {
       const entry = mmrCfg[mode];
       if (!entry || !Number.isFinite(entry.base)) continue;
       const pm = agg.perMode[mode];
+      const step = this._step(mode, cfg);
       agg.mmr[mode] = {
-        value: this._mmrForMode(mode, entry, pseudo),
-        delta: pm ? MMR_STEP * pm.rankedDiff : 0,
+        value: Math.round(this._mmrForMode(mode, entry, pseudo, step)),
+        delta: pm ? Math.round(step * pm.rankedDiff) : 0,
+        step: step,
+        fromLog: !!entry.fromLog,
       };
-      evolution[mode] = this._evolutionForMode(mode, entry, pseudo);
+      evolution[mode] = this._evolutionForMode(mode, entry, pseudo, step)
+        .map((p) => ({ t: p.t, v: Math.round(p.v) }));
     }
 
     const lt = this._longTerm(pseudo);

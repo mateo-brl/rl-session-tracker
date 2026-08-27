@@ -268,3 +268,65 @@ test('premier lancement : aucune sauvegarde parasite', () => {
   new SessionStore(dir).resetSession();
   assert.equal(fs.readdirSync(dir).filter((f) => f.includes('.corrupt-')).length, 0);
 });
+
+// ───────── MatchGuid : le journal devient idempotent ─────────
+
+test('même MatchGuid : le match n’est pas enregistré deux fois', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ guid: 'abc-123' }));
+  s.addMatch(snap({ guid: 'abc-123' }));      // fin normale PUIS abandon
+  assert.equal(s.matches.length, 1);
+});
+
+test('sans MatchGuid (hors ligne), le dédoublonnage ne bloque rien', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));
+  s.addMatch(snap({}));
+  assert.equal(s.matches.length, 2);
+});
+
+// ───────── Pas MMR appris ─────────
+
+test('pas MMR appris : utilisé à la place de la moyenne figée à 9', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));                        // une victoire classée
+  const cfg = { mmr: { '2v2': { base: 1000, setAt: 0 } }, mmrCounts: true,
+    mmrStep: { '2v2': 12 } };
+  const a = s.snapshot('Mateo', cfg).session;
+  assert.equal(a.mmr['2v2'].value, 1012);
+  assert.equal(a.mmr['2v2'].step, 12);
+});
+
+test('pas MMR aberrant ignoré : repli sur la valeur par défaut', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));
+  for (const bad of [0, 1, 40, -9, NaN]) {
+    const cfg = { mmr: { '2v2': { base: 1000, setAt: 0 } }, mmrStep: { '2v2': bad } };
+    assert.equal(s.snapshot('Mateo', cfg).session.mmr['2v2'].value, 1009);
+  }
+});
+
+test('decidedBetween : victoires nettes d’un mode sur un intervalle', () => {
+  const s = tmpStore();
+  const t = Date.now();
+  s.addMatch(snap({ endedAt: t - 5000 }));                              // W (hors)
+  s.addMatch(snap({ endedAt: t - 1000 }));                              // W
+  s.addMatch(snap({ endedAt: t - 500, winnerTeam: 1, score: [0, 2] })); // L
+  s.addMatch(snap({ endedAt: t - 400 }));                               // W
+  s.addMatch(snap({ endedAt: t - 300, ranked: false }));                // casual, ignoré
+  const d = s.decidedBetween('2v2', t - 2000, t, 'Mateo');
+  assert.equal(d.wins, 2);
+  assert.equal(d.losses, 1);
+  assert.equal(d.net, 1);
+});
+
+test('évènements bruts conservés pour le match, purgés sur les anciens', () => {
+  const s = tmpStore();
+  const ev = [{ at: 1, event: 'matchended', data: { Winner: 0 } }];
+  s.addMatch(snap({ events: ev }));
+  assert.equal(s.matches[0].events.length, 1);
+  // Au-delà du seuil de conservation, les anciens perdent leurs évènements.
+  for (let i = 0; i < 101; i++) s.addMatch(snap({ events: ev }));
+  assert.equal(s.matches[0].events.length, 0);
+  assert.equal(s.matches[s.matches.length - 1].events.length, 1);
+});

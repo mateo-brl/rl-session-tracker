@@ -74,6 +74,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
 | 🎮 **Statut Discord** | Rich Presence optionnelle : tes amis voient « Classé 2v2 · 3 – 2 » et ta série en cours, en direct. |
+| 🔌 **Compatible overlays SOS** | Un pont optionnel réémet le flux du jeu sur `ws://127.0.0.1:49122` au format de l'ancien plugin SOS, muet en ligne depuis Easy Anti-Cheat. Les overlays de diffusion écrits avant avril 2026 refonctionnent tels quels, sans rien modifier chez eux. |
 | 📺 **Mode streamer (OBS)** | Un overlay de stream servi en local (`http://127.0.0.1:49350/overlay`) à capturer en source Navigateur — **100 % personnalisable** : 3 styles (Broadcast, Compact, Vertical), taille, opacité du fond, chaque élément activable (série, score live, déjà croisé, flash de but, bannière), réglé depuis l'app et appliqué en direct dans OBS. Aux couleurs de ton thème, fond transparent. |
 | 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
 | 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
@@ -276,6 +277,8 @@ rl-session-tracker/
 │   │   ├── updater.js         # Mises à jour automatiques (GitHub Releases)
 │   │   ├── discord-rpc.js     # Statut Discord (pipe IPC local, sans dépendance)
 │   │   ├── obs-server.js      # Mode streamer : overlay OBS servi en local (SSE)
+│   │   ├── sos-bridge.js      # Pont WebSocket compatible plugin SOS (49122)
+│   │   ├── rl-log.js          # Vrai MMR + playlist lus dans Launch.log
 │   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
 │   └── renderer/
@@ -354,6 +357,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
 | 🎮 **Discord status** | Optional Rich Presence: your friends see "Ranked 2v2 · 3 – 2" and your current streak, live. |
+| 🔌 **SOS overlay bridge** | An optional bridge rebroadcasts the game feed on `ws://127.0.0.1:49122` in the format of the old SOS plugin, silent online since Easy Anti-Cheat. Broadcast overlays written before April 2026 work again as-is, with no changes on their side. |
 | 📺 **Streamer mode (OBS)** | A locally served stream overlay (`http://127.0.0.1:49350/overlay`) to capture as a Browser source — **fully customizable**: 3 styles (Broadcast, Compact, Vertical), size, background opacity, every element toggleable (streak, live score, seen-before, goal flash, banner), set from the app and applied live in OBS. In your theme colors, transparent background. |
 | 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
 | 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
@@ -550,6 +554,8 @@ rl-session-tracker/
 │   │   ├── updater.js         # Automatic updates (GitHub Releases)
 │   │   ├── discord-rpc.js     # Discord status (local IPC pipe, no dependency)
 │   │   ├── obs-server.js      # Streamer mode: locally served OBS overlay (SSE)
+│   │   ├── sos-bridge.js      # SOS-compatible WebSocket bridge (49122)
+│   │   ├── rl-log.js          # Real MMR + playlist read from Launch.log
 │   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
 │   ├── preload.js             # Secure IPC bridge (contextIsolation)
 │   └── renderer/
