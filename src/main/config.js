@@ -20,6 +20,9 @@ const DEFAULTS = {
   // écrit son VRAI MMR à chaque mise en file classée. L'estimation à ±9 ne
   // sert alors plus qu'entre deux files, au lieu de dériver indéfiniment.
   mmrFromLog: true,
+  // Pas MMR réellement observé par mode, appris en comparant deux relevés du
+  // journal. Remplace la moyenne figée à 9 quand il est disponible.
+  mmrStep: {},            // '2v2' → 8.4
   sounds: true,          // jingles victoire / défaite
   overlayEnabled: false, // mini-overlay toujours au premier plan pendant le jeu
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
@@ -59,6 +62,11 @@ const DEFAULTS = {
     showH2h: true,       // « déjà croisé » à côté du score (1v1)
     banner: true,        // bannière victoire / défaite en fin de match
     goalFlash: true,     // balayage lumineux à chaque but
+    // Pont compatible SOS : réémet le flux du jeu au format du défunt plugin
+    // SOS, sur son port historique. Permet de réutiliser tel quel n'importe
+    // quel overlay de diffusion écrit avant Easy Anti-Cheat.
+    sosBridge: false,
+    sosPort: 49122,
   },
 };
 
@@ -131,6 +139,14 @@ function update(partial) {
     }
     if (typeof partial.mmrFromLog === 'boolean') {
       config.mmrFromLog = partial.mmrFromLog;
+    }
+    if (partial.mmrStep && typeof partial.mmrStep === 'object') {
+      const out = {};
+      for (const k of Object.keys(partial.mmrStep).slice(0, 8)) {
+        const v = Number(partial.mmrStep[k]);
+        if (Number.isFinite(v) && v >= 4 && v <= 20) out[String(k).slice(0, 8)] = v;
+      }
+      config.mmrStep = out;
     }
     if (typeof partial.sounds === 'boolean') {
       config.sounds = partial.sounds;
@@ -205,9 +221,12 @@ function update(partial) {
       if (sc >= 0.7 && sc <= 1.6) o.scale = sc;
       const bo = Number(partial.obs.bgOpacity);
       if (bo >= 0.2 && bo <= 1) o.bgOpacity = bo;
-      for (const k of ['showStreak', 'showLive', 'showH2h', 'banner', 'goalFlash']) {
+      for (const k of ['showStreak', 'showLive', 'showH2h', 'banner', 'goalFlash',
+        'sosBridge']) {
         if (typeof partial.obs[k] === 'boolean') o[k] = partial.obs[k];
       }
+      const sp = Number(partial.obs.sosPort);
+      if (Number.isInteger(sp) && sp >= 1024 && sp <= 65535) o.sosPort = sp;
     }
     // Son Alpha Boost : activation, volume, profil sonore.
     if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
