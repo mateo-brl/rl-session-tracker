@@ -30,6 +30,11 @@ const MAX_FRAME = 8192;
 let server = null;
 let clients = new Set();
 let listenPort = 0;
+// Port DEMANDÉ, connu dès l'appel à start(). `listenPort` n'est renseigné
+// qu'au rappel de listen() : s'y fier pour l'idempotence laissait deux appels
+// rapprochés (deux réglages OBS enchaînés) faire stop() puis listen() sur un
+// port encore en cours de libération — EADDRINUSE, et le pont restait mort.
+let wantedPort = 0;
 let logFn = null;
 
 function log(msg) {
@@ -114,6 +119,15 @@ function readFrames(sock, buf) {
 
 // ───────── Poignée de main ─────────
 function handleUpgrade(req, sock) {
+  // TOUT PREMIER : après 'upgrade', Node retire ses propres écouteurs et nous
+  // laisse le socket. Sans écouteur 'error' dès maintenant, un pair qui coupe
+  // brutalement pendant la poignée de main (onglet fermé, OBS tué) émet un
+  // ECONNRESET sans destinataire — ce qui fait tomber le processus principal,
+  // donc l'application entière, en pleine partie.
+  sock.on('error', () => {
+    clients.delete(sock);
+    try { sock.destroy(); } catch (e) {}
+  });
   const key = req.headers['sec-websocket-key'];
   if (!key) { sock.destroy(); return; }
   // Même garde que le serveur OBS : sans validation du Host, une page web
@@ -150,10 +164,18 @@ function handleUpgrade(req, sock) {
 }
 
 // ───────── Traduction Stats API → format SOS ─────────
-// Les overlays SOS attendent une enveloppe { event, data }, où `event` est
-// préfixé par « game: ». On conserve les charges utiles telles quelles : les
-// overlays savent lire les champs de la Stats API, c'est le NOM de l'évènement
-// et le transport qui leur manquaient.
+// Traduire le NOM de l'évènement ne suffit pas : les overlays SOS ont été
+// écrits contre le SCHÉMA de SOS, pas contre celui de la Stats API. Un overlay
+// lit `data.game.teams[0].score`, `data.players['<id>'].name` ou
+// `data.scorer.name` — leur passer le instantané brut de la Stats API
+// (`score: [a, b]`, `players` en tableau, `scorer` en chaîne) ne produirait
+// que des `undefined`. On reconstruit donc les charges utiles à la forme
+// attendue.
+//
+// La correspondance est faite au mieux, à partir de la documentation
+// communautaire de SOS : les champs que la Stats API ne fournit pas (position
+// de la balle, couleurs d'équipe, démolitions…) sont simplement absents. Un
+// overlay qui en dépend affichera un trou à cet endroit, pas une erreur.
 const EVENT_NAMES = {
   start: 'game:match_created',
   destroyed: 'game:match_destroyed',
@@ -163,13 +185,73 @@ const EVENT_NAMES = {
   podium: 'game:podium_start',
 };
 
+// SOS indexe les joueurs par identifiant, pas par position dans un tableau.
+function sosPlayers(list) {
+  const out = {};
+  const players = Array.isArray(list) ? list : [];
+  players.forEach((p, i) => {
+    const id = p.id || (p.name ? p.name + '_' + p.team : 'p' + i);
+    out[id] = {
+      id: id,
+      name: p.name,
+      team: p.team,
+      score: p.score,
+      goals: p.goals,
+      assists: p.assists,
+      saves: p.saves,
+      shots: p.shots,
+    };
+  });
+  return out;
+}
+
+function sosTeams(score) {
+  const s = Array.isArray(score) ? score : [0, 0];
+  return { 0: { score: s[0] | 0 }, 1: { score: s[1] | 0 } };
+}
+
+function toSos(kind, data) {
+  const d = data || {};
+  if (kind === 'state') {
+    return {
+      hasGame: !!d.active,
+      match_guid: d.guid || '',
+      game: {
+        teams: sosTeams(d.score),
+        time_seconds: d.timeSeconds === null || d.timeSeconds === undefined
+          ? 0 : d.timeSeconds,
+        isOT: !!d.isOT,
+        hasWinner: false,
+      },
+      players: sosPlayers(d.players),
+    };
+  }
+  if (kind === 'goal') {
+    return {
+      scorer: {
+        name: d.scorer || '',
+        teamnum: typeof d.team === 'number' ? d.team : -1,
+      },
+    };
+  }
+  if (kind === 'ended') {
+    return {
+      match_guid: d.guid || '',
+      winner_team_num: (d.winnerTeam === 0 || d.winnerTeam === 1) ? d.winnerTeam : -1,
+    };
+  }
+  if (kind === 'podium') return { match_guid: d.guid || '' };
+  if (kind === 'start') return { match_guid: d.guid || '' };
+  return {};
+}
+
 function send(kind, data) {
   if (!clients.size) return;
   const name = EVENT_NAMES[kind];
   if (!name) return;
   let frame;
   try {
-    frame = encodeText(JSON.stringify({ event: name, data: data === undefined ? {} : data }));
+    frame = encodeText(JSON.stringify({ event: name, data: toSos(kind, data) }));
   } catch (e) { return; }
   for (const sock of Array.from(clients)) {
     try { sock.write(frame); } catch (e) { clients.delete(sock); }
@@ -179,8 +261,9 @@ function send(kind, data) {
 function start(port, onLog) {
   logFn = onLog || null;
   const want = Number(port) || DEFAULT_PORT;
-  if (server && listenPort === want) return;
+  if (server && wantedPort === want) return;
   stop();
+  wantedPort = want;
 
   server = http.createServer((req, res) => {
     // Le pont ne sert aucune page : seul l'upgrade WebSocket a du sens.
@@ -192,6 +275,7 @@ function start(port, onLog) {
     log('port ' + want + ' indisponible : ' + e.message);
     server = null;
     listenPort = 0;
+    wantedPort = 0;
   });
   // 127.0.0.1 uniquement : le pont ne sort jamais de la machine.
   server.listen(want, '127.0.0.1', () => {
@@ -208,10 +292,12 @@ function stop() {
   clients = new Set();
   if (server) { try { server.close(); } catch (e) {} server = null; }
   listenPort = 0;
+  wantedPort = 0;
 }
 
 function status() {
   return { running: !!server && listenPort > 0, port: listenPort, clients: clients.size };
 }
 
-module.exports = { start, stop, send, status, encodeText, readFrames, EVENT_NAMES };
+module.exports = { start, stop, send, status, encodeText, readFrames, EVENT_NAMES,
+  toSos };

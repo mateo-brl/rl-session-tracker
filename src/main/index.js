@@ -19,6 +19,7 @@ const discord = require('./discord-rpc');
 const obs = require('./obs-server');
 const sos = require('./sos-bridge');
 const SessionStore = require('./session');
+const { MMR_STEP_MIN, MMR_STEP_MAX } = SessionStore;
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
@@ -132,6 +133,22 @@ function refreshH2h() {
   state.h2h = Object.keys(seen).length ? seen : null;
 }
 
+// Le pseudo est configuré mais ne correspond à personne (changement de nom en
+// jeu, espace insécable, variante unicode) : les matchs ne comptent ni
+// victoire ni défaite. On propose alors les candidats détectés, sinon
+// l'utilisateur lit « vérifie ton pseudo » sans savoir par quoi le remplacer.
+function refreshPseudoCandidates() {
+  if (!config.get().pseudo) return;          // déjà géré par la détection auto
+  const unmatched = (state.session && state.session.unmatched) || 0;
+  if (!unmatched) { state.pseudoCandidates = []; return; }
+  try {
+    const d = store.detectPseudo();
+    const me = String(config.get().pseudo).trim().toLowerCase();
+    state.pseudoCandidates = d.candidates
+      .filter((n) => String(n).trim().toLowerCase() !== me);
+  } catch (e) { state.pseudoCandidates = []; }
+}
+
 function refreshSession() {
   const snap = store.snapshot(config.get().pseudo, config.get());
   state.session = snap.session;
@@ -140,6 +157,7 @@ function refreshSession() {
   state.evolution = snap.evolution;
   state.week = snap.week;
   state.records = snap.records;
+  refreshPseudoCandidates();
 }
 
 function resolveLang() {
@@ -356,16 +374,20 @@ function startStatsApi() {
     lastRecordedAt = Date.now();
     matchSinceRecord = false;
     snap.ranked = ranked;
-    store.addMatch(snap);
+    // Doublon écarté (même MatchGuid) : history[0] serait le match PRÉCÉDENT,
+    // et on rejouerait sa bannière et son jingle.
+    const added = store.addMatch(snap);
     refreshSession();
     pushState();
-    const last = state.history[0];
+    const last = added ? state.history[0] : null;
     if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
     sos.send('ended', snap);
+    if (!added) { log('abandon ignoré — déjà au journal (MatchGuid)'); return; }
     log('abandon enregistré : ' + (snap.mode || '?')
       + ' — résultat ' + ((last && last.result) || '?')
       + (snap.podium ? ' (podium atteint)' : ''));
   });
+  api.on('podium', (d) => sos.send('podium', d));
   api.on('goal', (d) => {
     if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
@@ -394,7 +416,7 @@ function startStatsApi() {
     state.currentRankedAuto = null;
     lastRecordedAt = Date.now();
     matchSinceRecord = false;
-    store.addMatch(snap);
+    const added = store.addMatch(snap);
     // Pseudo pas encore configuré : on le devine (joueur présent dans tous
     // les derniers matchs). Zéro saisie pour l'utilisateur dans le cas normal.
     if (!config.get().pseudo) {
@@ -407,13 +429,15 @@ function startStatsApi() {
     } else {
       state.pseudoCandidates = [];
     }
+    refreshPseudoCandidates();
     refreshSession();
     pushState();
     // Animation victoire / défaite sur le dashboard : le match qu'on vient
     // d'enregistrer est le premier de l'historique, déjà évalué (W/L, MVP).
-    const last = state.history[0];
+    const last = added ? state.history[0] : null;
     if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
     sos.send('ended', snap);
+    if (!added) { log('match ignoré — déjà au journal (MatchGuid)'); return; }
     log('match enregistré : ' + (snap.mode || '?') + ' '
       + (Array.isArray(snap.score) ? snap.score.join('-') : '?'));
   });
@@ -451,8 +475,16 @@ function learnMmrStep(reading, previous) {
   const d = store.decidedBetween(reading.mode, previous.setAt, Date.now(),
     config.get().pseudo);
   if (!d.net) return;                      // autant de victoires que de défaites
-  const observed = Math.abs((reading.mmr - previous.base) / d.net);
-  if (!Number.isFinite(observed) || observed < 4 || observed > 20) return;
+  // Un match non attribué (pseudo qui ne correspond pas) est absent de `net`
+  // alors qu'il a bel et bien bougé le MMR : le pas déduit serait gonflé.
+  if (d.unmatched) return;
+  const delta = reading.mmr - previous.base;
+  // Le signe doit concorder : gagner net tout en PERDANT du MMR (ou l'inverse)
+  // signale des données contradictoires — relevé manqué, playlist mal
+  // attribuée, parties jouées sur un autre compte. On n'apprend rien de ça.
+  if (Math.sign(delta) !== Math.sign(d.net)) return;
+  const observed = Math.abs(delta / d.net);
+  if (!Number.isFinite(observed) || observed < MMR_STEP_MIN || observed > MMR_STEP_MAX) return;
   const steps = { ...(config.get().mmrStep || {}) };
   const prev = Number(steps[reading.mode]);
   steps[reading.mode] = Number.isFinite(prev)
@@ -696,8 +728,15 @@ function toCsv(rows) {
     // Un pseudo peut contenir « ; », un guillemet ou un retour à la ligne.
     return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   };
+  // Coéquipiers ou adversaires, du point de vue du joueur suivi.
+  const names = (m, mine) => (Array.isArray(m.players) && m.myTeam !== null
+    ? m.players.filter((p) => (p.team === m.myTeam) === mine
+        && !(mine && m.me && p.score === m.me.score && p.goals === m.me.goals))
+      .map((p) => p.name).join(', ')
+    : '');
   const head = ['date', 'mode', 'classe', 'resultat', 'score', 'prolongation',
-    'forfait', 'buts', 'passes', 'arrets', 'tirs', 'points', 'mvp'];
+    'forfait', 'buts', 'passes', 'arrets', 'tirs', 'points', 'mvp',
+    'coequipiers', 'adversaires'];
   const lines = [head.join(';')];
   for (const m of rows) {
     lines.push([
@@ -711,6 +750,9 @@ function toCsv(rows) {
       m.me ? m.me.goals : '', m.me ? m.me.assists : '',
       m.me ? m.me.saves : '', m.me ? m.me.shots : '',
       m.me ? m.me.score : '', m.me && m.me.mvp ? 'oui' : 'non',
+      // C'est ici qu'un pseudo peut contenir « ; » ou un guillemet : la
+      // fonction `cell` ci-dessus existe pour ces deux colonnes.
+      names(m, true), names(m, false),
     ].map(cell).join(';'));
   }
   // BOM UTF-8 : sans lui, Excel lit le CSV en ANSI et massacre les accents.
@@ -731,7 +773,7 @@ ipcMain.handle('export-matches', async () => {
     if (r.canceled || !r.filePath) return { ok: false, canceled: true };
     // Le point de vue du joueur (victoire/défaite, stats perso) est dérivé au
     // calcul : on exporte donc l'historique évalué, pas les données brutes.
-    const rows = store.matches.map((m) => store._evaluate(m, config.get().pseudo));
+    const rows = store.exportRows(config.get().pseudo);
     const json = /\.json$/i.test(r.filePath);
     fs.writeFileSync(r.filePath, json ? JSON.stringify(rows, null, 2) + '\n' : toCsv(rows));
     log('export de ' + rows.length + ' match(s) vers ' + r.filePath);

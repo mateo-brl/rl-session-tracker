@@ -292,6 +292,7 @@ class RLStatsAPI extends EventEmitter {
       case 'podiumstart':
         if (this.match) this.match.podium = true;
         this._trace(name, data);
+        this.emit('podium', this.snapshot());
         break;
       case 'updatestate':
         // Après matchended, le jeu continue d'envoyer des updatestate pendant
@@ -577,8 +578,14 @@ class RLStatsAPI extends EventEmitter {
     const snap = this.snapshot();
     snap.winnerTeam = winnerTeam;
     snap.endedAt = Date.now();
-    snap.podium = !!this.match.podium;
-    snap.events = this.match.events || [];
+    // this.match peut être null : le socket est tombé en plein match (resync
+    // du flux, coupure) et le jeu envoie matchended à la reconnexion. Sans
+    // cette garde, la déréférence levait une TypeError avalée par le parseur
+    // — et comme elle survenait AVANT `_afterEnd = true`, l'écran de fin
+    // recréait un match fantôme que matchdestroyed comptait en défaite :
+    // exactement le bug que ce drapeau existe pour empêcher.
+    snap.podium = !!(this.match && this.match.podium);
+    snap.events = (this.match && this.match.events) || [];
     this._afterEnd = true;
     this._emitTelemetryStop();
     this.emit('ended', snap);

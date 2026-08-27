@@ -112,3 +112,50 @@ test('parseLastQueue : aucune file dans le journal', () => {
   assert.equal(parseLastQueue('[0001.00] Log: menu'), null);
   assert.equal(parseLastQueue(''), null);
 });
+
+// ───────── Fraîcheur d’une mise en file ─────────
+// Le journal grossit en permanence pendant une partie. Identifier une file par
+// la TAILLE du fichier faisait passer la même vieille ligne pour une nouvelle
+// à chaque scrutation : l’horodatage était sans cesse rafraîchi, le garde de
+// fraîcheur n’expirait jamais, et un évènement était réémis toutes les 20 s.
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const RLLogReader = require('../src/main/rl-log.js');
+
+test('relire le même journal ne réhorodate pas la file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rllog-'));
+  const file = path.join(dir, 'Launch.log');
+  fs.writeFileSync(file, queue('24', 18, 11) + '\n');
+  const r = new RLLogReader({ file: file });
+
+  const first = r.refreshQueue();
+  assert.equal(first.playlist, 11);
+  const at = first.at;
+  const key = r._queueKey;
+
+  // Le jeu continue d'écrire : le fichier grossit, mais AUCUNE nouvelle file.
+  fs.appendFileSync(file, '[0300.00] Log: bruit de partie\n'.repeat(50));
+  const again = r.refreshQueue();
+  assert.equal(again.at, at, 'l’horodatage ne doit pas bouger');
+  assert.equal(r._queueKey, key, 'la file doit rester la même');
+
+  // Une VRAIE nouvelle file, même playlist : elle doit être reconnue.
+  // On compare l'IDENTITÉ de la file, pas l'horodatage : les deux lectures
+  // peuvent tomber dans la même milliseconde.
+  fs.appendFileSync(file, queue('25', 18, 11) + '\n');
+  const fresh = r.refreshQueue();
+  assert.notEqual(r._queueKey, key, 'une nouvelle file doit être reconnue');
+  assert.equal(fresh.playlist, 11);
+});
+
+test('parseLastQueue expose la position de la ligne trouvée', () => {
+  const q = parseLastQueue('bruit\n' + queue('24', 18, 13));
+  assert.equal(q.mode, '3v3');
+  assert.ok(Number.isInteger(q.offset) && q.offset > 0);
+});
+
+test('playlist 4 (chaos) vaut 4v4, pas 3v3', () => {
+  assert.equal(playlistInfo(4).mode, '4v4');
+});

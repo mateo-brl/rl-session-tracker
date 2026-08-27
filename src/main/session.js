@@ -83,17 +83,21 @@ class SessionStore {
     } catch (e) { /* le journal en mémoire reste valable */ }
   }
 
-  // Enregistre un match. `snap` : snapshot de la Stats API ({ mode, score,
+  // Enregistre un match, et renvoie `true` s'il a réellement été ajouté au
+  // journal. L'appelant DOIT s'y fier avant de rejouer la bannière et le
+  // jingle de fin : sur un doublon, `history[0]` est le match PRÉCÉDENT, et
+  // on le fêtait une seconde fois.
+  // `snap` : snapshot de la Stats API ({ mode, score,
   // isOT, winnerTeam, players, endedAt }), enrichi par l'appelant de
   // `ranked` (classé ou casual) et `forfeit` (abandon).
   addMatch(snap) {
     const players = Array.isArray(snap.players) ? snap.players : [];
-    if (players.length < 2) return;   // entraînement / piste libre — jamais compté
+    if (players.length < 2) return false;   // entraînement / piste libre — jamais compté
     // MatchGuid : identifiant du match côté serveur (en ligne uniquement). Il
     // rend le journal idempotent — un même match ne peut plus être enregistré
     // deux fois, quelle que soit la route d'arrivée (fin normale puis abandon,
     // reconnexion du socket pendant l'écran de fin...).
-    if (snap.guid && this.matches.some((m) => m.guid === snap.guid)) return;
+    if (snap.guid && this.matches.some((m) => m.guid === snap.guid)) return false;
     this._rememberPlayers(players);
 
     this.matches.push({
@@ -124,6 +128,7 @@ class SessionStore {
       if (this.matches[i].events) this.matches[i].events = [];
     }
     this._persist();
+    return true;
   }
 
   _rememberPlayers(players) {
@@ -272,14 +277,18 @@ class SessionStore {
   decidedBetween(mode, from, to, pseudo) {
     let wins = 0;
     let losses = 0;
+    let unmatched = 0;
     for (const m of this.matches) {
       if (m.mode !== mode || m.ranked === false) continue;
       if (m.endedAt <= from || m.endedAt > to) continue;
-      const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') wins++;
-      else if (r === 'L') losses++;
+      const e = this._evaluate(m, pseudo);
+      if (e.result === 'W') wins++;
+      else if (e.result === 'L') losses++;
+      // Un match où l'on ne s'est pas reconnu a quand même bougé le vrai MMR :
+      // l'appelant doit pouvoir refuser d'apprendre sur un intervalle troué.
+      else if (!e.me) unmatched++;
     }
-    return { wins, losses, net: wins - losses };
+    return { wins, losses, unmatched, net: wins - losses };
   }
 
   // Seuls les matchs CLASSÉS font bouger le MMR estimé.
@@ -355,6 +364,20 @@ class SessionStore {
     return out;
   }
 
+  // Lignes d'export : le point de vue calculé (victoire/défaite, stats perso)
+  // ET les données brutes du match. Le JSON doit rester ré-importable et
+  // ré-interprétable — n'exporter que l'évaluation aurait laissé de côté les
+  // adversaires, leurs stats, le vainqueur annoncé et la trace d'évènements.
+  exportRows(pseudo) {
+    return this.matches.map((m) => ({
+      ...this._evaluate(m, pseudo),
+      winnerTeam: m.winnerTeam,
+      guid: m.guid || null,
+      players: m.players,
+      events: m.events || [],
+    }));
+  }
+
   // Statistiques agrégées envoyées aux fenêtres.
   snapshot(pseudo, cfg) {
     const session = this._sessionMatches().map((m) => this._evaluate(m, pseudo));
@@ -363,6 +386,7 @@ class SessionStore {
       startedAt: session.length ? session[0].endedAt : null,
       played: session.length,
       wins: 0, losses: 0, unknown: 0,
+      unmatched: 0,      // sous-ensemble d'`unknown` : pseudo introuvable
       streak: { type: null, count: 0 },
       bestWinStreak: 0,
       perMode: {},        // '2v2' → { played, wins, losses, streak, rankedDiff }
@@ -373,7 +397,14 @@ class SessionStore {
     for (const m of session) {
       if (m.result === 'W') agg.wins++;
       else if (m.result === 'L') agg.losses++;
-      else agg.unknown++;
+      else {
+        agg.unknown++;
+        // Seul le cas « on ne s'est pas trouvé dans le match » relève du
+        // pseudo. Un forfait indécidable (score à égalité, aucun vainqueur
+        // annoncé) n'a rien à voir avec lui : le signaler comme tel envoyait
+        // l'utilisateur corriger un pseudo pourtant correct.
+        if (!m.me) agg.unmatched++;
+      }
 
       if (m.result === 'W') {
         run = run >= 0 ? run + 1 : 1;
@@ -444,3 +475,9 @@ class SessionStore {
 }
 
 module.exports = SessionStore;
+// Exportées : config.js et index.js valident et apprennent le pas MMR avec
+// les MÊMES bornes — les répéter en littéraux les désynchronisait au premier
+// ajustement.
+module.exports.MMR_STEP_MIN = MMR_STEP_MIN;
+module.exports.MMR_STEP_MAX = MMR_STEP_MAX;
+module.exports.MMR_STEP = MMR_STEP;

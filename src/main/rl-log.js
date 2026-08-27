@@ -41,7 +41,7 @@ const RANKED_PLAYLISTS = {
 // tables (nouveau mode, tournoi, partie privée) est traitée comme non classée,
 // mais sans certitude — voir `known` dans le résultat.
 const CASUAL_PLAYLISTS = {
-  1: '1v1', 2: '2v2', 3: '3v3', 4: '3v3',   // duel / doubles / standard / chaos
+  1: '1v1', 2: '2v2', 3: '3v3', 4: '4v4',   // duel / doubles / standard / chaos
 };
 
 // Toute mise en file, classée ou non. `ranked` décide si le match comptera
@@ -81,12 +81,19 @@ function readTail(file, bytes) {
     const buf = Buffer.alloc(len);
     fd = fs.openSync(file, 'r');
     fs.readSync(fd, buf, 0, len, size - len);
-    return buf.toString('utf8');
+    // `from` = position absolue du début de la fenêtre lue. Elle permet de
+    // situer une ligne dans le FICHIER, pas seulement dans la fenêtre.
+    return { text: buf.toString('utf8'), size: size, from: size - len };
   } catch (e) {
     return null;
   } finally {
     if (fd !== null) { try { fs.closeSync(fd); } catch (e) {} }
   }
+}
+
+function tailText(file, bytes) {
+  const t = readTail(file, bytes);
+  return t ? t.text : null;
 }
 
 // Extrait le DERNIER relevé de MMR du texte fourni.
@@ -139,12 +146,17 @@ function parseLatest(text) {
 // commutateur à la main — à chaque match.
 function parseLastQueue(text) {
   if (!text) return null;
-  const lines = String(text).split(/\r?\n/);
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const p = /StartMatchmaking\b[^\n]*?\bfor playlists?\s+(\d+)/i.exec(lines[i]);
-    if (p) return playlistInfo(p[1]);
-  }
-  return null;
+  const str = String(text);
+  const re = /StartMatchmaking\b[^\n]*?\bfor playlists?\s+(\d+)/gi;
+  let last = null;
+  let m;
+  while ((m = re.exec(str)) !== null) last = m;
+  if (!last) return null;
+  // `offset` : position de la ligne dans le texte fourni. Sert à identifier
+  // CETTE mise en file précise — la taille du fichier ne convient pas, elle
+  // change à chaque écriture du jeu et faisait passer une vieille file pour
+  // une nouvelle à chaque scrutation.
+  return { ...playlistInfo(last[1]), offset: last.index };
 }
 
 class RLLogReader extends EventEmitter {
@@ -161,7 +173,7 @@ class RLLogReader extends EventEmitter {
 
   // Retourne le relevé courant, ou null si le journal est absent/illisible.
   read() {
-    return parseLatest(readTail(this.file, TAIL_BYTES));
+    return parseLatest(tailText(this.file, TAIL_BYTES));
   }
 
   // Relit le journal MAINTENANT pour connaître la dernière mise en file.
@@ -169,14 +181,24 @@ class RLLogReader extends EventEmitter {
   // plupart du temps, mais une lecture à la demande garantit qu'on ne rate
   // pas la file qui vient tout juste de mener à ce match.
   refreshQueue() {
-    const q = parseLastQueue(readTail(this.file, TAIL_BYTES));
-    if (!q) return this.lastQueue;
-    const key = q.playlist + ':' + this._lastSize;
-    if (key !== this._queueKey) {
-      this._queueKey = key;
-      this.lastQueue = { ...q, at: Date.now() };
-    }
+    const t = readTail(this.file, TAIL_BYTES);
+    if (!t) return this.lastQueue;
+    this._applyQueue(parseLastQueue(t.text), t.from);
     return this.lastQueue;
+  }
+
+  // Retient une mise en file, et n'horodate QUE si c'en est une nouvelle.
+  // L'identité d'une file, c'est la position absolue de sa ligne dans le
+  // journal : deux files successives sur la même playlist sont bien
+  // distinguées, et relire la même ligne ne rafraîchit pas son horodatage —
+  // sans quoi le garde de fraîcheur n'expirait jamais.
+  _applyQueue(q, from) {
+    if (!q) return false;
+    const key = q.playlist + '@' + (from + q.offset);
+    if (key === this._queueKey) return false;
+    this._queueKey = key;
+    this.lastQueue = { ...q, at: Date.now() };
+    return true;
   }
 
   start() {
@@ -199,18 +221,13 @@ class RLLogReader extends EventEmitter {
     if (size === this._lastSize) return;
     this._lastSize = size;
 
-    const text = readTail(this.file, TAIL_BYTES);
-    const q = parseLastQueue(text);
-    if (q) {
-      const key = q.playlist + ':' + size;
-      if (key !== this._queueKey) {
-        this._queueKey = key;
-        this.lastQueue = { ...q, at: Date.now() };
-        this.emit('queue', this.lastQueue);
-      }
+    const t = readTail(this.file, TAIL_BYTES);
+    if (!t) return;
+    if (this._applyQueue(parseLastQueue(t.text), t.from)) {
+      this.emit('queue', this.lastQueue);
     }
 
-    const found = parseLatest(text);
+    const found = parseLatest(t.text);
     if (!found) return;
     const key = found.mode + ':' + found.mmr;
     if (key === this._lastKey) return;
@@ -224,5 +241,6 @@ module.exports.parseLatest = parseLatest;
 module.exports.parseLastQueue = parseLastQueue;
 module.exports.playlistInfo = playlistInfo;
 module.exports.defaultLogPath = defaultLogPath;
+module.exports.readTail = readTail;
 module.exports.RANKED_PLAYLISTS = RANKED_PLAYLISTS;
 module.exports.CASUAL_PLAYLISTS = CASUAL_PLAYLISTS;
