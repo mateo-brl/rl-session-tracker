@@ -16,6 +16,25 @@ let dashboard = null;
 let overlay = null;
 let alphaAudio = null;
 
+// ───────── Durcissement commun à toutes les fenêtres ─────────
+// Défense en profondeur : la seule donnée contrôlée par un adversaire (les
+// pseudos reçus de la Stats API) est systématiquement échappée via esc()
+// dans les renderers, donc aucune injection n'est possible aujourd'hui. Mais
+// si une régression future laissait passer du HTML non échappé issu d'un
+// pseudo adverse, l'absence de ces garde-fous permettrait à la page
+// compromise de se naviguer vers une origine distante ou d'ouvrir de
+// nouvelles fenêtres. Les liens externes légitimes de l'application passent
+// tous par le canal IPC dédié 'open-external' (shell.openExternal côté
+// main), qui n'est pas affecté par ces restrictions.
+function hardenWindow(win) {
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  const blockRemoteNav = (e, url) => {
+    if (!String(url).startsWith('file://')) e.preventDefault();
+  };
+  win.webContents.on('will-navigate', blockRemoteNav);
+  win.webContents.on('will-redirect', blockRemoteNav);
+}
+
 // ───────── Fenêtre de contrôle ─────────
 function createControl(show, onReady) {
   if (control && !control.isDestroyed()) { if (show) showControl(); return control; }
@@ -36,6 +55,7 @@ function createControl(show, onReady) {
       nodeIntegration: false,
     },
   });
+  hardenWindow(control);
   control.loadFile(path.join(RENDERER, 'control.html'));
   control.once('ready-to-show', () => { if (show) control.show(); });
   control.webContents.on('did-finish-load', () => { if (onReady) onReady(); });
@@ -91,6 +111,7 @@ function openDashboard(opts, onReady) {
       nodeIntegration: false,
     },
   });
+  hardenWindow(dashboard);
   dashboard.loadFile(path.join(RENDERER, 'dashboard.html'));
   dashboard.once('ready-to-show', () => {
     if (fullscreen) {
@@ -137,15 +158,35 @@ function getDashboard() {
 const OVERLAY_W = 284;
 const OVERLAY_H = 92;
 
+// La position mémorisée pointe-t-elle encore sur un écran existant ? Le public
+// de l'application joue sur deux écrans : après avoir posé l'overlay sur le
+// second puis débranché celui-ci, la fenêtre — sans cadre, non focalisable et
+// absente de la barre des tâches — se rouvrait à des coordonnées invisibles,
+// irrécupérable autrement qu'en éditant config.json à la main.
+function posOnScreen(pos, w, h) {
+  if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) return false;
+  try {
+    return screen.getAllDisplays().some((d) => {
+      const a = d.workArea;
+      // On exige que la fenêtre reste attrapable : au moins 40 px visibles.
+      return pos.x + w > a.x + 40 && pos.x < a.x + a.width - 40
+        && pos.y + h > a.y && pos.y < a.y + a.height - 20;
+    });
+  } catch (e) { return false; }
+}
+
 function openOverlay(pos, onMoved, ocfg) {
   if (overlay && !overlay.isDestroyed()) { overlay.show(); return overlay; }
   const wa = screen.getPrimaryDisplay().workArea;
   const scale = (ocfg && ocfg.scale) || 1;
+  const w = Math.round(OVERLAY_W * scale);
+  const h = Math.round(OVERLAY_H * scale);
+  const keep = posOnScreen(pos, w, h);
   overlay = new BrowserWindow({
-    x: (pos && Number.isFinite(pos.x)) ? pos.x : wa.x + wa.width - 300,
-    y: (pos && Number.isFinite(pos.y)) ? pos.y : wa.y + 16,
-    width: Math.round(OVERLAY_W * scale),
-    height: Math.round(OVERLAY_H * scale),
+    x: keep ? pos.x : wa.x + wa.width - 300,
+    y: keep ? pos.y : wa.y + 16,
+    width: w,
+    height: h,
     frame: false,
     resizable: false,
     maximizable: false,
@@ -166,6 +207,7 @@ function openOverlay(pos, onMoved, ocfg) {
   if (ocfg && ocfg.opacity < 1) {
     try { overlay.setOpacity(ocfg.opacity); } catch (e) {}
   }
+  hardenWindow(overlay);
   overlay.loadFile(path.join(RENDERER, 'overlay.html'));
   overlay.once('ready-to-show', () => overlay.show());
   overlay.on('moved', () => {
@@ -224,6 +266,7 @@ function openAlphaAudio(onReady) {
       backgroundThrottling: false,
     },
   });
+  hardenWindow(alphaAudio);
   alphaAudio.loadFile(path.join(RENDERER, 'alphaboost.html'));
   alphaAudio.webContents.on('did-finish-load', () => { if (onReady) onReady(); });
   alphaAudio.on('closed', () => { alphaAudio = null; });

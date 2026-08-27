@@ -1250,7 +1250,12 @@
     sorted.forEach(function (p) {
       var isMe = me && String(p.name).trim().toLowerCase() === me;
       // « Déjà croisé » : bilan historique contre cet adversaire.
-      var h = (!isMe && h2h && h2h[p.name]) ? h2h[p.name] : null;
+      // p.name est un pseudo ADVERSE arbitraire (Stats API, juste tronqué à
+      // 64 caractères) : un joueur nommé « constructor », « toString »…
+      // ferait remonter la propriété HÉRITÉE d'Object.prototype (une
+      // fonction, donc truthy) sans hasOwnProperty — d'où le hasOwnProperty.
+      var h = (!isMe && h2h && Object.prototype.hasOwnProperty.call(h2h, p.name))
+        ? h2h[p.name] : null;
       var chip = '';
       if (h) {
         var dir = h.wins > h.losses ? ' up' : h.losses > h.wins ? ' down' : '';

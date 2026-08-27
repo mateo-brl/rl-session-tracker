@@ -233,3 +233,188 @@ test('les stats des joueurs arrivent dans le snapshot de fin', () => {
   assert.equal(snap.players[0].name, 'Mateo');
   assert.equal(snap.mode, '1v1');           // 2 joueurs → 1v1
 });
+
+// ───────── Podium : distinguer un FF adverse de notre propre départ ─────────
+
+test('podium atteint puis destruction : l’abandon porte le drapeau podium', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('abandoned', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'PodiumStart', {});
+  feed(api, 'MatchDestroyed', {});
+  assert.equal(snap.podium, true);
+});
+
+test('départ en pleine partie : pas de podium', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('abandoned', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchDestroyed', {});
+  assert.equal(snap.podium, false);
+});
+
+test('matchdestroyed qui annonce quand même un vainqueur : on le récupère', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('abandoned', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchDestroyed', { Winner: 1 });
+  assert.equal(snap.winnerTeam, 1);
+});
+
+// ───────── Règle d'omission : un champ à 0 est ABSENT du JSON ─────────
+
+test('matchended sans champ Winner = victoire de l’équipe 0', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchEnded', { MatchGuid: 'abc' });
+  assert.equal(snap.winnerTeam, 0);
+});
+
+// ───────── Effectif : un joueur qui part ne doit pas rétrécir le match ─────────
+
+test('adversaire déconnecté : le match reste un vrai match, pas un entraînement', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);                       // 2 joueurs
+  // L'adversaire quitte : il disparaît des états suivants.
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 1 }, { Score: 3 }] },
+    Players: { P1: PLAYERS.P1 } });
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(snap.players.length, 2);                  // l'adversaire est conservé
+  assert.equal(snap.mode, '1v1');
+});
+
+test('mode déduit de l’effectif MAXIMAL, pas du premier aperçu', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  // Début de 2v2 : deux joueurs seulement sont encore chargés.
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] },
+    Players: { P1: PLAYERS.P1, P2: PLAYERS.P2 } });
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] },
+    Players: { P1: PLAYERS.P1, P2: PLAYERS.P2,
+      P3: { Name: 'Pote', TeamNum: 0, Score: 10 },
+      P4: { Name: 'Adv2', TeamNum: 1, Score: 20 } } });
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(snap.mode, '2v2');
+});
+
+test('chaos 4v4 : le mode n’est plus rabattu sur 3v3', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  const eight = {};
+  for (let i = 0; i < 8; i++) {
+    eight['P' + i] = { Name: 'J' + i, TeamNum: i % 2, Score: 10 };
+  }
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] }, Players: eight });
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(snap.mode, '4v4');
+});
+
+// ───────── Le match ne survit pas à la fermeture du socket ─────────
+
+test('socket fermé en plein match : le match suivant n’hérite pas de son mode', () => {
+  const api = new RLStatsAPI();
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] },
+    Players: { P1: PLAYERS.P1, P2: PLAYERS.P2,
+      P3: { Name: 'A', TeamNum: 0, Score: 1 }, P4: { Name: 'B', TeamNum: 1, Score: 1 },
+      P5: { Name: 'C', TeamNum: 0, Score: 1 }, P6: { Name: 'D', TeamNum: 1, Score: 1 } } });
+  assert.equal(api.match.mode, '3v3');
+  api.match = null;                       // ce que fait le handler 'close'
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(snap.mode, '1v1');
+});
+
+// ───────── Découpage du flux TCP (jamais testé jusqu'ici) ─────────
+// C'est l'UNIQUE chemin d'ingestion de l'application : le JSON arrive
+// concaténé, sans délimiteur, et un objet peut être coupé par la frontière
+// d'un paquet TCP.
+
+function collect(api) {
+  const seen = [];
+  const orig = api._handle.bind(api);
+  api._handle = (env) => { seen.push(env); orig(env); };
+  return seen;
+}
+
+test('flux : un objet coupé en deux paquets est réassemblé', () => {
+  const api = new RLStatsAPI();
+  const seen = collect(api);
+  const raw = JSON.stringify({ event: 'MatchCreated', data: {} });
+  api._onData(raw.slice(0, 12));
+  assert.equal(seen.length, 0);                 // rien tant que l'objet est incomplet
+  api._onData(raw.slice(12));
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].event, 'MatchCreated');
+});
+
+test('flux : plusieurs objets concaténés dans un même paquet', () => {
+  const api = new RLStatsAPI();
+  const seen = collect(api);
+  api._onData(JSON.stringify({ event: 'MatchCreated', data: {} })
+    + JSON.stringify({ event: 'GoalScored', data: {} })
+    + JSON.stringify({ event: 'MatchDestroyed', data: {} }));
+  assert.deepEqual(seen.map((e) => e.event),
+    ['MatchCreated', 'GoalScored', 'MatchDestroyed']);
+});
+
+test('flux : accolades et guillemets échappés dans un pseudo ne trompent pas le parseur', () => {
+  const api = new RLStatsAPI();
+  const seen = collect(api);
+  const raw = JSON.stringify({ event: 'UpdateState',
+    data: { Players: { P1: { Name: 'a{"}\\b', TeamNum: 0 } } } });
+  // Coupé pile sur la séquence d'échappement.
+  const cut = raw.indexOf('\\\\') + 1;
+  api._onData(raw.slice(0, cut));
+  api._onData(raw.slice(cut));
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].data.Players.P1.Name, 'a{"}\\b');
+});
+
+test('flux : le bruit entre deux objets est ignoré', () => {
+  const api = new RLStatsAPI();
+  const seen = collect(api);
+  api._onData('\r\n  ' + JSON.stringify({ event: 'MatchCreated', data: {} }) + '\n\n');
+  assert.equal(seen.length, 1);
+});
+
+test('flux : enveloppe dont data est une chaîne JSON', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  api._onData(JSON.stringify({ event: 'MatchCreated', data: '{}' }));
+  api._onData(JSON.stringify({ event: 'UpdateState', data: JSON.stringify(STATE) }));
+  api._onData(JSON.stringify({ event: 'MatchEnded', data: '{"Winner":1}' }));
+  assert.equal(snap.winnerTeam, 1);
+  assert.deepEqual(snap.score, [1, 3]);
+});
+
+test('flux : les objets valides d’un paquet sont traités même si le resync suit', () => {
+  const api = new RLStatsAPI();
+  const seen = collect(api);
+  // Un objet complet, puis un objet géant jamais terminé qui sature le buffer.
+  api._onData(JSON.stringify({ event: 'MatchCreated', data: {} })
+    + '{"event":"UpdateState","data":"' + 'x'.repeat(70000));
+  assert.equal(seen.length, 1);                 // le matchcreated n'est PAS perdu
+  assert.equal(seen[0].event, 'MatchCreated');
+  assert.equal(api.buffer, '');                 // parseur resynchronisé
+});

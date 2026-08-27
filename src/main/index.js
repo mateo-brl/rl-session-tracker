@@ -20,6 +20,7 @@ const obs = require('./obs-server');
 const SessionStore = require('./session');
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
+const RLLogReader = require('./rl-log');
 const { enableStatsApi, checkStatsApi } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
@@ -57,6 +58,7 @@ const state = {
   playersSeen: [],
   pseudoCandidates: [],  // si le pseudo n'a pas pu être deviné tout seul
   evolution: {},         // courbes MMR par mode calibré
+  mmrLog: null,          // dernier vrai MMR lu dans le journal du jeu
   week: null,            // bilan des 7 derniers jours
   records: null,         // records de tous les temps
   h2h: null,             // « déjà croisé » : bilan contre les adversaires du match en cours
@@ -104,7 +106,10 @@ function refreshH2h() {
   if (key === h2hKey) return;
   h2hKey = key;
   const all = store.headToHead(opponents, config.get().pseudo);
-  const seen = {};
+  // Sans prototype : les clés sont des pseudos adverses arbitraires (un joueur
+  // nommé « constructor » ou « __proto__ » corrompait l'objet envoyé aux
+  // fenêtres).
+  const seen = Object.create(null);
   for (const name of Object.keys(all)) {
     if (all[name].played > 0) seen[name] = all[name];
   }
@@ -268,9 +273,11 @@ function isTraining(d) {
 }
 
 function startStatsApi() {
-  process.env.STATSAPI_PORT = String(config.get().statsApiPort);
-  const api = new RLStatsAPI();
+  // Le port est passé au constructeur : le poser dans process.env ne servait
+  // à rien, la constante du module ayant déjà été évaluée au `require`.
+  const api = new RLStatsAPI({ port: config.get().statsApiPort });
   let lastRecordedAt = 0;   // ceinture anti-doublon (fin de match + abandon)
+  let matchSinceRecord = false;   // un NOUVEAU match a-t-il démarré depuis ?
 
   api.on('connection', (d) => {
     state.game.statsConnected = d.connected;
@@ -286,6 +293,7 @@ function startStatsApi() {
     pushState();
   });
   api.on('match', (d) => {
+    if (d.phase === 'start') matchSinceRecord = true;
     if (d.phase === 'destroyed') {
       state.live = null;
       state.currentRanked = null;
@@ -300,26 +308,37 @@ function startStatsApi() {
     const ranked = state.currentRanked !== null
       ? state.currentRanked : config.get().mmrCounts !== false;
     state.currentRanked = null;
-    if (isTraining(snap) || !ranked) {
+    // Le podium avait été atteint : le match s'est terminé pour de bon (c'est
+    // typiquement un forfait ADVERSE) et notre départ n'était qu'une sortie
+    // d'écran de fin. Un vrai résultat, à compter même en casual — alors que
+    // quitter une partie en cours ne se compte qu'en classé.
+    const realEnd = !!snap.podium || snap.winnerTeam === 0 || snap.winnerTeam === 1;
+    if (isTraining(snap) || (!ranked && !realEnd)) {
       pushState();
       log('abandon casual / entraînement — non compté');
       return;
     }
-    // Un match vient d'être enregistré ? Cet « abandon » n'est que la fin
-    // d'écran du même match (FF) : on ne compte pas deux défaites.
-    if (Date.now() - lastRecordedAt < 45 * 1000) {
+    // Un match vient d'être enregistré et AUCUN nouveau match n'a commencé
+    // depuis ? Cet « abandon » n'est que la fin d'écran du même match (FF) :
+    // on ne compte pas deux fois. Le seuil de 45 s seul était aveugle — il
+    // avalait l'abandon d'un match suivant quand on se remettait en file tout
+    // de suite.
+    if (!matchSinceRecord && Date.now() - lastRecordedAt < 45 * 1000) {
       pushState();
-      log('abandon ignoré — match déjà enregistré il y a moins de 45 s');
+      log('abandon ignoré — fin d’écran du match déjà enregistré');
       return;
     }
     lastRecordedAt = Date.now();
-    snap.ranked = true;
+    matchSinceRecord = false;
+    snap.ranked = ranked;
     store.addMatch(snap);
     refreshSession();
     pushState();
     const last = state.history[0];
     if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
-    log('forfait enregistré : ' + (snap.mode || '?') + ' — compté comme défaite');
+    log('abandon enregistré : ' + (snap.mode || '?')
+      + ' — résultat ' + ((last && last.result) || '?')
+      + (snap.podium ? ' (podium atteint)' : ''));
   });
   api.on('goal', (d) => {
     if (state.live && state.live.training) return;
@@ -345,6 +364,7 @@ function startStatsApi() {
       ? state.currentRanked : config.get().mmrCounts !== false;
     state.currentRanked = null;
     lastRecordedAt = Date.now();
+    matchSinceRecord = false;
     store.addMatch(snap);
     // Pseudo pas encore configuré : on le devine (joueur présent dans tous
     // les derniers matchs). Zéro saisie pour l'utilisateur dans le cas normal.
@@ -370,6 +390,28 @@ function startStatsApi() {
   api.start();
 }
 
+// ───────── Vrai MMR, lu dans le journal du jeu ─────────
+// Le relevé du journal est la VÉRITÉ : on s'en sert comme nouvelle base de
+// calibrage, horodatée au moment de la mise en file. Les matchs joués APRÈS
+// ce relevé continuent d'être estimés à ±9 (session.js ne compte que les
+// matchs postérieurs à `setAt`) — la dérive est donc remise à zéro à chaque
+// file au lieu de s'accumuler indéfiniment.
+function startMmrFromLog() {
+  const reader = new RLLogReader();
+  reader.on('mmr', (r) => {
+    if (config.get().mmrFromLog === false) return;
+    const cur = (config.get().mmr || {})[r.mode];
+    if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
+    config.update({ mmrSet: { mode: r.mode, value: r.mmr, fromLog: true } });
+    state.mmrLog = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: Date.now() };
+    refreshSession();
+    pushState();
+    log('MMR relevé dans le journal du jeu : ' + r.mode + ' = ' + r.mmr
+      + (r.tier ? ' (palier ' + r.tier + ')' : ''));
+  });
+  reader.start();
+}
+
 // Journalise le détail d'une activation de la Stats API (diagnostic).
 function logStatsApiResult(r) {
   if (!r) { log('Stats API : résultat vide'); return; }
@@ -385,7 +427,9 @@ function logStatsApiResult(r) {
 // silence et il fallait penser à cliquer « Réactiver ». Désormais : lecture
 // de l'ini (sans élévation) à chaque lancement, et réactivation automatique
 // (une invite UAC) uniquement si la panne est avérée.
+let repairing = false;
 async function repairStatsApiIfNeeded(origin) {
+  if (repairing) return;            // une invite UAC à la fois
   let check;
   try { check = checkStatsApi(config.get().statsApiPort); } catch (e) { return; }
   if (!check.installs.length || !check.broken.length) {
@@ -396,11 +440,34 @@ async function repairStatsApiIfNeeded(origin) {
     + ') — ini réinitialisé par une mise à jour / vérification du jeu, réactivation…');
   state.game.statsApiBroken = true;
   pushState();
+  repairing = true;
   let r;
-  try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+  try { r = await enableStatsApi(config.get().statsApiPort); }
+  catch (e) { r = { ok: false, reason: e.message }; }
+  finally { repairing = false; }
   logStatsApiResult(r);
-  if (r && r.ok) state.game.statsApiBroken = false;
+  // On RELIT l'ini au lieu de croire le script sur parole : il rendait « ok »
+  // dès qu'UNE installation avait été écrite. Si c'est justement celle de
+  // Steam qui a échoué, le voyant passait au vert alors que rien ne marchait.
+  refreshStatsApiFlag();
   pushState();
+}
+
+// Steam est le cas fragile : DefaultStatsAPI.ini vit DANS le dossier du jeu,
+// donc dans le dépôt Steam — chaque mise à jour de Rocket League et chaque
+// « vérification de l'intégrité des fichiers » le restaure. Comme le tracker
+// démarre avec Windows et tourne pendant des jours, la panne survenait en
+// pleine vie de l'application et n'était vue qu'au lancement SUIVANT.
+const STATSAPI_WATCH_MS = 10 * 60 * 1000;
+function startStatsApiWatch() {
+  if (process.platform !== 'win32') return;
+  setInterval(() => {
+    // Pendant que le jeu tourne, réparer ne servirait à rien (l'ini n'est lu
+    // qu'au démarrage du jeu) et l'invite UAC passerait par-dessus la partie.
+    // On se contente donc de rafraîchir le drapeau pour prévenir le joueur.
+    if (state.game.processRunning) refreshStatsApiFlag();
+    else repairStatsApiIfNeeded('veille');
+  }, STATSAPI_WATCH_MS).unref();
 }
 
 // Relevé sans élévation ni réparation : rafraîchit juste le drapeau pour que
@@ -420,8 +487,10 @@ async function firstRunSetup() {
   setAutostart(true);
   if (process.platform === 'win32') {
     let r;
-    try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+    try { r = await enableStatsApi(config.get().statsApiPort); }
+    catch (e) { r = { ok: false, reason: e.message }; }
     logStatsApiResult(r);
+    refreshStatsApiFlag();
   }
 }
 
@@ -493,8 +562,8 @@ ipcMain.handle('alpha-read-sound', (_e, name) => {
 // Essai du son Alpha Boost depuis les réglages : la fenêtre audio joue une
 // montée en vitesse simulée. Créée au besoin, refermée après si le jeu ne
 // tourne pas (pour ne pas garder un renderer inutile en mémoire).
+let alphaTestTimer = null;
 ipcMain.on('alpha-test', () => {
-  const existed = !!windows.getAlphaAudio();
   windows.openAlphaAudio(() => {
     sendAlphaCfg();
     const w = windows.getAlphaAudio();
@@ -502,9 +571,14 @@ ipcMain.on('alpha-test', () => {
       try { w.webContents.send('alpha-test'); } catch (e) {}
     }
   });
-  if (!existed && !state.game.running) {
+  // Le minuteur est REPOUSSÉ à chaque essai : avant, seul le tout premier
+  // essai en armait un, et il refermait la fenêtre en plein milieu d'un essai
+  // suivant — le son s'arrêtait net sans raison visible.
+  if (alphaTestTimer) { clearTimeout(alphaTestTimer); alphaTestTimer = null; }
+  if (!state.game.running) {
     // L'essai dure ~4 s : large marge avant de refermer la fenêtre.
-    setTimeout(() => {
+    alphaTestTimer = setTimeout(() => {
+      alphaTestTimer = null;
       if (!state.game.running) windows.closeAlphaAudio();
     }, 12000);
   }
@@ -531,9 +605,11 @@ ipcMain.handle('reset-session', () => {
 ipcMain.handle('set-autostart', (_e, on) => { setAutostart(!!on); pushState(); });
 ipcMain.handle('enable-statsapi', async () => {
   let r;
-  try { r = await enableStatsApi(); } catch (e) { r = { ok: false, reason: e.message }; }
+  try { r = await enableStatsApi(config.get().statsApiPort); }
+  catch (e) { r = { ok: false, reason: e.message }; }
   logStatsApiResult(r);
-  if (r && r.ok) { state.game.statsApiBroken = false; pushState(); }
+  refreshStatsApiFlag();     // on relit l'ini plutôt que de croire le script
+  pushState();
   return r;
 });
 ipcMain.on('open-dashboard', () => openDashboard());
@@ -553,7 +629,13 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => windows.showControl());
+  // Avant que l'application ne soit prête, créer une BrowserWindow lève une
+  // exception : au démarrage de Windows (autostart --silent) suivi d'un clic
+  // sur l'icône, la seconde instance ne montrait alors jamais rien.
+  app.on('second-instance', () => {
+    if (app.isReady()) windows.showControl();
+    else app.whenReady().then(() => windows.showControl());
+  });
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
   app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); });
 
@@ -581,13 +663,23 @@ if (!gotLock) {
     const watcher = new GameWatcher();
     watcher.on('change', (running) => {
       state.game.processRunning = running;
-      // Le jeu démarre : l'ini a pu être réinitialisé par une mise à jour
-      // pendant que l'application tournait — on rafraîchit le drapeau (sans
-      // élévation) pour guider tout de suite au lieu du délai de 2 min.
-      if (running) refreshStatsApiFlag();
+      if (running) {
+        // Le jeu démarre : l'ini a pu être réinitialisé par une mise à jour
+        // pendant que l'application tournait — on rafraîchit le drapeau (sans
+        // élévation) pour guider tout de suite au lieu du délai de 2 min.
+        refreshStatsApiFlag();
+      } else if (process.platform === 'win32') {
+        // Le jeu vient de se fermer : c'est LE bon moment pour réparer. L'ini
+        // n'est relu qu'au démarrage du jeu, donc réparer maintenant rend la
+        // prochaine session saine, et l'invite UAC ne tombe pas en pleine
+        // partie. Sans ça, une mise à jour Steam coûtait une session entière.
+        repairStatsApiIfNeeded('fermeture du jeu');
+      }
       recomputeRunning();
     });
     watcher.start();
+    startStatsApiWatch();
+    startMmrFromLog();
 
     if (firstRun) {
       await firstRunSetup();
