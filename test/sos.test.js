@@ -71,8 +71,36 @@ test('les évènements du jeu arrivent au format SOS', async () => {
   sos.send('goal', { scorer: 'Mateo', team: 0 });
   const msg = JSON.parse(await got);
   assert.equal(msg.event, 'game:goal_scored');
-  assert.deepEqual(msg.data, { scorer: 'Mateo', team: 0 });
+  // Forme SOS : les overlays lisent data.scorer.name, pas une chaîne.
+  assert.deepEqual(msg.data, { scorer: { name: 'Mateo', teamnum: 0 } });
   sock.destroy();
+});
+
+// Traduire le NOM de l'évènement ne suffit pas : les overlays SOS ont été
+// écrits contre le SCHÉMA de SOS. Leur passer l'instantané brut de la Stats
+// API ne produirait que des `undefined`.
+test('les charges utiles ont bien la forme attendue par SOS', () => {
+  const st = sos.toSos('state', {
+    active: true, guid: 'g1', score: [2, 3], timeSeconds: 60, isOT: false,
+    players: [{ id: 'x1', name: 'Mateo', team: 0, score: 400,
+      goals: 2, assists: 0, saves: 1, shots: 4 }],
+  });
+  assert.equal(st.game.teams[0].score, 2);      // et non score: [2, 3]
+  assert.equal(st.game.teams[1].score, 3);
+  assert.equal(st.game.time_seconds, 60);
+  assert.equal(st.players.x1.name, 'Mateo');    // indexé par identifiant
+  assert.equal(st.match_guid, 'g1');
+
+  assert.equal(sos.toSos('ended', { winnerTeam: 1 }).winner_team_num, 1);
+  // Vainqueur inconnu : -1, jamais `undefined` (un overlay teste === 0 / === 1).
+  assert.equal(sos.toSos('ended', { winnerTeam: null }).winner_team_num, -1);
+});
+
+test('un joueur sans identifiant reste indexable', () => {
+  const st = sos.toSos('state', { active: true, players: [{ name: 'Sans', team: 1 }] });
+  const keys = Object.keys(st.players);
+  assert.equal(keys.length, 1);
+  assert.equal(st.players[keys[0]].name, 'Sans');
 });
 
 test('noms d’évènements attendus par les overlays SOS', () => {

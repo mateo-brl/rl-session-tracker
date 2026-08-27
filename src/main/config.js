@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { MMR_STEP_MIN, MMR_STEP_MAX } = require('./session');
 
 const DEFAULTS = {
   pseudo: '',            // pseudo en jeu — sert à attribuer victoire/défaite
@@ -144,7 +145,9 @@ function update(partial) {
       const out = {};
       for (const k of Object.keys(partial.mmrStep).slice(0, 8)) {
         const v = Number(partial.mmrStep[k]);
-        if (Number.isFinite(v) && v >= 4 && v <= 20) out[String(k).slice(0, 8)] = v;
+        if (Number.isFinite(v) && v >= MMR_STEP_MIN && v <= MMR_STEP_MAX) {
+          out[String(k).slice(0, 8)] = v;
+        }
       }
       config.mmrStep = out;
     }
