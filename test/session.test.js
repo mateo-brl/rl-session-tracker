@@ -330,3 +330,57 @@ test('évènements bruts conservés pour le match, purgés sur les anciens', () 
   assert.equal(s.matches[0].events.length, 0);
   assert.equal(s.matches[s.matches.length - 1].events.length, 1);
 });
+
+// ───────── Régressions relevées en revue de code ─────────
+
+test('addMatch signale s’il a réellement enregistré', () => {
+  const s = tmpStore();
+  assert.equal(s.addMatch(snap({ guid: 'g1' })), true);
+  assert.equal(s.addMatch(snap({ guid: 'g1' })), false);   // doublon
+  assert.equal(s.addMatch({ players: [] }), false);        // entraînement
+});
+
+test('unmatched ne compte QUE le pseudo introuvable', () => {
+  const s = tmpStore();
+  // Pseudo absent du match : c'est bien un problème de pseudo.
+  s.addMatch(snap({}));
+  assert.equal(s.snapshot('Inconnu', CFG).session.unmatched, 1);
+  // Forfait indécidable (podium, score à égalité) : le joueur EST identifié,
+  // le pseudo n'a rien à voir — il ne doit pas être mis en cause.
+  const s2 = tmpStore();
+  s2.addMatch(snap({ forfeit: true, winnerTeam: null, podium: true, score: [2, 2] }));
+  const a = s2.snapshot('Mateo', CFG).session;
+  assert.equal(a.unknown, 1);
+  assert.equal(a.unmatched, 0);
+});
+
+test('decidedBetween signale les matchs non attribués', () => {
+  const s = tmpStore();
+  const t = Date.now();
+  s.addMatch(snap({ endedAt: t - 1000 }));                     // W pour Mateo
+  s.addMatch(snap({ endedAt: t - 900, players: [
+    { name: 'Autre', team: 0, goals: 1, saves: 0, assists: 0, shots: 1, score: 100 },
+    { name: 'AdvX', team: 1, goals: 0, saves: 0, assists: 0, shots: 1, score: 50 },
+  ] }));                                                        // Mateo absent
+  const d = s.decidedBetween('2v2', t - 2000, t, 'Mateo');
+  assert.equal(d.wins, 1);
+  assert.equal(d.unmatched, 1);
+});
+
+test('export : le JSON garde les joueurs, le vainqueur et les évènements', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ guid: 'g9', events: [{ at: 1, event: 'matchended', data: {} }] }));
+  const rows = s.exportRows('Mateo');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].result, 'W');            // point de vue calculé
+  assert.equal(rows[0].winnerTeam, 0);          // …ET données brutes
+  assert.equal(rows[0].guid, 'g9');
+  assert.equal(rows[0].players.length, 4);
+  assert.equal(rows[0].events.length, 1);
+});
+
+test('bornes du pas MMR exportées une seule fois', () => {
+  assert.equal(SessionStore.MMR_STEP_MIN, 4);
+  assert.equal(SessionStore.MMR_STEP_MAX, 20);
+  assert.equal(SessionStore.MMR_STEP, 9);
+});

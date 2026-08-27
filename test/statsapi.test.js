@@ -418,3 +418,34 @@ test('flux : les objets valides d’un paquet sont traités même si le resync s
   assert.equal(seen[0].event, 'MatchCreated');
   assert.equal(api.buffer, '');                 // parseur resynchronisé
 });
+
+// ───────── Régression : matchended alors que le match a disparu ─────────
+// Le socket tombe en plein match (resync du flux, coupure) : `close` remet
+// this.match à null. Le jeu envoie ensuite matchended à la reconnexion. Une
+// déréférence non gardée levait alors une exception AVANT `_afterEnd = true`,
+// et l'écran de fin recréait un match fantôme compté en défaite — exactement
+// ce que ce drapeau existe pour empêcher.
+
+test('matchended sans match en cours : pas d’exception, pas de faux abandon', () => {
+  const api = new RLStatsAPI();
+  const got = listen(api);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  api.match = null;                     // ce que fait le handler 'close'
+  api._afterEnd = false;
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(api._afterEnd, true);    // le verrou DOIT être posé
+  feed(api, 'UpdateState', STATE);      // écran de fin
+  feed(api, 'MatchDestroyed', {});
+  assert.equal(got.abandoned, 0);       // aucune fausse défaite
+});
+
+test('podiumstart est diffusé (les overlays SOS basculent dessus)', () => {
+  const api = new RLStatsAPI();
+  let podium = 0;
+  api.on('podium', () => podium++);
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'PodiumStart', {});
+  assert.equal(podium, 1);
+});
