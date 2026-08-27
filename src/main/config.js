@@ -16,6 +16,10 @@ const DEFAULTS = {
   // calibrage), puis l'application l'estime match après match.
   mmr: {},               // '2v2' → { base: 1234, setAt: timestamp }
   mmrCounts: true,       // les matchs sont classés par défaut (sinon casual)
+  // Recalage automatique du MMR sur le journal du jeu (Launch.log) : le jeu y
+  // écrit son VRAI MMR à chaque mise en file classée. L'estimation à ±9 ne
+  // sert alors plus qu'entre deux files, au lieu de dériver indéfiniment.
+  mmrFromLog: true,
   sounds: true,          // jingles victoire / défaite
   overlayEnabled: false, // mini-overlay toujours au premier plan pendant le jeu
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
@@ -75,6 +79,23 @@ function init(userDataDir) {
     config = { ...DEFAULTS, ...raw };
   } catch (e) {
     config = { ...DEFAULTS };
+    // ENOENT : premier lancement, il n'y a simplement pas encore de fichier —
+    // rien à sauver, c'est le cas normal ci-dessus qui ne doit pas déclencher
+    // de sauvegarde. Toute autre erreur ici signifie que config.json EXISTE
+    // mais que son JSON est illisible (écriture tronquée par une coupure de
+    // courant, un kill, un disque plein...). On le met de côté sous un autre
+    // nom avant de repartir des DEFAULTS : sinon le prochain save() écraserait
+    // silencieusement le fichier corrompu, et l'utilisateur perdrait pour de
+    // bon son pseudo, son thème, ses dispositions et surtout ses bases de
+    // calibrage MMR (config.mmr), saisies à la main.
+    if (e.code !== 'ENOENT') {
+      try {
+        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+        fs.renameSync(file, file + '.corrupt-' + stamp);
+      } catch (e2) { /* pas grave : on ne doit jamais bloquer le démarrage
+        de l'app pour ça — au pire le fichier corrompu reste en place et sera
+        écrasé au prochain save() */ }
+    }
   }
   // Migration : l'ancienne disposition unique devient le profil 1.
   if (config.layout && typeof config.layout === 'object') {
@@ -107,6 +128,9 @@ function update(partial) {
     }
     if (typeof partial.mmrCounts === 'boolean') {
       config.mmrCounts = partial.mmrCounts;
+    }
+    if (typeof partial.mmrFromLog === 'boolean') {
+      config.mmrFromLog = partial.mmrFromLog;
     }
     if (typeof partial.sounds === 'boolean') {
       config.sounds = partial.sounds;
@@ -209,7 +233,11 @@ function update(partial) {
       const v = Number(partial.mmrSet.value);
       if (!config.mmr || typeof config.mmr !== 'object') config.mmr = {};
       if (Number.isFinite(v) && v > 0) {
-        config.mmr[mode] = { base: Math.round(v), setAt: Date.now() };
+        // `fromLog` distingue un relevé automatique (journal du jeu) d'une
+        // saisie manuelle : l'interface peut ainsi indiquer d'où vient la
+        // valeur, et le recalage évite de se réécrire en boucle.
+        config.mmr[mode] = { base: Math.round(v), setAt: Date.now(),
+          fromLog: !!partial.mmrSet.fromLog };
       } else {
         delete config.mmr[mode];
       }
@@ -219,9 +247,18 @@ function update(partial) {
   return config;
 }
 
+// Écriture atomique (fichier temporaire puis rename) : appelée à chaque
+// update() — y compris à chaque déplacement du mini-overlay —, cette
+// fonction ne doit jamais laisser un config.json tronqué si l'écriture est
+// interrompue (coupure de courant, kill, disque plein...). Un fichier
+// tronqué ferait échouer le JSON.parse du prochain init(), qui repartirait
+// des DEFAULTS : perte du pseudo, du thème, des dispositions et surtout des
+// bases de calibrage MMR. Même motif que `_persist()` dans session.js.
 function save() {
   try {
-    fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+    const tmp = file + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(config, null, 2) + '\n');
+    fs.renameSync(tmp, file);
   } catch (e) { /* préférences non critiques */ }
 }
 

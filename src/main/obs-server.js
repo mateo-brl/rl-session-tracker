@@ -19,6 +19,12 @@ const path = require('path');
 const PAGE = path.join(__dirname, '..', 'renderer', 'obs.html');
 const FONTS = path.join(__dirname, '..', 'renderer', 'fonts');
 const HEARTBEAT_MS = 25 * 1000;   // garde les connexions SSE en vie
+// OBS ouvre une seule source « Navigateur », éventuellement un navigateur de
+// contrôle en plus : une dizaine de connexions /events simultanées couvre
+// largement l'usage normal. Ce plafond borne un process local qui ouvrirait
+// des connexions en boucle (fuite mémoire / DoS local) — le `Set` clients
+// n'a lui-même aucune limite.
+const MAX_SSE_CLIENTS = 10;
 
 let server = null;
 let port = 0;
@@ -36,6 +42,22 @@ function sse(event, data) {
 }
 
 function handler(req, res) {
+  // Barrière anti DNS-rebinding : le serveur n'écoute que sur 127.0.0.1, mais
+  // ça ne suffit pas — un site attaquant peut faire résoudre un domaine qu'il
+  // contrôle d'abord vers son IP, puis le « rebinder » vers 127.0.0.1 après
+  // coup. Le navigateur voit alors une requête same-origin (le CORS ne
+  // protège plus) vers http://<domaine-attaquant>:<port>/state ou /events, ce
+  // qui exfiltrerait le score en direct et les pseudos adverses. Le seul
+  // rempart côté serveur est de vérifier l'en-tête Host : OBS (source
+  // « Navigateur ») comme un navigateur classique envoient toujours
+  // 127.0.0.1:<port> ou localhost:<port> pour cette page, jamais autre chose.
+  const host = String(req.headers.host || '');
+  if (host !== '127.0.0.1:' + port && host !== 'localhost:' + port) {
+    res.writeHead(403);
+    res.end('forbidden');
+    return;
+  }
+
   const url = String(req.url || '/').split('?')[0];
 
   if (url === '/' || url === '/overlay') {
@@ -57,6 +79,14 @@ function handler(req, res) {
   }
 
   if (url === '/events') {
+    // Plafond de connexions SSE simultanées (voir MAX_SSE_CLIENTS) : refus
+    // propre plutôt que de laisser un process local ouvrir des flux à
+    // l'infini.
+    if (clients.size >= MAX_SSE_CLIENTS) {
+      res.writeHead(503);
+      res.end('too many connections');
+      return;
+    }
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',

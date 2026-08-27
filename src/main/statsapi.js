@@ -12,8 +12,8 @@
 const net = require('net');
 const EventEmitter = require('events');
 
-const HOST = process.env.STATSAPI_HOST || '127.0.0.1';
-const PORT = parseInt(process.env.STATSAPI_PORT || '49123', 10);
+const DEFAULT_HOST = process.env.STATSAPI_HOST || '127.0.0.1';
+const DEFAULT_PORT = parseInt(process.env.STATSAPI_PORT || '49123', 10);
 const DEBUG = process.env.STATSAPI_DEBUG === '1';
 
 function numOr(v, d) {
@@ -21,9 +21,15 @@ function numOr(v, d) {
   return Number.isFinite(n) ? n : d;
 }
 
-// Devine le mode à partir du nombre de joueurs (2 → 1v1, 4 → 2v2, 6 → 3v3).
+function norm(s) {
+  return String(s || '').trim().toLowerCase();
+}
+
+// Devine le mode à partir du nombre de joueurs (2 → 1v1, 4 → 2v2, 6 → 3v3,
+// 8 → 4v4). Le plafond est bien 4 : le chaos (4v4) existe, et le rabattre sur
+// « 3v3 » polluait les stats par mode ET la courbe MMR du vrai 3v3.
 function modeFromCount(n) {
-  const t = Math.max(1, Math.min(3, Math.round(n / 2)));
+  const t = Math.max(1, Math.min(4, Math.round(n / 2)));
   return t + 'v' + t;
 }
 
@@ -46,8 +52,15 @@ const BOOST_HOLD_MS = 60;            // bBoosting peut retomber une frame : on l
 const REPLAY_MUTE_MS = 6500;         // ralenti + célébration après un but : silence
 
 class RLStatsAPI extends EventEmitter {
-  constructor() {
+  // `opts.port` / `opts.host` : lus À LA CONSTRUCTION, pas au chargement du
+  // module. Avant, le port était figé dans une constante évaluée au `require`,
+  // donc AVANT que l'application n'ait pu poser process.env — le réglage
+  // statsApiPort ne servait à rien et le connecteur composait toujours 49123.
+  constructor(opts) {
     super();
+    const o = opts || {};
+    this.host = o.host || DEFAULT_HOST;
+    this.port = numOr(o.port, DEFAULT_PORT);
     this.socket = null;
     this.connected = false;
     this.match = null;        // snapshot du match en cours, ou null
@@ -67,6 +80,26 @@ class RLStatsAPI extends EventEmitter {
     this._boostHeldUntil = 0;     // lissage des micro-coupures de bBoosting
     this._replayMuteUntil = 0;    // silence pendant le ralenti d'un but
     this._trackedId = null;       // PrimaryId du joueur local mémorisé
+  }
+
+  // Effectif cumulé du match : un joueur qui QUITTE disparaît des updatestate
+  // suivants. En remplaçant bêtement la liste, un 1v1 dont l'adversaire se
+  // déconnecte finissait à 1 joueur — donc classé « entraînement » et jeté,
+  // alors que le jeu, lui, nous comptait la victoire. On fusionne donc par
+  // identité en gardant les dernières stats connues de chacun.
+  _mergeRoster(m, players) {
+    if (!players.length) return;
+    const key = (p) => (p.id ? 'id:' + p.id : 'name:' + norm(p.name));
+    const seen = m._roster || (m._roster = new Map());
+    for (const p of players) seen.set(key(p), p);
+    m.players = Array.from(seen.values()).slice(0, MAX_PLAYERS);
+    // Le mode se déduit de l'effectif MAXIMAL vu : au tout début d'un match,
+    // tous les joueurs ne sont pas encore chargés — figer le mode sur le
+    // premier aperçu étiquetait un 2v2 « 1v1 » pour toujours.
+    if (m.players.length > (m._maxPlayers || 0)) {
+      m._maxPlayers = m.players.length;
+      m.mode = modeFromCount(m._maxPlayers);
+    }
   }
 
   start() {
@@ -106,7 +139,7 @@ class RLStatsAPI extends EventEmitter {
 
   // ───────── Connexion TCP + reconnexion automatique ─────────
   _connect() {
-    const sock = net.createConnection({ host: HOST, port: PORT });
+    const sock = net.createConnection({ host: this.host, port: this.port });
     this.socket = sock;
     sock.setEncoding('utf8');
 
@@ -115,7 +148,7 @@ class RLStatsAPI extends EventEmitter {
       this.reconnectDelay = 2000;
       this._resetParser();
       this._afterEnd = false;
-      if (DEBUG) console.log('[statsapi] connecté à ' + HOST + ':' + PORT);
+      if (DEBUG) console.log('[statsapi] connecté à ' + this.host + ':' + this.port);
       this.emit('connection', { connected: true });
     });
 
@@ -129,6 +162,17 @@ class RLStatsAPI extends EventEmitter {
 
     sock.on('close', () => {
       this._clearStateTimer();
+      // Le jeu s'est fermé brutalement (Alt+F4, plantage) : le socket tombe
+      // SANS matchdestroyed. On jette le match en cours au lieu de le laisser
+      // traîner — sinon _ensureMatch le recyclait au prochain lancement du
+      // jeu et le match suivant héritait de son mode (un 1v1 enregistré
+      // « 3v3 »). On n'émet PAS 'abandoned' : une simple coupure du socket en
+      // pleine partie compterait alors une fausse défaite.
+      if (this.match) {
+        if (DEBUG) console.log('[statsapi] socket fermé en plein match — match jeté');
+        this.match = null;
+      }
+      this._afterEnd = false;
       if (this.connected) {
         this.connected = false;
         this._emitTelemetryStop();
@@ -193,20 +237,23 @@ class RLStatsAPI extends EventEmitter {
       this._scanPos = this.buffer.length;
     }
 
-    // Garde-fou : un objet en cours qui dépasse le plafond = flux corrompu.
-    if (this.buffer.length > MAX_BUFFER) {
-      if (DEBUG) console.log('[statsapi] buffer saturé — fermeture pour resync');
-      this._resetParser();
-      if (this.socket) this.socket.destroy();
-      return;
-    }
-
+    // Les objets COMPLETS de ce paquet sont traités d'abord, même si le
+    // resync ci-dessous doit couper la connexion : ils sont valides, et en
+    // jeter un (matchcreated, un bHasWinner…) faisait disparaître le match
+    // suivant du journal.
     for (const raw of objects) {
       try {
         this._handle(JSON.parse(raw));
       } catch (e) {
         if (DEBUG) console.log('[statsapi] JSON invalide ignoré:', e.message);
       }
+    }
+
+    // Garde-fou : un objet en cours qui dépasse le plafond = flux corrompu.
+    if (this.buffer.length > MAX_BUFFER) {
+      if (DEBUG) console.log('[statsapi] buffer saturé — fermeture pour resync');
+      this._resetParser();
+      if (this.socket) this.socket.destroy();
     }
   }
 
@@ -231,11 +278,28 @@ class RLStatsAPI extends EventEmitter {
         this._resetTelemetry();
         this._onMatchStart();
         break;
+      // Podium = le jeu a bel et bien conclu le match (le cycle documenté est
+      // matchended → podiumstart → matchdestroyed). C'est notre seul signal
+      // fiable pour distinguer « le match s'est terminé » de « NOUS avons
+      // quitté en cours de partie » — voir le commentaire de matchdestroyed.
+      case 'podiumstart':
+        if (this.match) this.match.podium = true;
+        break;
       case 'updatestate':
         // Après matchended, le jeu continue d'envoyer des updatestate pendant
         // l'écran de fin : les ignorer, sinon on recrée un « match fantôme »
         // que matchdestroyed compterait comme un abandon (double défaite).
-        if (this._afterEnd) break;
+        // Échappatoire : si matchcreated s'est perdu (resync du flux, JSON
+        // illisible), ce verrou avalerait le match SUIVANT en entier. Un état
+        // 0-0 avec une horloge pleine ne peut pas être un écran de fin — on
+        // considère alors qu'un nouveau match a commencé.
+        if (this._afterEnd) {
+          if (!this._looksLikeFreshMatch(data)) break;
+          if (DEBUG) console.log('[statsapi] nouveau match détecté sans matchcreated');
+          this._afterEnd = false;
+          this._resetTelemetry();
+          this._onMatchStart();
+        }
         this._onUpdateState(data);
         break;
       case 'goalscored':
@@ -262,6 +326,19 @@ class RLStatsAPI extends EventEmitter {
           const snap = this.snapshot();
           snap.endedAt = Date.now();
           snap.forfeit = true;
+          // Le vainqueur, s'il est quand même annoncé ici : c'est la dernière
+          // occasion de récupérer un FF adverse que le flux d'état n'a pas eu
+          // le temps de nous livrer.
+          const w = data.Winner ?? data.WinnerTeamNum ?? data.winner_team_num
+            ?? data.winner ?? data.WinningTeam;
+          if (typeof w === 'number') snap.winnerTeam = w;
+          else if (w === '0' || w === '1') snap.winnerTeam = Number(w);
+          // Le podium a-t-il été atteint ? Si oui, le match s'est terminé
+          // normalement (forfait adverse compris) et notre départ n'était
+          // qu'une sortie d'écran de fin : ce n'est PAS un abandon de notre
+          // part. Sans ce drapeau, quitter juste après un FF adverse se
+          // retrouvait compté comme une défaite.
+          snap.podium = !!this.match.podium;
           this.match = null;
           this.emit('abandoned', snap);
         }
@@ -277,14 +354,35 @@ class RLStatsAPI extends EventEmitter {
       this.match = {
         startedAt: Date.now(), score: [0, 0],
         timeSeconds: null, isOT: false, players: [], mode: null,
+        podium: false, _roster: new Map(), _maxPlayers: 0,
       };
       this.emit('match', { phase: 'start' });
     }
     return this.match;
   }
 
+  // matchcreated / matchinitialized arrivent TOUJOURS avant le premier
+  // updatestate : on repart d'un match neuf sans risque. Indispensable, sinon
+  // un match resté en mémoire (jeu fermé brutalement) était recyclé et léguait
+  // son mode et son horodatage au match suivant.
   _onMatchStart() {
+    this.match = null;
     this._ensureMatch();
+  }
+
+  // Un état de match tout neuf : score vierge et horloge encore haute. Sert
+  // uniquement à rattraper un matchcreated perdu (voir case 'updatestate').
+  // Volontairement strict : mieux vaut manquer un rattrapage que redémarrer
+  // un match sur l'écran de fin du précédent.
+  _looksLikeFreshMatch(data) {
+    const game = data.Game || data.game || data;
+    const teams = game.Teams || game.teams || data.Teams || data.teams;
+    if (!Array.isArray(teams) || teams.length < 2) return false;
+    const s0 = numOr(teams[0] && (teams[0].Score ?? teams[0].score), 0);
+    const s1 = numOr(teams[1] && (teams[1].Score ?? teams[1].score), 0);
+    if (s0 !== 0 || s1 !== 0) return false;
+    const t = game.TimeSeconds ?? game.time_seconds ?? game.Time ?? game.time;
+    return typeof t === 'number' && t >= 60;
   }
 
   _onUpdateState(data) {
@@ -303,11 +401,7 @@ class RLStatsAPI extends EventEmitter {
     if (typeof t === 'number') m.timeSeconds = t;
     m.isOT = !!(game.IsOT ?? game.isOT ?? game.IsOvertime);
 
-    const players = this._players(data, game);
-    if (players.length) {
-      m.players = players;
-      if (!m.mode) m.mode = modeFromCount(players.length);
-    }
+    this._mergeRoster(m, this._players(data, game));
 
     // Forfait : le jeu n'envoie PAS toujours matchended — quand une équipe
     // abandonne, le vainqueur est annoncé par bHasWinner/Winner dans le flux
@@ -451,6 +545,11 @@ class RLStatsAPI extends EventEmitter {
     let winnerTeam = null;
     if (typeof winner === 'number') winnerTeam = winner;
     else if (winner === '0' || winner === '1') winnerTeam = Number(winner);
+    // Règle d'omission du jeu : un champ valant 0 est ABSENT du JSON. Or le
+    // jeu n'envoie matchended que « quand un vainqueur est désigné » — un
+    // vainqueur manquant signifie donc « équipe 0 », pas « on ne sait pas ».
+    // Le chemin bHasWinner appliquait déjà cette règle, pas celui-ci.
+    else winnerTeam = 0;
 
     const snap = this.snapshot();
     snap.winnerTeam = winnerTeam;

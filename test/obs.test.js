@@ -79,3 +79,46 @@ test('page, état JSON, flux SSE et évènements', { timeout: 10000 }, async () 
   obs.stop();
   assert.equal(obs.running(), false);
 });
+
+test('en-tête Host étranger refusé (barrière anti DNS-rebinding)', { timeout: 10000 }, async () => {
+  const status = await new Promise((resolve) => {
+    obs.start(0, () => {}, resolve);          // port 0 = éphémère
+  });
+  const port = status.port;
+
+  // Un Host qui n'est ni 127.0.0.1:<port> ni localhost:<port> — celui qu'un
+  // domaine attaquant enverrait après un rebind DNS vers 127.0.0.1 — doit
+  // être rejeté avant même de servir la route.
+  const forbidden = await new Promise((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1', port, path: '/state',
+      headers: { Host: 'evil.example.com' },
+    }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+  assert.equal(forbidden.status, 403);
+
+  // 127.0.0.1:<port> et localhost:<port> — les deux façons dont OBS ou un
+  // navigateur pointent vers l'overlay — continuent de fonctionner.
+  const viaIp = await get(port, '/state');
+  assert.equal(viaIp.status, 200);
+  const viaLocalhost = await new Promise((resolve, reject) => {
+    http.get({
+      host: '127.0.0.1', port, path: '/overlay',
+      headers: { Host: 'localhost:' + port },
+    }, (res) => {
+      let body = '';
+      res.on('data', (c) => { body += c; });
+      res.on('end', () => resolve({ status: res.statusCode, body }));
+    }).on('error', reject);
+  });
+  assert.equal(viaLocalhost.status, 200);
+
+  obs.stop();
+  assert.equal(obs.running(), false);
+});

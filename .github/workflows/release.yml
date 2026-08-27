@@ -7,6 +7,19 @@
 #
 # electron-builder publie l'installeur NSIS + latest.yml sur la release ;
 # c'est ce que les applications installées consultent pour se mettre à jour.
+#
+# Avant de publier quoi que ce soit, ce job repasse par les MÊMES
+# vérifications que ci.yml (tests + syntaxe). ci.yml tourne en parallèle sur
+# le même push mais ne bloque JAMAIS cette publication (deux workflows
+# indépendants) — et les tests ne chargent jamais les fichiers HTML des
+# fenêtres, donc une erreur de syntaxe dans une fenêtre pouvait jusqu'ici
+# être publiée puis proposée en auto-update sans qu'aucun garde-fou ne s'en
+# aperçoive. Les étapes sont dupliquées ici plutôt que factorisées via un
+# workflow réutilisable (workflow_call) : ce dernier aurait exigé un 5ᵉ
+# fichier de workflow, hors du périmètre de cette modification (limité à
+# ci.yml, release.yml, package.json et README.md). Si tu changes une
+# vérification dans un des deux fichiers, reporte le même changement dans
+# l'autre.
 
 name: release
 
@@ -32,6 +45,11 @@ jobs:
       || github.event_name == 'workflow_dispatch'
       || contains(github.event.head_commit.message, '[release]')
     runs-on: windows-latest
+    env:
+      # Utilisé par la garde de cohérence, par electron-builder (upload GitHub)
+      # et par l'étape finale qui lève le brouillon : un seul token pour tout
+      # le job, dont les droits sont déjà limités à `contents: write` ci-dessus.
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,9 +60,117 @@ jobs:
 
       - run: npm ci
 
-      - name: Tests avant publication
-        run: node --test
+      # --- Vérifications avant publication (dupliquées depuis ci.yml, voir
+      # le commentaire en tête de fichier pour le pourquoi) -----------------
 
+      - name: Tests avant publication
+        run: npm test
+
+      - name: Syntaxe des processus principaux
+        shell: bash
+        run: |
+          for f in src/main/*.js src/preload.js; do node --check "$f"; done
+
+      - name: Syntaxe des scripts des fenêtres
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const fichiers = [
+              "src/renderer/control.html",
+              "src/renderer/dashboard.html",
+              "src/renderer/overlay.html",
+              "src/renderer/alphaboost.html",
+              "src/renderer/obs.html",
+            ];
+            // Global (drapeau g) et attributs optionnels dans <script ...> :
+            // un second bloc inline ajouté plus tard, ou un <script defer>
+            // ou <script type="module">, restent détectés ici. La regex
+            // précédente, non globale et sans attributs, ne vérifiait que le
+            // tout premier bloc <script> nu de chaque fichier.
+            const reScript = /<script([^>]*)>([\s\S]*?)<\/script>/g;
+            let echec = false;
+            for (const f of fichiers) {
+              const html = fs.readFileSync(f, "utf8");
+              const blocs = [...html.matchAll(reScript)];
+              let verifies = 0;
+              blocs.forEach(([, attrs, code], i) => {
+                if (/\bsrc\s*=/.test(attrs)) return; // script externe : aucun contenu inline à compiler
+                if (code.trim() === "") return; // bloc vide
+                try {
+                  new Function(code);
+                } catch (err) {
+                  console.error(`${f} : erreur de syntaxe dans le bloc <script> #${i + 1} -> ${err.message}`);
+                  echec = true;
+                }
+                verifies++;
+              });
+              if (verifies === 0) {
+                console.error(`Aucun script inline trouvé dans ${f}`);
+                echec = true;
+                continue;
+              }
+              console.log(f, `OK (${verifies} bloc(s) vérifié(s))`);
+            }
+            if (echec) process.exit(1);
+          '
+
+      # --- Garde de cohérence version / tag / release -----------------------
+      #
+      # electron-publish (electron-builder) dérive TOUJOURS le tag de release
+      # depuis package.json — `this.tag = "v" + version` — et ne consulte
+      # jamais $GITHUB_REF_NAME. Sans cette garde, deux scénarios réels :
+      #   - un tag v4.0.0 poussé alors que package.json dit encore 3.9.2
+      #     publie sur la release v3.9.2 et laisse le tag v4.0.0 orphelin ;
+      #   - un commit [release] (ou un déclenchement manuel) sans bump de
+      #     version republie sur une release qui existe déjà : si elle a
+      #     moins de 2h, ses assets (latest.yml, l'installeur) sont supprimés
+      #     puis remplacés ; si elle a plus de 2h, getOrCreateRelease renvoie
+      #     null et le job se termine EN VERT sans rien publier du tout.
+      - name: Garde de cohérence version / tag / release
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v$VERSION"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            if [ "$GITHUB_REF_NAME" != "$TAG" ]; then
+              echo "::error::Le tag poussé ($GITHUB_REF_NAME) ne correspond pas à la version de package.json ($TAG). electron-builder publie toujours sur la release dérivée de package.json, jamais sur le nom du tag Git poussé. Corrige soit le tag (supprime-le puis repousse-le sur le bon commit), soit la version dans package.json (npm version ...) avant de retaguer."
+              exit 1
+            fi
+          else
+            # workflow_dispatch ou commit [release] sur main : aucun tag Git ne
+            # garantit ici l'unicité de la version, donc on vérifie nous-mêmes.
+            if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" >/dev/null 2>&1; then
+              echo "::error::La release $TAG existe déjà sur GitHub, et ce déclenchement ($GITHUB_EVENT_NAME) ne pousse aucun tag Git pour le garantir. Incrémente la version dans package.json (npm version patch|minor|major) avant de publier — sinon la publication sera silencieusement ignorée (release de plus de 2h) ou écrasera les assets de la release existante (release de moins de 2h)."
+              exit 1
+            fi
+          fi
+
+          echo "Garde OK — version=$VERSION, tag cible=$TAG"
+
+      # --- Construction + publication ---------------------------------------
+      #
+      # EP_DRAFT force electron-publish à créer la release en BROUILLON même
+      # si electron-builder.yml a `releaseType: release` (nécessaire hors CI,
+      # pour `npm run release` en local — on ne le change donc pas). Un
+      # brouillon est invisible pour electron-updater et pour la page des
+      # Releases tant qu'il n'est pas explicitement publié à l'étape
+      # suivante : ça supprime la fenêtre où un client voit une release avec
+      # l'installeur présent mais latest.yml manquant (ou l'inverse), et où
+      # un job qui meurt en cours d'upload laisse une release « latest »
+      # cassée qui bloque les mises à jour de tout le monde.
       - run: npx electron-builder --win --x64 --publish always
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EP_DRAFT: "true"
+
+      - name: Publier la release (lève le brouillon une fois tous les assets en ligne)
+        shell: bash
+        run: |
+          # À cet instant, l'installeur ET latest.yml sont déjà tous les deux
+          # sur la release brouillon $TAG. Ce seul appel bascule draft→publié :
+          # electron-updater ne peut plus jamais observer la release à moitié
+          # téléversée, contrairement à `releaseType: release` qui la rend
+          # publique dès sa création, avant même le premier upload.
+          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"

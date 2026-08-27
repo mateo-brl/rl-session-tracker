@@ -23,6 +23,8 @@ const OP_FRAME = 1;
 const OP_CLOSE = 2;
 const RETRY_MS = 30 * 1000;     // Discord pas lancé : on retente sans insister
 const MIN_INTERVAL = 5000;      // SET_ACTIVITY est limité par Discord (~5/20 s)
+const MAX_FRAME_SIZE = 65536;   // Une trame Discord (READY, ERROR…) tient largement dedans
+const HANDSHAKE_TIMEOUT_MS = 10 * 1000; // pipe ouvert mais jamais de READY : on abandonne
 
 const TEXTS = {
   fr: {
@@ -45,6 +47,7 @@ let socket = null;
 let ready = false;
 let buffer = Buffer.alloc(0);
 let retryTimer = null;
+let handshakeTimer = null;
 let nonce = 0;
 
 // Dernière activité voulue + lissage des envois (bord de fuite garanti).
@@ -76,6 +79,10 @@ function send(op, obj) {
 function teardown(retry) {
   ready = false;
   buffer = Buffer.alloc(0);
+  // Un teardown met fin à toute tentative de handshake en cours : sans ce
+  // nettoyage, le timer pourrait détruire un socket déjà remplacé (reconnexion
+  // fantôme) ou survivre à un stop() volontaire.
+  if (handshakeTimer) { clearTimeout(handshakeTimer); handshakeTimer = null; }
   if (socket) {
     try { socket.destroy(); } catch (e) {}
     socket = null;
@@ -89,11 +96,22 @@ function onData(chunk) {
   buffer = Buffer.concat([buffer, chunk]);
   while (buffer.length >= 8) {
     const size = buffer.readInt32LE(4);
+    // Taille aberrante (négative, ou disproportionnée) : trame corrompue ou
+    // pipe squatté par un tiers qui ne parle pas le protocole Discord (un
+    // process local peut créer discord-ipc-0 avant Discord). Avec une taille
+    // négative, `buffer.length < 8 + size` est toujours faux et
+    // `buffer.slice(8 + size)` ne progresse jamais : la boucle tournerait à
+    // l'infini et gèlerait le main process. On abandonne la connexion et on
+    // se resynchronise en reconnectant plutôt que de continuer à lire un flux
+    // dont on ne peut plus faire confiance au découpage.
+    if (size < 0 || size > MAX_FRAME_SIZE) { teardown(true); return; }
     if (buffer.length < 8 + size) break;
     let payload = null;
     try { payload = JSON.parse(buffer.slice(8, 8 + size).toString('utf8')); } catch (e) {}
     buffer = buffer.slice(8 + size);
     if (payload && payload.evt === 'READY') {
+      // Handshake abouti : plus besoin du filet de sécurité du timeout.
+      if (handshakeTimer) { clearTimeout(handshakeTimer); handshakeTimer = null; }
       ready = true;
       log('Discord RPC connecté');
       flush();
@@ -111,10 +129,27 @@ function connect(idx) {
   socket = sock;
   sock.on('connect', () => {
     send(OP_HANDSHAKE, { v: 1, client_id: CLIENT_ID });
+    // Le pipe peut être ouvert par un pair qui n'est pas Discord (ou par un
+    // Discord zombie) et n'enverra jamais READY : sans filet, `ready` resterait
+    // bloqué à false pour toujours, aucun retryTimer ne serait armé et les
+    // pipes suivants ne seraient jamais essayés. On se laisse une fenêtre de
+    // grâce, puis on passe au pipe suivant si rien n'est arrivé.
+    handshakeTimer = setTimeout(() => {
+      handshakeTimer = null;
+      if (socket === sock) {
+        try { sock.destroy(); } catch (e) {}
+        socket = null;
+        connect(idx + 1);
+      }
+    }, HANDSHAKE_TIMEOUT_MS);
   });
   sock.on('data', onData);
   sock.on('error', () => {
-    if (socket === sock) { socket = null; connect(idx + 1); }
+    if (socket === sock) {
+      if (handshakeTimer) { clearTimeout(handshakeTimer); handshakeTimer = null; }
+      socket = null;
+      connect(idx + 1);
+    }
   });
   sock.on('close', () => {
     if (socket === sock) teardown(true);

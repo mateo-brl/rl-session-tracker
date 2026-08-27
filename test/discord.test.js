@@ -91,3 +91,47 @@ test('handshake puis SET_ACTIVITY avec le match en cours', { timeout: 10000 },
     discord.stop();
     await new Promise((r) => server.close(r));
   });
+
+// Trame corrompue (taille négative) juste après le handshake : avant le
+// correctif, `buffer.slice(8 + size)` ne progressait jamais et la boucle de
+// dépaquetage tournait à l'infini, gelant le main process. Le test lui-même
+// est la preuve : s'il boucle encore, il n'atteint jamais les assertions et
+// échoue par timeout au lieu de les valider.
+test('trame IPC à taille négative : pas de boucle infinie, reconnexion propre',
+  { timeout: 10000 }, async () => {
+    if (process.platform === 'win32') return;   // socket unix : test CI/dev
+
+    let handshakeSeen = false;
+    let clientClosed = false;
+    const server = net.createServer((sock) => {
+      sock.on('data', frameReader((op) => {
+        if (op === 0 && !handshakeSeen) {
+          handshakeSeen = true;
+          const bad = Buffer.alloc(8);
+          bad.writeInt32LE(1, 0);
+          bad.writeInt32LE(-8, 4);   // taille négative : la trame corrompue
+          sock.write(bad);
+        }
+      }));
+      sock.on('close', () => { clientClosed = true; });
+    });
+    await new Promise((r) => server.listen(path.join(dir, 'discord-ipc-0'), r));
+
+    discord.setEnabled(true);
+    for (let i = 0; i < 100 && !handshakeSeen; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.ok(handshakeSeen, 'handshake jamais reçu');
+
+    // La preuve principale : la boucle d'événements continue de tourner (ce
+    // setTimeout se résout) et le client referme la connexion via teardown()
+    // au lieu de rester bloqué en boucle synchrone dans onData().
+    for (let i = 0; i < 100 && !clientClosed; i++) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.ok(clientClosed, 'le socket aurait dû être fermé (teardown) après la trame corrompue');
+
+    discord.setEnabled(false);
+    discord.stop();
+    await new Promise((r) => server.close(r));
+  });

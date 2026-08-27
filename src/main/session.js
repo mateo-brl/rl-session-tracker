@@ -40,7 +40,24 @@ class SessionStore {
       this.matches = Array.isArray(raw.matches) ? raw.matches : [];
       this.resetAt = raw.resetAt || 0;
       this.playersSeen = Array.isArray(raw.playersSeen) ? raw.playersSeen : [];
-    } catch (e) { /* premier lancement */ }
+    } catch (e) {
+      // ENOENT = vrai premier lancement, rien à sauver.
+      // Tout le reste = le fichier EXISTE mais est illisible. Or l'application
+      // appelle resetSession() dès le démarrage, qui réécrit aussitôt le
+      // fichier : sans copie de sauvegarde, un JSON simplement tronqué (souvent
+      // récupérable à la main) était définitivement remplacé par un journal
+      // vide quelques millisecondes après le lancement — 2000 matchs, courbe
+      // MMR et records perdus sans le moindre message.
+      if (e && e.code !== 'ENOENT') this._backupCorrupt(e);
+    }
+  }
+
+  _backupCorrupt(cause) {
+    try {
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      fs.renameSync(this.file, this.file + '.corrupt-' + stamp);
+      this.corrupt = { at: Date.now(), reason: String((cause && cause.message) || cause) };
+    } catch (e) { /* rien de plus à tenter : on démarre sur un journal vide */ }
   }
 
   // Écriture atomique (fichier temporaire puis rename).
@@ -73,6 +90,7 @@ class SessionStore {
       winnerTeam: (snap.winnerTeam === 0 || snap.winnerTeam === 1) ? snap.winnerTeam : null,
       ranked: snap.ranked !== false,
       forfeit: !!snap.forfeit,
+      podium: !!snap.podium,
       players: players.map((p) => ({
         name: p.name, team: p.team,
         goals: p.goals | 0, saves: p.saves | 0, assists: p.assists | 0,
@@ -129,7 +147,12 @@ class SessionStore {
   // le journal : le bilan est purement historique.
   headToHead(names, pseudo) {
     const me = norm(pseudo);
-    const out = {};
+    // Object.create(null) : les clés sont des PSEUDOS ADVERSES arbitraires.
+    // Sur un objet ordinaire, un joueur nommé « constructor », « toString » ou
+    // « __proto__ » renvoyait la propriété héritée d'Object.prototype — le
+    // bilan s'écrivait alors dans le prototype au lieu de l'entrée attendue,
+    // et l'interface affichait « undefinedV – undefinedD ».
+    const out = Object.create(null);
     if (!me || !Array.isArray(names) || !names.length) return out;
     const wanted = new Map();              // nom normalisé → nom affiché
     for (const n of names) {
@@ -164,10 +187,23 @@ class SessionStore {
     let mvp = false;
     if (m.forfeit) {
       // Abandon : si le jeu a eu le temps d'annoncer un vainqueur (forfait
-      // ADVERSE attrapé via bHasWinner), on le respecte. Sinon c'est notre
-      // départ : défaite, quel que soit le score au moment où l'on part.
+      // ADVERSE attrapé via bHasWinner), on le respecte.
       const w = (m.winnerTeam === 0 || m.winnerTeam === 1) ? m.winnerTeam : null;
-      if (me) result = (w === null) ? 'L' : (me.team === w ? 'W' : 'L');
+      if (me && w !== null) {
+        result = me.team === w ? 'W' : 'L';
+      } else if (me && m.podium) {
+        // Pas de vainqueur annoncé, MAIS le podium avait été atteint : le jeu
+        // avait donc déjà conclu le match (c'est le cas du forfait ADVERSE) et
+        // notre départ n'était qu'une sortie d'écran de fin. On déduit du
+        // score — une équipe ne vote pas le forfait en étant devant.
+        if (m.score && m.score[0] !== m.score[1]) {
+          result = (m.score[0] > m.score[1] ? 0 : 1) === me.team ? 'W' : 'L';
+        }
+      } else if (me) {
+        // Ni vainqueur, ni podium : nous avons quitté une partie EN COURS.
+        // En classé le jeu compte une défaite, quel que soit le score.
+        result = 'L';
+      }
     } else {
       // Vainqueur : annoncé par le jeu, sinon déduit du score.
       let winner = m.winnerTeam;
@@ -186,6 +222,7 @@ class SessionStore {
       score: m.score, isOT: m.isOT,
       ranked: m.ranked !== false,
       forfeit: !!m.forfeit,
+      podium: !!m.podium,
       result: result,
       myTeam: me ? me.team : null,
       me: me ? {

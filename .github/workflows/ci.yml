@@ -3,6 +3,16 @@
 # Rapide et gratuit (repo public) : pas de binaire Electron téléchargé, pas
 # de build Windows — uniquement la logique (session, config) et la validité
 # des scripts des fenêtres.
+#
+# Ces mêmes étapes de vérification sont DUPLIQUÉES dans release.yml : ci.yml
+# ne bloque pas la publication (il tourne juste en parallèle sur le même
+# push), donc release.yml ne peut pas se contenter de dépendre de ce job.
+# La forme propre serait un workflow réutilisable (workflow_call) appelé par
+# les deux fichiers, mais ça ajoute un 5ᵉ fichier de workflow — hors du
+# périmètre de cette modification, volontairement limitée à ci.yml,
+# release.yml, package.json et README.md. D'où la duplication assumée :
+# si tu modifies une vérification ici, reporte le même changement dans
+# release.yml (section « Vérifications avant publication »).
 
 name: ci
 
@@ -27,7 +37,7 @@ jobs:
       - run: npm ci
 
       - name: Tests unitaires
-        run: node --test
+        run: npm test
 
       - name: Syntaxe des processus principaux
         run: |
@@ -37,13 +47,41 @@ jobs:
         run: |
           node -e '
             const fs = require("fs");
-            for (const f of ["src/renderer/control.html",
-                             "src/renderer/dashboard.html",
-                             "src/renderer/overlay.html",
-                             "src/renderer/alphaboost.html",
-                             "src/renderer/obs.html"]) {
-              const m = fs.readFileSync(f, "utf8")
-                .match(/<script>([\s\S]*?)<\/script>/);
-              new Function(m[1]);
-              console.log(f, "OK");
-            }'
+            const fichiers = [
+              "src/renderer/control.html",
+              "src/renderer/dashboard.html",
+              "src/renderer/overlay.html",
+              "src/renderer/alphaboost.html",
+              "src/renderer/obs.html",
+            ];
+            // Global (drapeau g) et attributs optionnels dans <script ...> :
+            // un second bloc inline ajouté plus tard, ou un <script defer>
+            // ou <script type="module">, restent détectés ici. La regex
+            // précédente, non globale et sans attributs, ne vérifiait que le
+            // tout premier bloc <script> nu de chaque fichier.
+            const reScript = /<script([^>]*)>([\s\S]*?)<\/script>/g;
+            let echec = false;
+            for (const f of fichiers) {
+              const html = fs.readFileSync(f, "utf8");
+              const blocs = [...html.matchAll(reScript)];
+              let verifies = 0;
+              blocs.forEach(([, attrs, code], i) => {
+                if (/\bsrc\s*=/.test(attrs)) return; // script externe : aucun contenu inline à compiler
+                if (code.trim() === "") return; // bloc vide
+                try {
+                  new Function(code);
+                } catch (err) {
+                  console.error(`${f} : erreur de syntaxe dans le bloc <script> #${i + 1} -> ${err.message}`);
+                  echec = true;
+                }
+                verifies++;
+              });
+              if (verifies === 0) {
+                console.error(`Aucun script inline trouvé dans ${f}`);
+                echec = true;
+                continue;
+              }
+              console.log(f, `OK (${verifies} bloc(s) vérifié(s))`);
+            }
+            if (echec) process.exit(1);
+          '

@@ -509,6 +509,7 @@
       updFail: function (v) { return 'Mise \u00e0 jour vers <b>v' + v + '</b> impossible.'; },
       updErr: 'Erreur inconnue.', updRetry: 'R\u00e9essayer',
       confirmClear: 'Vider les matchs r\u00e9cents ? Les compteurs repassent \u00e0 0. Le MMR, la courbe d\u2019\u00e9volution et les records sont conserv\u00e9s.',
+      confirmMmrClear: 'Effacer ce MMR ? Le calibrage est supprim\u00e9 et toute la courbe d\u2019\u00e9volution enregistr\u00e9e jusqu\u2019ici sera d\u00e9finitivement perdue \u2014 seuls les matchs suivant une nouvelle saisie compteront.',
       apiBusy: 'Activation\u2026 (autorise la fen\u00eatre Windows)',
       apiDone: 'Fait \u2014 red\u00e9marre Rocket League',
       apiFail: '\u00c9chec \u2014 aucune installation configur\u00e9e',
@@ -599,6 +600,7 @@
       updFail: function (v) { return 'Update to <b>v' + v + '</b> failed.'; },
       updErr: 'Unknown error.', updRetry: 'Retry',
       confirmClear: 'Clear recent matches? Counters go back to 0. MMR, the evolution curve and records are kept.',
+      confirmMmrClear: 'Clear this MMR? The calibration is removed and the evolution curve recorded so far will be permanently lost \u2014 only matches after a new entry will count.',
       apiBusy: 'Enabling\u2026 (accept the Windows prompt)',
       apiDone: 'Done \u2014 restart Rocket League',
       apiFail: 'Failed \u2014 no install configured',
@@ -910,10 +912,30 @@
     var input = $('mmr' + mode);
     function save() {
       if (!api.setConfig || !cur) return;
+      // Une saisie invalide (un "12e" tapé à moitié, un collage "1 234" ou
+      // "1,234"...) met l'input en badInput : sa .value vaut alors '' au
+      // même titre qu'un champ réellement vide. Sans ce garde-fou, une
+      // simple faute de frappe serait traitée plus bas comme un effacement
+      // volontaire du MMR — et donc de tout l'historique de la courbe
+      // d'évolution (voir la confirmation juste en dessous). On ignore
+      // silencieusement la saisie tant qu'elle n'est pas valide plutôt que
+      // de la traiter comme une valeur.
+      if (input.validity && input.validity.badInput) return;
       var v = input.value.trim();
       var known = cur.session && cur.session.mmr && cur.session.mmr[mode];
       var current = known ? String(known.value) : '';
       if (v === current) return;       // rien n'a changé
+      // Vider un champ dont le MMR était calibré supprime ce calibrage :
+      // config.js efface alors mmr[mode], et à la prochaine saisie, la
+      // nouvelle date de calibrage exclura de la courbe tout l'historique
+      // antérieur, de façon définitive. On prévient avant, comme pour
+      // "Vider les matchs récents" un peu plus bas dans ce fichier.
+      if (v === '' && known) {
+        if (!confirm(T.confirmMmrClear)) {
+          input.value = current;
+          return;
+        }
+      }
       // Gros écart avec l'estimation ? Sans doute des matchs de placement
       // (gains \u00b115 et plus) \u2014 on explique au moment o\u00f9 c'est pertinent.
       if (v !== '' && known) {
