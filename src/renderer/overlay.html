@@ -138,8 +138,14 @@
     var live = s.live;
     if (live && !live.training && live.score) {
       // « Déjà croisé » : en 1v1 (un seul adversaire connu), son bilan.
+      // h2h ne contient QUE les adversaires déjà croisés (pas tous les
+      // adversaires du match) : en 2v2/3v3, un seul nom dans h2h ne veut
+      // PAS dire un seul adversaire dans le match — il faut vérifier le
+      // VRAI 1v1 via le nombre de joueurs, sinon on affiche « vs X »
+      // comme un duel alors que X n'est qu'un des adversaires.
+      var isDuel = Array.isArray(live.players) && live.players.length === 2;
       var h2h = '';
-      var names = s.h2h ? Object.keys(s.h2h) : [];
+      var names = (isDuel && s.h2h) ? Object.keys(s.h2h) : [];
       if (names.length === 1) {
         var h = s.h2h[names[0]];
         h2h = '  <span class="h2h">vs ' + esc(names[0]) + ' · '

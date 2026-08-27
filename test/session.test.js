@@ -207,3 +207,64 @@ test('head-to-head : inconnu, soi-même ou pseudo absent = vide', () => {
   assert.deepEqual(s.headToHead(['Mateo'], 'Mateo'), {});
   assert.deepEqual(s.headToHead(['Adv1a'], ''), {});
 });
+
+// ───────── Forfait : distinguer « on a quitté » de « l'adversaire a FF » ─────────
+// Les deux arrivent au tracker sous la même forme (destruction du lobby sans
+// vainqueur annoncé). Le seul discriminateur fiable est le PODIUM : s'il a été
+// atteint, le jeu avait déjà conclu le match — notre départ n'était qu'une
+// sortie d'écran de fin, pas un abandon.
+
+test('forfait adverse : podium atteint + score en notre faveur = victoire', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ forfeit: true, winnerTeam: null, podium: true, score: [3, 0] }));
+  assert.equal(s.snapshot('Mateo', CFG).history[0].result, 'W');
+});
+
+test('forfait : podium atteint mais on était mené = défaite', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ forfeit: true, winnerTeam: null, podium: true, score: [0, 3] }));
+  assert.equal(s.snapshot('Mateo', CFG).history[0].result, 'L');
+});
+
+test('forfait : sans podium, quitter en menant reste une défaite', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ forfeit: true, winnerTeam: null, podium: false, score: [3, 0] }));
+  assert.equal(s.snapshot('Mateo', CFG).history[0].result, 'L');
+});
+
+test('forfait : le vainqueur annoncé prime toujours sur le podium', () => {
+  const s = tmpStore();
+  // Podium atteint et on menait 3-0, mais le jeu a désigné l'équipe 1.
+  s.addMatch(snap({ forfeit: true, winnerTeam: 1, podium: true, score: [3, 0] }));
+  assert.equal(s.snapshot('Mateo', CFG).history[0].result, 'L');
+});
+
+test('head-to-head : un adversaire nommé « constructor » ne casse pas le bilan', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ players: [
+    { name: 'Mateo', team: 0, goals: 3, saves: 0, assists: 0, shots: 4, score: 600 },
+    { name: 'constructor', team: 1, goals: 0, saves: 1, assists: 0, shots: 2, score: 150 },
+  ], mode: '1v1', winnerTeam: 0, score: [3, 0] }));
+  const h = s.headToHead(['constructor'], 'Mateo');
+  assert.equal(h.constructor.played, 1);
+  assert.equal(h.constructor.wins, 1);
+  assert.equal(h.constructor.losses, 0);
+});
+
+test('journal illisible : sauvegardé au lieu d’être écrasé', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-test-'));
+  const file = path.join(dir, 'matches.json');
+  fs.writeFileSync(file, '{"matches":[{"id":"m1"');     // JSON tronqué
+  const s = new SessionStore(dir);
+  assert.equal(s.matches.length, 0);                    // on repart à vide…
+  s.resetSession();                                     // …et on réécrit aussitôt
+  const saved = fs.readdirSync(dir).filter((f) => f.startsWith('matches.json.corrupt-'));
+  assert.equal(saved.length, 1);                        // l'original est conservé
+  assert.match(fs.readFileSync(path.join(dir, saved[0]), 'utf8'), /^\{"matches"/);
+});
+
+test('premier lancement : aucune sauvegarde parasite', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-test-'));
+  new SessionStore(dir).resetSession();
+  assert.equal(fs.readdirSync(dir).filter((f) => f.includes('.corrupt-')).length, 0);
+});

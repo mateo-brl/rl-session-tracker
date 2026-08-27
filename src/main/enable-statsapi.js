@@ -24,13 +24,37 @@ const { spawn, spawnSync } = require('child_process');
 
 // ───────── Détection des installations (session utilisateur) ─────────
 
+// ATTENTION ENCODAGE : reg.exe redirigé vers un tube écrit dans la page de
+// code ANSI/OEM du système (CP850/CP1252 sur un Windows français), JAMAIS en
+// UTF-8. Décoder en 'utf8' transformait « Mathéo » en U+FFFD : le SteamPath
+// devenait un chemin fantôme, libraryfolders.vdf n'était jamais lu, et TOUTES
+// les bibliothèques Steam (même celles au chemin sans accent) étaient perdues.
+// On passe donc par PowerShell en forçant sa sortie en UTF-8.
 function regQuery(key, value) {
+  const ps = '[Console]::OutputEncoding=[Text.Encoding]::UTF8;'
+    + '(Get-ItemProperty -LiteralPath ' + psQuote(toPsPath(key))
+    + ' -Name ' + psQuote(value) + ').' + '\'' + value.replace(/'/g, "''") + '\'';
+  try {
+    const out = spawnSync('powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+      { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+    const v = String((out && out.stdout) || '').trim();
+    if (v) return v;
+  } catch (e) { /* on retombe sur reg.exe ci-dessous */ }
+  // Repli : reg.exe, en décodant le buffer en latin1 plutôt qu'en UTF-8 —
+  // imparfait pour les accents mais bien meilleur que des U+FFFD.
   try {
     const out = spawnSync('reg', ['query', key, '/v', value],
-      { encoding: 'utf8', windowsHide: true, timeout: 10000 });
-    const m = /REG_SZ\s+(.+)/.exec(out.stdout || '');
+      { windowsHide: true, timeout: 10000 });
+    const txt = out.stdout ? Buffer.from(out.stdout).toString('latin1') : '';
+    const m = /REG_SZ\s+(.+)/.exec(txt);
     return m ? m[1].trim() : null;
   } catch (e) { return null; }
+}
+
+// « HKCU\Software\… » → « HKCU:\Software\… » (forme attendue par PowerShell).
+function toPsPath(key) {
+  return String(key).replace(/^(HKCU|HKLM|HKCR|HKU)\\/i, '$1:\\');
 }
 
 // Extrait les chemins de bibliothèques d'un libraryfolders.vdf de Steam.
@@ -72,15 +96,34 @@ function detectInstalls() {
   } catch (e) { /* pas d'Epic */ }
 
   // Steam : registre + TOUTES les bibliothèques (y compris autres disques).
+  // HKCU d'abord (le chemin réellement utilisé par l'utilisateur), puis HKLM
+  // en repli — HKLM est indépendant du compte, donc il survit aux profils
+  // exotiques où HKCU\Valve\Steam n'existe pas.
   if (process.platform === 'win32') {
+    const roots = [];
     const sp = regQuery('HKCU\\Software\\Valve\\Steam', 'SteamPath');
-    if (sp) {
-      const libs = [sp];
+    if (sp) roots.push(sp);
+    const ip = regQuery('HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam', 'InstallPath')
+      || regQuery('HKLM\\SOFTWARE\\Valve\\Steam', 'InstallPath');
+    if (ip) roots.push(ip);
+    const libs = [];
+    for (const root of roots) {
+      libs.push(root);
       try {
         libs.push(...parseLibraryFolders(
-          fs.readFileSync(path.join(sp, 'steamapps', 'libraryfolders.vdf'), 'utf8')));
+          fs.readFileSync(path.join(root, 'steamapps', 'libraryfolders.vdf'), 'utf8')));
       } catch (e) { /* vdf absent : bibliothèque principale seulement */ }
-      for (const l of libs) add(path.join(l, 'steamapps', 'common', 'rocketleague'));
+    }
+    for (const l of libs) {
+      add(path.join(l, 'steamapps', 'common', 'rocketleague'));
+      // Le dossier peut avoir été renommé : on lit le nom réel dans le
+      // manifeste de l'app 252950 (Rocket League) quand il est présent.
+      try {
+        const acf = fs.readFileSync(
+          path.join(l, 'steamapps', 'appmanifest_252950.acf'), 'utf8');
+        const m = /"installdir"\s+"([^"]+)"/i.exec(acf);
+        if (m) add(path.join(l, 'steamapps', 'common', m[1]));
+      } catch (e) { /* manifeste absent : nom par défaut déjà tenté */ }
     }
   }
 
@@ -126,11 +169,15 @@ function checkStatsApi(port) {
 // sécurité, mais PLUS de lecture du registre Steam sous élévation.
 const PS_LINES = [
   "$ErrorActionPreference='SilentlyContinue'",
-  '$Port=49123',
+  // Le port vient de la configuration : il était figé à 49123 ici alors que la
+  // vérification, elle, comparait au port configuré — un port personnalisé
+  // provoquait donc une invite UAC à CHAQUE lancement, sans jamais converger.
+  '$Port=__PORT__',
   // 120 paquets/s : nécessaire pour la réactivité du son Alpha Boost (le
   // tracker, lui, se contenterait de 10).
   '$Rate=120',
   "$Result='__RESULT__'",
+  "$GrantUser='__USER__'",
   // ── Élévation automatique : sans droits admin, on se relance élevé et on
   // ATTEND la fin (le résultat est écrit par l'instance élevée). ──
   '$pr=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())',
@@ -164,11 +211,23 @@ const PS_LINES = [
   'foreach($p in ($found|Select-Object -Unique)){',
   '  $c=Test-RL $p',
   '  if($c){',
-  "    $ip=Join-Path $c 'TAGame\\Config\\DefaultStatsAPI.ini'",
+  "    $cfg=Join-Path $c 'TAGame\\Config'",
+  "    $ip=Join-Path $cfg 'DefaultStatsAPI.ini'",
   '    try{',
   "      if(Test-Path $ip){Copy-Item $ip ($ip+'.bak') -Force -ErrorAction SilentlyContinue}",
   '      Set-Content -Path $ip -Value $ini -Encoding ASCII -Force',
   '      $ok+=$c',
+  // ── LE point qui rend Steam durable ──
+  // DefaultStatsAPI.ini vit dans le dossier du jeu, donc dans le dépôt Steam :
+  // chaque mise à jour de Rocket League et chaque « vérification de
+  // l'intégrité des fichiers » le restaure. Jusqu'ici, chaque restauration
+  // imposait une nouvelle invite UAC — souvent ratée, d'où l'impression que
+  // le tracker marche « une fois sur deux » sur Steam. On accorde donc une
+  // fois pour toutes la modification du dossier de config à l'utilisateur :
+  // les réparations suivantes se font en silence, sans élévation.
+  '      if($GrantUser){',
+  "        icacls \"$cfg\" /grant (\"${GrantUser}:(OI)(CI)M\") /T /C 2>$null | Out-Null",
+  '      }',
   '    }catch{}',
   '  }',
   '}',
@@ -183,6 +242,25 @@ function psQuote(s) {
   return "'" + String(s).replace(/'/g, "''") + "'";
 }
 
+// 120 paquets/s : nécessaire à la réactivité du son Alpha Boost.
+const PACKET_RATE = 120;
+const DEFAULT_PORT = 49123;
+
+function numOrPort(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : DEFAULT_PORT;
+}
+
+// Compte à qui accorder l'écriture du dossier de config. On vise le compte
+// RÉEL de l'utilisateur (DOMAINE\nom) : sous élévation vers un autre compte,
+// le script ne pourrait pas le deviner tout seul.
+function currentUserForIcacls() {
+  const user = process.env.USERNAME || os.userInfo().username || '';
+  const dom = process.env.USERDOMAIN || '';
+  if (!user) return '';
+  return dom ? dom + '\\' + user : user;
+}
+
 // Lance une commande et résout dès qu'elle se termine (ou expire).
 function run(cmd, args, timeoutMs) {
   return new Promise((resolve) => {
@@ -190,7 +268,12 @@ function run(cmd, args, timeoutMs) {
     const finish = (result) => { if (!done) { done = true; resolve(result); } };
     try {
       const cp = spawn(cmd, args, { windowsHide: true, stdio: 'ignore' });
-      const timer = setTimeout(() => finish({ ok: false, reason: 'délai dépassé' }), timeoutMs);
+      const timer = setTimeout(() => {
+        // Le processus n'est PAS tué : c'est lui qui porte l'invite UAC encore
+        // affichée. Le tuer annulerait une élévation que l'utilisateur est
+        // peut-être en train d'accorder.
+        finish({ ok: false, reason: 'délai dépassé' });
+      }, timeoutMs);
       cp.on('error', (e) => { clearTimeout(timer); finish({ ok: false, reason: e.message }); });
       cp.on('exit', () => { clearTimeout(timer); finish({ ok: true }); });
     } catch (e) {
@@ -204,19 +287,59 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Active la Stats API. Retourne { ok, installs, configured, reason? } :
 //  • installs   — installations détectées côté application ;
 //  • configured — celles où le script élevé a réellement écrit l'ini.
-async function enableStatsApi() {
+// Contenu attendu de l'ini, une seule définition pour les deux chemins
+// d'écriture (direct et élevé).
+function iniBody(port) {
+  return '[TAGame.MatchStatsExporter_TA]\r\nPort=' + port
+    + '\r\nPacketSendRate=' + PACKET_RATE + '\r\n';
+}
+
+// Écriture SANS élévation. Elle réussit dès que l'utilisateur a le droit
+// d'écrire dans TAGame\Config — ce que l'activation précédente lui a accordé
+// via icacls. C'est ce qui permet de réparer en silence après chaque mise à
+// jour Steam, au lieu de redemander UAC à chaque fois.
+function writeIniDirect(installs, port) {
+  const done = [];
+  for (const p of installs) {
+    const file = path.join(p, 'TAGame', 'Config', 'DefaultStatsAPI.ini');
+    try {
+      try { fs.copyFileSync(file, file + '.bak'); } catch (e) { /* pas d'ini à sauver */ }
+      fs.writeFileSync(file, iniBody(port));
+      done.push(p);
+    } catch (e) { /* droits insuffisants : il faudra passer par l'élévation */ }
+  }
+  return done;
+}
+
+async function enableStatsApi(port) {
   if (process.platform !== 'win32') {
     return { skipped: true, reason: 'Stats API disponible uniquement sur Windows' };
   }
+  const want = numOrPort(port);
   const installs = detectInstalls();
+
+  // 1) Tentative silencieuse. Si toutes les installations sont écrites, on
+  //    s'arrête là : aucune invite UAC, donc aucune occasion de la rater.
+  const direct = writeIniDirect(installs, want);
+  if (installs.length && direct.length === installs.length) {
+    return { ok: true, installs, configured: direct, elevated: false };
+  }
+
+  // 2) Sinon, élévation — et on en profite pour poser l'ACL qui rendra les
+  //    réparations suivantes silencieuses.
   const stamp = process.pid + '-' + Date.now();
   const resultFile = path.join(os.tmpdir(), 'rl-statsapi-result-' + stamp + '.txt');
   let tmpFile;
   try {
     tmpFile = path.join(os.tmpdir(), 'rl-statsapi-' + stamp + '.ps1');
+    // Remplacements par FONCTION : le 2ᵉ argument de String.replace interprète
+    // « $& », « $' » et « $$ ». Un chemin contenant un « $ » (D:\RL$) corrompait
+    // silencieusement le script généré.
     const script = PS_LINES.join('\r\n')
-      .replace('__RESULT__', resultFile.replace(/'/g, "''"))
-      .replace('__INSTALLS__', installs.map(psQuote).join(','));
+      .replace('__RESULT__', () => resultFile.replace(/'/g, "''"))
+      .replace('__PORT__', () => String(want))
+      .replace('__USER__', () => currentUserForIcacls().replace(/'/g, "''"))
+      .replace('__INSTALLS__', () => installs.map(psQuote).join(','));
     // BOM UTF-8 OBLIGATOIRE : Windows PowerShell 5.1 (celui de Windows 10)
     // lit un .ps1 sans BOM en ANSI. Le script contient des chemins qui
     // peuvent être accentués — dont $Result dans %TEMP%, qui inclut le nom
@@ -238,18 +361,22 @@ async function enableStatsApi() {
     try { raw = fs.readFileSync(resultFile, 'utf8'); } catch (e) { await sleep(300); }
   }
   try { fs.unlinkSync(resultFile); } catch (e) {}
-  try { fs.unlinkSync(tmpFile); } catch (e) {}
+  // Le .ps1 n'est PAS supprimé après un délai dépassé : l'invite UAC est sans
+  // doute encore affichée, et le « Oui » tardif de l'utilisateur lancerait
+  // alors PowerShell sur un fichier disparu — droits accordés, mais rien
+  // d'écrit, sans le moindre signal. Il sera nettoyé par le ménage de %TEMP%.
+  if (r.ok) { try { fs.unlinkSync(tmpFile); } catch (e) {} }
 
   if (raw === null) {
-    return { ok: false, installs, configured: null,
+    return { ok: false, installs, configured: direct.length ? direct : null,
       reason: r.ok ? 'aucun résultat — fenêtre admin refusée ?' : r.reason };
   }
   const lines = raw.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length || lines[0] === 'NONE') {
-    return { ok: false, installs, configured: [],
+    return { ok: false, installs, configured: direct,
       reason: 'aucune installation Rocket League valide trouvée' };
   }
-  return { ok: true, installs, configured: lines };
+  return { ok: true, installs, configured: lines, elevated: true };
 }
 
 module.exports = { enableStatsApi, checkStatsApi, iniConfigured, detectInstalls,

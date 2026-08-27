@@ -60,7 +60,13 @@ class GameWatcher extends EventEmitter {
         const timer = setTimeout(() => { try { cp.kill(); } catch (e) {} finish(this.running); }, 4000);
         cp.stdout.on('data', (d) => { out += d; });
         cp.on('error', () => { clearTimeout(timer); finish(this.running); });
-        cp.on('exit', () => {
+        // 'close' — pas 'exit' : Node ne garantit pas que les derniers
+        // évènements 'data' de stdout soient délivrés avant 'exit', seulement
+        // avant 'close'. Avec 'exit', sous charge (le jeu qui tourne,
+        // justement), `out` peut être encore vide au moment du signal → le
+        // watcher conclut à tort « jeu fermé » pour un aller-retour, malgré
+        // l'anti-clignotement (2 relevés négatifs consécutifs).
+        cp.on('close', () => {
           clearTimeout(timer);
           finish(out.toLowerCase().includes(EXE.toLowerCase()));
         });

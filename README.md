@@ -200,11 +200,22 @@ Tout est local : tes matchs sont enregistrés dans un fichier JSON sur ton PC
 (`%APPDATA%/RL Session Tracker`), rien n'est envoyé nulle part. La seule
 connexion sortante est la vérification de mise à jour sur GitHub.
 
-**Pourquoi pas le vrai MMR ?** La Stats API du jeu ne le diffuse pas, les
-sites comme tracker.gg n'ont pas d'API publique (et leur scraping casse sans
-arrêt), et les API tierces exigent des clés privées. Depuis la saison 22 le
-MMR est visible **dans le jeu** : on le recopie une fois, l'appli fait le
-reste. Fiable, hors-ligne, et ça ne peut pas casser.
+**D'où vient le MMR ?** La Stats API du jeu ne le diffuse pas, les sites
+comme tracker.gg n'ont pas d'API publique (et leur scraping casse sans
+arrêt), et les API tierces exigent des clés privées. Mais le jeu écrit
+lui-même son MMR **en clair**, dans son journal
+(`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), à chaque mise
+en file classée. L'application le relit et recale automatiquement ta courbe
+dessus : entre deux files, elle continue d'estimer à ±9 par match, mais
+l'écart repart de zéro à chaque partie lancée au lieu de s'accumuler.
+
+C'est une simple lecture de fichier, en dehors du processus du jeu — aucune
+injection, aucune lecture mémoire, rien qui puisse déplaire à l'anti-triche.
+Deux limites assumées : rien n'est écrit quand tu n'es pas chef de groupe, et
+le dernier match d'une session n'est pris en compte qu'à ta prochaine mise en
+file. Le format n'étant pas documenté par Psyonix, il peut changer à un patch :
+dans ce cas l'application ne casse pas, elle revient simplement à l'estimation
+seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
 
 **Et le son Alpha Boost, c'est risqué ?** Non — et c'est tout l'intérêt de
 cette approche. Les mods qui remplacent les fichiers audio du jeu vivent dans
@@ -225,7 +236,7 @@ projet communautaire
 | **Données** | Stats API native du jeu (socket TCP `127.0.0.1:49123`, JSON concaténé) |
 | **Empaquetage** | electron-builder — installeur NSIS un-clic |
 | **Mises à jour** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Qualité** | 38 tests unitaires et d'intégration (`node --test`), CI à chaque push |
+| **Qualité** | Tests unitaires et d'intégration (`node --test`), CI à chaque push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
@@ -465,11 +476,22 @@ Everything is local: your matches are stored in a JSON file on your PC
 (`%APPDATA%/RL Session Tracker`); nothing is sent anywhere. The only
 outbound connection is the update check on GitHub.
 
-**Why not the real MMR?** The game's Stats API doesn't broadcast it, sites
-like tracker.gg have no public API (and scraping them breaks constantly),
-and third-party APIs require private keys. Since Season 22 the MMR is
-visible **in the game**: copy it once, the app does the rest. Reliable,
-offline, and it can never break.
+**Where does the MMR come from?** The game's Stats API doesn't broadcast it,
+sites like tracker.gg have no public API (and scraping them breaks
+constantly), and third-party APIs require private keys. But the game writes
+its own MMR **in plain text**, in its log file
+(`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), every time you
+queue for a ranked match. The app reads it back and re-anchors your curve on
+it: between two queues it still estimates at ±9 per match, but the drift
+resets every time you queue instead of piling up.
+
+It's a plain file read, outside the game's process — no injection, no memory
+reading, nothing the anti-cheat could object to. Two accepted limits: nothing
+is logged when you aren't the party leader, and a session's last match is only
+accounted for at your next queue. Since Psyonix doesn't document the format, a
+patch could change it: the app won't break, it simply falls back to the
+estimate alone. You can also turn it all off and enter your MMR by hand, as
+before.
 
 **Is the Alpha Boost sound risky?** No — that's the whole point of this
 approach. Mods that replace the game's audio files live in a gray zone since
@@ -489,7 +511,7 @@ detection) and crossfading between speed tiers.
 | **Data** | The game's native Stats API (TCP socket `127.0.0.1:49123`, concatenated JSON) |
 | **Packaging** | electron-builder — one-click NSIS installer |
 | **Updates** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Quality** | 38 unit & integration tests (`node --test`), CI on every push |
+| **Quality** | Unit & integration tests (`node --test`), CI on every push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git

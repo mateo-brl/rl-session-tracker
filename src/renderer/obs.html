@@ -241,8 +241,15 @@
     if (oc.showLive !== false && live && live.active && !live.training && live.score) {
       $('liveCell').style.display = 'flex';
       $('liveK').innerHTML = '<span class="live-dot"></span>' + T.live;
+      // h2h ne contient QUE les adversaires déjà croisés (pas tous les
+      // adversaires du match) : en 2v2/3v3, un seul nom dans h2h ne veut
+      // PAS dire un seul adversaire dans le match — le réglage « (1v1) »
+      // n'a de sens que pour un VRAI 1v1, vérifié via le nombre de joueurs
+      // (sinon le bandeau affiche « vs X » comme un duel devant tout le
+      // stream alors que X n'est qu'un des adversaires).
+      var isDuel = Array.isArray(live.players) && live.players.length === 2;
       var h2h = '';
-      var names = (oc.showH2h !== false && s.h2h) ? Object.keys(s.h2h) : [];
+      var names = (oc.showH2h !== false && isDuel && s.h2h) ? Object.keys(s.h2h) : [];
       if (names.length === 1) {
         var h = s.h2h[names[0]];
         h2h = '<span class="h2h">vs ' + esc(names[0]) + ' · '
