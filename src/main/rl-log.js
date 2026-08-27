@@ -36,6 +36,27 @@ const RANKED_PLAYLISTS = {
   13: '3v3',   // Standard classé
 };
 
+// Playlists NON classées connues (casual). Sert uniquement à distinguer « file
+// casual identifiée » de « playlist inconnue » : une playlist absente des deux
+// tables (nouveau mode, tournoi, partie privée) est traitée comme non classée,
+// mais sans certitude — voir `known` dans le résultat.
+const CASUAL_PLAYLISTS = {
+  1: '1v1', 2: '2v2', 3: '3v3', 4: '3v3',   // duel / doubles / standard / chaos
+};
+
+// Toute mise en file, classée ou non. `ranked` décide si le match comptera
+// pour le MMR ; `known` dit si la playlist nous est réellement connue.
+function playlistInfo(id) {
+  const n = Number(id);
+  if (RANKED_PLAYLISTS[n]) {
+    return { playlist: n, ranked: true, mode: RANKED_PLAYLISTS[n], known: true };
+  }
+  if (CASUAL_PLAYLISTS[n]) {
+    return { playlist: n, ranked: false, mode: CASUAL_PLAYLISTS[n], known: true };
+  }
+  return { playlist: n, ranked: false, mode: null, known: false };
+}
+
 // Conversion Mu → MMR tel qu'affiché en jeu.
 const MMR_SCALE = 20;
 const MMR_OFFSET = 100;
@@ -111,6 +132,21 @@ function parseLatest(text) {
   return { mode, mmr, tier };
 }
 
+// Dernière mise en file, classée OU casual. C'est ce qui permet enfin de
+// savoir si un match compte pour le MMR : jusqu'ici « classé » n'était qu'une
+// préférence utilisateur (vraie par défaut), donc chaque partie casual
+// déplaçait le MMR estimé de ±9 tant qu'on n'avait pas basculé le
+// commutateur à la main — à chaque match.
+function parseLastQueue(text) {
+  if (!text) return null;
+  const lines = String(text).split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const p = /StartMatchmaking\b[^\n]*?\bfor playlists?\s+(\d+)/i.exec(lines[i]);
+    if (p) return playlistInfo(p[1]);
+  }
+  return null;
+}
+
 class RLLogReader extends EventEmitter {
   constructor(opts) {
     super();
@@ -119,11 +155,28 @@ class RLLogReader extends EventEmitter {
     this._timer = null;
     this._lastSize = -1;
     this._lastKey = '';       // dernier relevé émis (évite les doublons)
+    this._queueKey = '';
+    this.lastQueue = null;    // { playlist, ranked, mode, known, at }
   }
 
   // Retourne le relevé courant, ou null si le journal est absent/illisible.
   read() {
     return parseLatest(readTail(this.file, TAIL_BYTES));
+  }
+
+  // Relit le journal MAINTENANT pour connaître la dernière mise en file.
+  // Appelé au début de chaque match : la scrutation périodique suffirait la
+  // plupart du temps, mais une lecture à la demande garantit qu'on ne rate
+  // pas la file qui vient tout juste de mener à ce match.
+  refreshQueue() {
+    const q = parseLastQueue(readTail(this.file, TAIL_BYTES));
+    if (!q) return this.lastQueue;
+    const key = q.playlist + ':' + this._lastSize;
+    if (key !== this._queueKey) {
+      this._queueKey = key;
+      this.lastQueue = { ...q, at: Date.now() };
+    }
+    return this.lastQueue;
   }
 
   start() {
@@ -146,7 +199,18 @@ class RLLogReader extends EventEmitter {
     if (size === this._lastSize) return;
     this._lastSize = size;
 
-    const found = this.read();
+    const text = readTail(this.file, TAIL_BYTES);
+    const q = parseLastQueue(text);
+    if (q) {
+      const key = q.playlist + ':' + size;
+      if (key !== this._queueKey) {
+        this._queueKey = key;
+        this.lastQueue = { ...q, at: Date.now() };
+        this.emit('queue', this.lastQueue);
+      }
+    }
+
+    const found = parseLatest(text);
     if (!found) return;
     const key = found.mode + ':' + found.mmr;
     if (key === this._lastKey) return;
@@ -157,5 +221,8 @@ class RLLogReader extends EventEmitter {
 
 module.exports = RLLogReader;
 module.exports.parseLatest = parseLatest;
+module.exports.parseLastQueue = parseLastQueue;
+module.exports.playlistInfo = playlistInfo;
 module.exports.defaultLogPath = defaultLogPath;
 module.exports.RANKED_PLAYLISTS = RANKED_PLAYLISTS;
+module.exports.CASUAL_PLAYLISTS = CASUAL_PLAYLISTS;

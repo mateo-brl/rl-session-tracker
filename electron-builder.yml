@@ -41,6 +41,17 @@ publish:
   provider: github
   owner: mateo-brl
   repo: rl-session-tracker
-  # Release publiée directement (pas de brouillon) : indispensable pour que
-  # les applications installées voient la mise à jour sans action manuelle.
+  # Valeur par défaut pour `npm run release` (publication locale, hors CI) :
+  # là, aucune étape suivante ne vient lever un brouillon, donc `release`
+  # (publication directe) est le seul réglage qui rende la mise à jour
+  # visible aux applications installées — un brouillon oublié en local ne
+  # produirait aucune erreur, juste une release invisible pour tout le monde.
+  #
+  # En CI, .github/workflows/release.yml SURCHARGE cette valeur via la
+  # variable d'environnement EP_DRAFT="true" (release créée en brouillon,
+  # levée seulement une fois l'installeur ET latest.yml en ligne — voir le
+  # commentaire de l'étape « Construction + publication » dans ce workflow).
+  # Ce fichier dit donc « release » mais la CI publie en réalité en deux
+  # temps : c'est intentionnel, ne pas essayer de « corriger » l'un des deux
+  # sans l'autre.
   releaseType: release

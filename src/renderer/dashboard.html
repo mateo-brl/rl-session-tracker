@@ -291,7 +291,7 @@
   .evo-foot b { color:var(--text); font-weight:800; font-size:15px; }
 
   /* ─── Classé / casual du match en cours ─── */
-  .ranked-toggle { display:flex; gap:6px; margin-top:10px; }
+  .ranked-toggle { display:flex; align-items:center; gap:6px; margin-top:10px; }
   .ranked-toggle button {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
     transform:skewX(-12deg); padding:5px 14px; cursor:pointer;
@@ -633,6 +633,10 @@
         </div>
       </div>
       <div class="streak-banner" id="streakBadge"><span id="streakTxt"></span></div>
+      <!-- Matchs non attribués : avertissement simple (pas de réglage ici,
+           voir control.html pour corriger le pseudo). Réutilise le style
+           du bandeau de série pour rester cohérent avec l'existant. -->
+      <div class="streak-banner" id="unknownBadge"><span id="unknownTxt"></span></div>
     </section>
 
     <!-- Par mode -->
@@ -661,6 +665,10 @@
         <div class="ranked-toggle">
           <button id="rkOn"><span data-i18n="ranked">Classé</span></button>
           <button id="rkOff"><span data-i18n="casual">Casual</span></button>
+          <!-- Pastille « Auto » : le classé/casual du match en cours a été
+               déduit du journal du jeu (state.currentRankedAuto). Le
+               commutateur ci-dessus reste utilisable dans tous les cas. -->
+          <span class="ot-mini" id="rkAuto" style="display:none"></span>
         </div>
         <table class="live-players" id="livePlayers"></table>
       </div>
@@ -822,6 +830,11 @@
       training: 'Entraînement',
       trainingSub: 'Piste libre détectée — rien n’est compté dans tes stats.',
       ranked: 'Classé', casual: 'Casual',
+      // Pastille « Auto » sur le match en cours : le classé/casual vient
+      // d'être déduit automatiquement de la playlist relevée dans le
+      // journal du jeu (state.currentRankedAuto), pas d'une préférence.
+      rkAutoLbl: 'Auto',
+      rkAutoTip: 'Classé / Casual déduit automatiquement du journal du jeu — tu gardes la main pour le corriger.',
       thPlayer: 'Joueur', thGoals: 'Buts', thAssists: 'Pass', thSaves: 'Arr', thPts: 'Pts',
       you: 'Toi',
       evoEmpty: 'Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.',
@@ -834,6 +847,10 @@
       live: 'En direct', offGame: 'Hors jeu', since: '— depuis ',
       streakHot: function (n) { return 'Série : ' + n + ' victoires d’affilée'; },
       streakTilt: function (n) { return n + ' défaites d’affilée — une pause ?'; },
+      // Bandeau « matchs non attribués » (voir hero, sous le bandeau de
+      // série) : le pseudo réglé ne correspond à aucun joueur sur un ou
+      // plusieurs matchs — la courbe MMR se fige alors en silence.
+      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribués' : ' match non attribué') + ' — vérifie ton pseudo.'; },
       modeStreak: function (n, w) { return 'Série de ' + n + ' ' + (w ? 'victoires' : 'défaites'); },
       nMatches: function (n) { return n + (n > 1 ? ' matchs' : ' match'); },
       notPlayed: 'pas joué',
@@ -863,6 +880,8 @@
       training: 'Training',
       trainingSub: 'Free play detected — nothing is counted in your stats.',
       ranked: 'Ranked', casual: 'Casual',
+      rkAutoLbl: 'Auto',
+      rkAutoTip: 'Ranked / Casual detected automatically from the game log — you can still override it.',
       thPlayer: 'Player', thGoals: 'Goals', thAssists: 'Ast', thSaves: 'Saves', thPts: 'Pts',
       you: 'You',
       evoEmpty: 'Set your MMR in the settings:<br/>the curve then draws itself match after match.',
@@ -875,6 +894,7 @@
       live: 'Live', offGame: 'Not in game', since: '— since ',
       streakHot: function (n) { return 'Streak: ' + n + ' wins in a row'; },
       streakTilt: function (n) { return n + ' losses in a row — take a break?'; },
+      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ' — check your name.'; },
       modeStreak: function (n, w) { return 'Streak of ' + n + ' ' + (w ? 'wins' : 'losses'); },
       nMatches: function (n) { return n + (n > 1 ? ' matches' : ' match'); },
       notPlayed: 'not played',
@@ -1143,6 +1163,20 @@
       badge.className = 'streak-banner';
     }
 
+    // Avertissement « matchs non attribués » : le pseudo réglé ne
+    // correspond à aucun joueur sur un ou plusieurs matchs de la session
+    // (changement de pseudo en jeu, espace insécable, variante unicode...).
+    // Sans ce signal, la courbe MMR se fige en silence pendant que le vrai
+    // MMR du joueur continue de bouger. Simple avertissement ici : la
+    // correction du pseudo se fait dans la fenêtre de réglages.
+    var unknown = ses.unknown || 0;
+    if (unknown > 0) {
+      $('unknownBadge').className = 'streak-banner tilt';
+      $('unknownTxt').textContent = T.unknownWarn(unknown);
+    } else {
+      $('unknownBadge').className = 'streak-banner';
+    }
+
     // Modes.
     var pm = ses.perMode || {};
     var mmr = ses.mmr || {};
@@ -1194,6 +1228,18 @@
       var rk = s.currentRanked !== false;
       $('rkOn').className = rk ? 'on' : '';
       $('rkOff').className = rk ? '' : 'on';
+      // Pastille « Auto » : le classé/casual du match en cours a été déduit
+      // automatiquement de la playlist relevée dans le journal du jeu
+      // (true/false), plutôt que d'être la simple préférence de l'utilisateur
+      // (null) — le commutateur ci-dessus reste utilisable dans tous les cas.
+      var rkAuto = $('rkAuto');
+      if (s.currentRankedAuto != null) {
+        rkAuto.style.display = 'inline-block';
+        rkAuto.textContent = T.rkAutoLbl;
+        rkAuto.title = T.rkAutoTip;
+      } else {
+        rkAuto.style.display = 'none';
+      }
       renderLivePlayers(live, cfg.pseudo, s.h2h);
     }
 

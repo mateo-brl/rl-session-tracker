@@ -8,7 +8,7 @@
 //  • enregistre chaque match (victoires/défaites, série, stats par mode) ;
 //  • se met à jour toute seule depuis les releases GitHub (sur accord).
 
-const { app, Tray, Menu, ipcMain, shell } = require('electron');
+const { app, Tray, Menu, ipcMain, shell, dialog } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -17,6 +17,7 @@ const windows = require('./windows');
 const updater = require('./updater');
 const discord = require('./discord-rpc');
 const obs = require('./obs-server');
+const sos = require('./sos-bridge');
 const SessionStore = require('./session');
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
@@ -53,6 +54,8 @@ const state = {
     statsApiBroken: false },   // ini réinitialisé par une màj / vérif Steam
   live: null,            // match en cours (snapshot Stats API), ou null
   currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
+  currentRankedAuto: null,  // déduit de la playlist du journal ? (null = préférence)
+  queue: null,           // dernière mise en file relevée dans le journal
   session: null,         // agrégats de session
   history: [],
   playersSeen: [],
@@ -63,6 +66,7 @@ const state = {
   records: null,         // records de tous les temps
   h2h: null,             // « déjà croisé » : bilan contre les adversaires du match en cours
   obs: { running: false, port: 0, error: null },   // serveur overlay OBS
+  sos: { running: false, port: 0, clients: 0 },    // pont compatible SOS
   update: updater.getState(),
 };
 
@@ -75,6 +79,7 @@ function obsState() {
     game: state.game.running,
     live: state.live,
     currentRanked: state.currentRanked,
+    currentRankedAuto: state.currentRankedAuto,
     session: state.session,
     h2h: state.h2h,
   };
@@ -87,6 +92,17 @@ function applyObsConfig() {
   } else if (obs.running()) {
     obs.stop();
   }
+  applySosConfig();
+}
+
+// Pont compatible SOS : rend le flux du jeu lisible par tous les overlays de
+// diffusion écrits pour le défunt plugin SOS, qui ne fonctionne plus en ligne
+// depuis l'arrivée d'Easy Anti-Cheat.
+function applySosConfig() {
+  const o = config.get().obs || {};
+  if (o.sosBridge) sos.start(o.sosPort, log);
+  else sos.stop();
+  state.sos = sos.status();
 }
 
 // ── Head-to-head : recalculé uniquement quand la liste d'adversaires change ──
@@ -137,6 +153,8 @@ function resolveLang() {
 function pushState() {
   state.config = config.get();
   state.lang = resolveLang();
+  state.sos = sos.status();   // le serveur démarre en asynchrone : on relit
+
   refreshH2h();
   discord.refresh(state);
   windows.broadcast('state', state);
@@ -176,6 +194,7 @@ function setGameRunning(running) {
   } else {
     state.live = null;
     state.currentRanked = null;
+    state.currentRankedAuto = null;
     windows.closeDashboard();
     windows.closeOverlay();
     windows.closeAlphaAudio();
@@ -284,19 +303,24 @@ function startStatsApi() {
     recomputeRunning();
   });
   api.on('state', (d) => {
+    sos.send('state', d);
     state.live = d && d.active ? { ...d, training: isTraining(d) } : null;
     // Nouveau match : classé ou casual ? Pré-réglé sur la préférence, et
     // modifiable d'un clic sur le dashboard pendant la partie.
     if (state.live && !state.live.training && state.currentRanked === null) {
-      state.currentRanked = config.get().mmrCounts !== false;
+      const r = resolveRanked();
+      state.currentRanked = r.ranked;
+      state.currentRankedAuto = r.auto;
     }
     pushState();
   });
   api.on('match', (d) => {
+    sos.send(d.phase, {});
     if (d.phase === 'start') matchSinceRecord = true;
     if (d.phase === 'destroyed') {
       state.live = null;
       state.currentRanked = null;
+      state.currentRankedAuto = null;
       pushState();
     }
   });
@@ -306,8 +330,9 @@ function startStatsApi() {
   api.on('abandoned', (snap) => {
     state.live = null;
     const ranked = state.currentRanked !== null
-      ? state.currentRanked : config.get().mmrCounts !== false;
+      ? state.currentRanked : resolveRanked().ranked;
     state.currentRanked = null;
+    state.currentRankedAuto = null;
     // Le podium avait été atteint : le match s'est terminé pour de bon (c'est
     // typiquement un forfait ADVERSE) et notre départ n'était qu'une sortie
     // d'écran de fin. Un vrai résultat, à compter même en casual — alors que
@@ -336,6 +361,7 @@ function startStatsApi() {
     pushState();
     const last = state.history[0];
     if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
+    sos.send('ended', snap);
     log('abandon enregistré : ' + (snap.mode || '?')
       + ' — résultat ' + ((last && last.result) || '?')
       + (snap.podium ? ' (podium atteint)' : ''));
@@ -344,6 +370,7 @@ function startStatsApi() {
     if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
     obs.emit('goal', d);
+    sos.send('goal', d);
   });
   // Télémétrie boost → moteur audio Alpha Boost (fenêtre invisible).
   api.on('telemetry', (d) => {
@@ -356,13 +383,15 @@ function startStatsApi() {
     state.live = null;
     if (isTraining(snap)) {
       state.currentRanked = null;
+      state.currentRankedAuto = null;
       pushState();
       log('entraînement terminé — non compté');
       return;
     }
     snap.ranked = state.currentRanked !== null
-      ? state.currentRanked : config.get().mmrCounts !== false;
+      ? state.currentRanked : resolveRanked().ranked;
     state.currentRanked = null;
+    state.currentRankedAuto = null;
     lastRecordedAt = Date.now();
     matchSinceRecord = false;
     store.addMatch(snap);
@@ -384,6 +413,7 @@ function startStatsApi() {
     // d'enregistrer est le premier de l'historique, déjà évalué (W/L, MVP).
     const last = state.history[0];
     if (last) { windows.broadcast('match-result', last); obs.emit('result', last); }
+    sos.send('ended', snap);
     log('match enregistré : ' + (snap.mode || '?') + ' '
       + (Array.isArray(snap.score) ? snap.score.join('-') : '?'));
   });
@@ -396,12 +426,56 @@ function startStatsApi() {
 // ce relevé continuent d'être estimés à ±9 (session.js ne compte que les
 // matchs postérieurs à `setAt`) — la dérive est donc remise à zéro à chaque
 // file au lieu de s'accumuler indéfiniment.
+let logReader = null;
+
+// Le match en cours est-il classé ? La playlist relevée au moment de la mise
+// en file fait autorité ; à défaut (pas chef de groupe, journal illisible,
+// playlist inconnue), on retombe sur la préférence de l'utilisateur.
+const QUEUE_FRESH_MS = 30 * 60 * 1000;
+function resolveRanked() {
+  const pref = config.get().mmrCounts !== false;
+  if (config.get().mmrFromLog === false || !logReader) return { ranked: pref, auto: null };
+  let q = null;
+  try { q = logReader.refreshQueue(); } catch (e) { q = null; }
+  if (!q || !q.known || Date.now() - q.at > QUEUE_FRESH_MS) return { ranked: pref, auto: null };
+  return { ranked: q.ranked, auto: q.ranked };
+}
+
+// Apprend le VRAI pas MMR du joueur en comparant deux relevés successifs du
+// journal : la variation réelle de MMR, divisée par le nombre de victoires
+// nettes jouées entre les deux. Les gains varient (~6 à 12 selon l'écart de
+// MMR), donc la moyenne figée à 9 introduisait une erreur systématique entre
+// deux recalages. Lissé de moitié pour ne pas suivre le bruit d'un seul écart.
+function learnMmrStep(reading, previous) {
+  if (!previous || !previous.fromLog || !Number.isFinite(previous.base)) return;
+  const d = store.decidedBetween(reading.mode, previous.setAt, Date.now(),
+    config.get().pseudo);
+  if (!d.net) return;                      // autant de victoires que de défaites
+  const observed = Math.abs((reading.mmr - previous.base) / d.net);
+  if (!Number.isFinite(observed) || observed < 4 || observed > 20) return;
+  const steps = { ...(config.get().mmrStep || {}) };
+  const prev = Number(steps[reading.mode]);
+  steps[reading.mode] = Number.isFinite(prev)
+    ? Math.round(((prev + observed) / 2) * 10) / 10
+    : Math.round(observed * 10) / 10;
+  config.update({ mmrStep: steps });
+  log('pas MMR appris pour ' + reading.mode + ' : ' + steps[reading.mode]
+    + ' (observé ' + observed.toFixed(1) + ' sur ' + d.net + ' victoire(s) nette(s))');
+}
+
 function startMmrFromLog() {
-  const reader = new RLLogReader();
+  const reader = logReader = new RLLogReader();
+  reader.on('queue', (q) => {
+    state.queue = q;
+    pushState();
+    log('mise en file détectée : playlist ' + q.playlist
+      + (q.known ? ' (' + (q.ranked ? 'classé ' + q.mode : 'casual') + ')' : ' (inconnue)'));
+  });
   reader.on('mmr', (r) => {
     if (config.get().mmrFromLog === false) return;
     const cur = (config.get().mmr || {})[r.mode];
     if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
+    learnMmrStep(r, cur);
     config.update({ mmrSet: { mode: r.mode, value: r.mmr, fromLog: true } });
     state.mmrLog = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: Date.now() };
     refreshSession();
@@ -588,6 +662,7 @@ ipcMain.on('alpha-test', () => {
 ipcMain.on('set-current-ranked', (_e, ranked) => {
   if (state.live && !state.live.training) {
     state.currentRanked = !!ranked;
+    state.currentRankedAuto = null;   // choix manuel : il prime
     pushState();
   }
 });
@@ -612,6 +687,61 @@ ipcMain.handle('enable-statsapi', async () => {
   pushState();
   return r;
 });
+// Export du journal : 2000 matchs ne doivent pas rester enfermés dans un
+// fichier interne. CSV (une ligne par match, ouvrable dans un tableur) ou
+// JSON complet, au choix de l'extension retenue dans la boîte de dialogue.
+function toCsv(rows) {
+  const cell = (v) => {
+    const t = v === null || v === undefined ? '' : String(v);
+    // Un pseudo peut contenir « ; », un guillemet ou un retour à la ligne.
+    return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+  };
+  const head = ['date', 'mode', 'classe', 'resultat', 'score', 'prolongation',
+    'forfait', 'buts', 'passes', 'arrets', 'tirs', 'points', 'mvp'];
+  const lines = [head.join(';')];
+  for (const m of rows) {
+    lines.push([
+      new Date(m.endedAt).toISOString(),
+      m.mode,
+      m.ranked ? 'classe' : 'casual',
+      m.result || '',
+      Array.isArray(m.score) ? m.score.join('-') : '',
+      m.isOT ? 'oui' : 'non',
+      m.forfeit ? 'oui' : 'non',
+      m.me ? m.me.goals : '', m.me ? m.me.assists : '',
+      m.me ? m.me.saves : '', m.me ? m.me.shots : '',
+      m.me ? m.me.score : '', m.me && m.me.mvp ? 'oui' : 'non',
+    ].map(cell).join(';'));
+  }
+  // BOM UTF-8 : sans lui, Excel lit le CSV en ANSI et massacre les accents.
+  return '\uFEFF' + lines.join('\r\n') + '\r\n';
+}
+
+ipcMain.handle('export-matches', async () => {
+  try {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const r = await dialog.showSaveDialog({
+      title: state.lang === 'en' ? 'Export matches' : 'Exporter les matchs',
+      defaultPath: 'rl-matchs-' + stamp + '.csv',
+      filters: [
+        { name: 'CSV', extensions: ['csv'] },
+        { name: 'JSON', extensions: ['json'] },
+      ],
+    });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    // Le point de vue du joueur (victoire/défaite, stats perso) est dérivé au
+    // calcul : on exporte donc l'historique évalué, pas les données brutes.
+    const rows = store.matches.map((m) => store._evaluate(m, config.get().pseudo));
+    const json = /\.json$/i.test(r.filePath);
+    fs.writeFileSync(r.filePath, json ? JSON.stringify(rows, null, 2) + '\n' : toCsv(rows));
+    log('export de ' + rows.length + ' match(s) vers ' + r.filePath);
+    return { ok: true, file: r.filePath, count: rows.length };
+  } catch (e) {
+    log('export échoué : ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.on('open-dashboard', () => openDashboard());
 ipcMain.on('close-dashboard', () => windows.closeDashboard());
 ipcMain.on('open-external', (_e, url) => {
@@ -637,7 +767,7 @@ if (!gotLock) {
     else app.whenReady().then(() => windows.showControl());
   });
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); });
+  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); sos.stop(); });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}

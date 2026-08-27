@@ -250,6 +250,13 @@
              autocomplete="off" spellcheck="false" />
       <datalist id="seen"></datalist>
       <div class="hint" data-i18n="hintPseudo">Sert à savoir quelle équipe est la tienne pour compter victoires et défaites. Joue un match : les pseudos détectés apparaissent en suggestion.</div>
+      <!-- Matchs non attribués : le pseudo réglé ne correspond à aucun
+           joueur sur un ou plusieurs matchs de la session (changement de
+           pseudo en jeu, espace insécable, variante unicode...). Sans ce
+           signal, la courbe MMR se fige en silence pendant que le vrai MMR
+           du joueur continue de bouger — voir buildPseudoChips() plus bas. -->
+      <div class="hint warn" id="unknownHint" style="display:none"></div>
+      <div class="chips" id="unknownChips" style="display:none;margin-top:8px"></div>
       <div style="height:14px"></div>
       <label class="field" data-i18n="lMmr">Mon MMR (optionnel)</label>
       <div class="mmr-grid">
@@ -410,6 +417,7 @@
 
     <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
     <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
+    <button class="ghost" id="exportBtn" data-i18n="bExport">Exporter les matchs</button>
     <button class="ghost" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
 
     <div class="foot">v<span id="ver">?</span><span data-i18n="foot"> — tu peux fermer cette fenêtre, l'application reste active dans la barre des tâches.</span></div>
@@ -434,6 +442,9 @@
       oAuto: 'Automatique (syst\u00e8me)',
       lPseudo: 'Ton pseudo en jeu',
       hintPseudo: 'Sert \u00e0 savoir quelle \u00e9quipe est la tienne pour compter victoires et d\u00e9faites. Joue un match : les pseudos d\u00e9tect\u00e9s apparaissent en suggestion.',
+      // Un ou plusieurs matchs de la session n'ont pu \u00eatre attribu\u00e9s \u00e0
+      // aucun joueur : le pseudo r\u00e9gl\u00e9 ne correspond plus \u00e0 rien.
+      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribu\u00e9s' : ' match non attribu\u00e9') + ' \u2014 v\u00e9rifie ton pseudo.'; },
       lMmr: 'Mon MMR (optionnel)',
       hintMmr: 'Recopie le MMR affich\u00e9 dans le jeu (Param\u00e8tres \u2192 Interface \u2192 \u00ab Afficher le MMR \u00bb, depuis la saison 22). Ensuite l\u2019appli l\u2019estime toute seule match apr\u00e8s match (environ \u00b19) \u2014 reviens le corriger quand tu veux.',
       hintPlacement: 'Attention aux matchs de placement (d\u00e9but de saison) : les gains y sont bien plus gros (souvent \u00b115 et d\u00e9gressifs), l\u2019estimation d\u00e9rive forc\u00e9ment. Recopie ton MMR en jeu une fois tes placements termin\u00e9s.',
@@ -492,6 +503,10 @@
       hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb ci-dessus l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
       bStatsApi: 'R\u00e9activer la Stats API du jeu',
+      // Export du journal des matchs (bouton \u00ab R\u00e9glages \u00bb du bas).
+      bExport: 'Exporter les matchs', exportBusy: 'Export en cours\u2026',
+      exportDone: function (n) { return n + (n > 1 ? ' matchs export\u00e9s' : ' match export\u00e9'); },
+      exportFail: '\u00c9chec de l\u2019export.',
       foot: ' \u2014 tu peux fermer cette fen\u00eatre, l\u2019application reste active dans la barre des t\u00e2ches.',
       stInMatch: 'Match en cours', stGame: 'Rocket League d\u00e9tect\u00e9',
       stWait: 'En attente de Rocket League',
@@ -525,6 +540,9 @@
       oAuto: 'Automatic (system)',
       lPseudo: 'Your in-game name',
       hintPseudo: 'Used to know which team is yours when counting wins and losses. Play a match: detected names show up as suggestions.',
+      // One or more matches this session couldn’t be attributed to any
+      // player: the configured name no longer matches anything.
+      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ' — check your name.'; },
       lMmr: 'My MMR (optional)',
       hintMmr: 'Copy the MMR shown in the game (Settings \u2192 Interface \u2192 \u201cShow MMR\u201d, since Season 22). The app then estimates it match after match (about \u00b19) \u2014 come back and correct it anytime.',
       hintPlacement: 'Beware of placement matches (start of season): gains are much bigger there (often \u00b115 and decreasing), so the estimate inevitably drifts. Copy your in-game MMR again once your placements are done.',
@@ -583,6 +601,10 @@
       hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons above animate it too. Local only: nothing is exposed to the internet.',
       bDash: 'Open the dashboard', bClear: 'Clear recent matches',
       bStatsApi: 'Re-enable the game Stats API',
+      // Match log export (button in the settings section below).
+      bExport: 'Export matches', exportBusy: 'Exporting\u2026',
+      exportDone: function (n) { return n + (n > 1 ? ' matches exported' : ' match exported'); },
+      exportFail: 'Export failed.',
       foot: ' \u2014 you can close this window, the app stays active in the system tray.',
       stInMatch: 'Match in progress', stGame: 'Rocket League detected',
       stWait: 'Waiting for Rocket League',
@@ -672,6 +694,24 @@
   function fmtScore(live) {
     return live && Array.isArray(live.score)
       ? live.score[0] + ' – ' + live.score[1] : null;
+  }
+
+  // Construit une rangée de chips « pseudo candidat, clique pour choisir » :
+  // utilisé à la fois à l'accueil (aucun pseudo réglé, carte « Qui es-tu ? »)
+  // et pour corriger un pseudo qui ne correspond plus à aucun joueur (voir
+  // l'avertissement « matchs non attribués » dans render()). Un seul point
+  // d'implémentation pour ce geste, réutilisé plutôt que dupliqué.
+  function buildPseudoChips(container, list) {
+    container.innerHTML = '';
+    list.forEach(function (n) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      var inner = document.createElement('span');
+      inner.textContent = n;
+      b.appendChild(inner);
+      b.onclick = function () { api.setConfig && api.setConfig({ pseudo: n }); };
+      container.appendChild(b);
+    });
   }
 
   function render(s) {
@@ -833,17 +873,20 @@
       noPseudo && !(ses && ses.played) ? 'block' : 'none';
     var cand = s.pseudoCandidates || [];
     $('whoCard').style.display = noPseudo && cand.length > 1 ? 'block' : 'none';
-    var chips = $('whoChips');
-    chips.innerHTML = '';
-    cand.forEach(function (n) {
-      var b = document.createElement('button');
-      b.className = 'chip';
-      var inner = document.createElement('span');
-      inner.textContent = n;
-      b.appendChild(inner);
-      b.onclick = function () { api.setConfig && api.setConfig({ pseudo: n }); };
-      chips.appendChild(b);
-    });
+    buildPseudoChips($('whoChips'), cand);
+
+    // Avertissement « matchs non attribués » : le pseudo réglé ne
+    // correspond à aucun joueur sur un ou plusieurs matchs de la session
+    // (changement de pseudo en jeu, espace insécable, variante unicode...).
+    // Sans ce signal, la courbe MMR se fige en silence pendant que le vrai
+    // MMR du joueur continue de bouger. Quand des candidats existent, on
+    // propose de corriger d'un clic avec le même geste que « Qui es-tu ? ».
+    var unknown = (ses && ses.unknown) || 0;
+    $('unknownHint').style.display = unknown > 0 ? 'block' : 'none';
+    if (unknown > 0) $('unknownHint').textContent = T.unknownWarn(unknown);
+    var showFix = unknown > 0 && cand.length > 0;
+    $('unknownChips').style.display = showFix ? 'flex' : 'none';
+    if (showFix) buildPseudoChips($('unknownChips'), cand);
 
     renderUpdate(s.update || {});
   }
@@ -1099,6 +1142,29 @@
         setTimeout(function () {
           b.disabled = false; b.textContent = T.bStatsApi;
         }, failed ? 8000 : 5000);
+      });
+  };
+
+  // ─── Export du journal des matchs ───
+  // Même mécanique de retour d'information que « Réactiver la Stats API » :
+  // le bouton se désactive et affiche lui-même le résultat, pas de popup.
+  $('exportBtn').onclick = function () {
+    var b = $('exportBtn');
+    b.disabled = true; b.textContent = T.exportBusy;
+    Promise.resolve(api.exportMatches ? api.exportMatches() : null)
+      .then(function (res) {
+        // Annulation silencieuse : l'utilisateur a fermé la boîte de
+        // dialogue « Enregistrer sous » sans choisir de fichier — ni
+        // succès ni erreur, on rétablit juste le bouton.
+        if (res && res.canceled) {
+          b.disabled = false; b.textContent = T.bExport;
+          return;
+        }
+        var ok = !!(res && res.ok);
+        b.textContent = ok ? T.exportDone(res.count || 0) : T.exportFail;
+        setTimeout(function () {
+          b.disabled = false; b.textContent = T.bExport;
+        }, ok ? 5000 : 8000);
       });
   };
 
