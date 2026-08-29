@@ -95,11 +95,14 @@ class RLStatsAPI extends EventEmitter {
     const seen = m._roster || (m._roster = new Map());
     for (const p of players) seen.set(key(p), p);
     m.players = Array.from(seen.values()).slice(0, MAX_PLAYERS);
-    // Le mode se déduit de l'effectif MAXIMAL vu : au tout début d'un match,
-    // tous les joueurs ne sont pas encore chargés — figer le mode sur le
-    // premier aperçu étiquetait un 2v2 « 1v1 » pour toujours.
-    if (m.players.length > (m._maxPlayers || 0)) {
-      m._maxPlayers = m.players.length;
+    // Le mode se déduit du plus grand effectif vu SIMULTANÉMENT, pas du cumul
+    // des joueurs croisés : en 3v3, un joueur qui part et se fait remplacer
+    // porte le cumul à 7 et étiquetait le match « 4v4 » — soit exactement la
+    // pollution des stats par mode que le déplafonnement cherchait à éviter.
+    // L'effectif instantané, lui, reste borné par la taille réelle du mode,
+    // tout en montant quand les joueurs finissent de charger.
+    if (players.length > (m._maxPlayers || 0)) {
+      m._maxPlayers = players.length;
       m.mode = modeFromCount(m._maxPlayers);
     }
   }
@@ -571,9 +574,16 @@ class RLStatsAPI extends EventEmitter {
     else if (winner === '0' || winner === '1') winnerTeam = Number(winner);
     // Règle d'omission du jeu : un champ valant 0 est ABSENT du JSON. Or le
     // jeu n'envoie matchended que « quand un vainqueur est désigné » — un
-    // vainqueur manquant signifie donc « équipe 0 », pas « on ne sait pas ».
-    // Le chemin bHasWinner appliquait déjà cette règle, pas celui-ci.
-    else winnerTeam = 0;
+    // vainqueur ABSENT signifie donc « équipe 0 ».
+    // En revanche, un champ PRÉSENT mais d'une forme qu'on ne sait pas lire
+    // (objet, autre clé) ne veut pas dire « équipe 0 » : mettre 0 par défaut
+    // faisait enregistrer une défaite 1-4 comme une victoire, car _evaluate
+    // préfère winnerTeam au score. Dans ce cas on laisse null et le score, qui
+    // est fiable et présent dans le même instantané, tranche.
+    // Pas de recoupement avec le score ici : un FORFAIT désigne légitimement
+    // un vainqueur MENÉ au score (l'équipe qui abandonne mène souvent), et
+    // c'est précisément le cas que ce connecteur doit savoir traiter.
+    else if (winner === undefined) winnerTeam = 0;
 
     const snap = this.snapshot();
     snap.winnerTeam = winnerTeam;

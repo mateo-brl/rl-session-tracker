@@ -940,7 +940,12 @@
     // Sans ce signal, la courbe MMR se fige en silence pendant que le vrai
     // MMR du joueur continue de bouger. Quand des candidats existent, on
     // propose de corriger d'un clic avec le même geste que « Qui es-tu ? ».
-    var unknown = (ses && ses.unknown) || 0;
+    // On se base sur `unmatched` (joueur introuvable dans le match) et non
+    // sur `unknown` (tout match sans verdict, y compris un forfait à score
+    // égal qui n'a rien à voir avec le pseudo) : sinon on accuse le pseudo
+    // à tort, sans le moindre candidat à proposer pour "corriger" quoi que
+    // ce soit.
+    var unknown = (ses && ses.unmatched) || 0;
     $('unknownHint').style.display = unknown > 0 ? 'block' : 'none';
     if (unknown > 0) $('unknownHint').textContent = T.unknownWarn(unknown);
     var showFix = unknown > 0 && cand.length > 0;

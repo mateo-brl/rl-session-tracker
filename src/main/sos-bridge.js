@@ -265,21 +265,30 @@ function start(port, onLog) {
   stop();
   wantedPort = want;
 
-  server = http.createServer((req, res) => {
+  const srv = http.createServer((req, res) => {
     // Le pont ne sert aucune page : seul l'upgrade WebSocket a du sens.
     res.writeHead(426, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Utiliser une connexion WebSocket.\n');
   });
-  server.on('upgrade', (req, sock) => handleUpgrade(req, sock));
-  server.on('error', (e) => {
+  server = srv;
+  srv.on('upgrade', (req, sock) => handleUpgrade(req, sock));
+  srv.on('error', (e) => {
+    // On ne touche à l'état du module QUE si l'erreur vient du serveur
+    // COURANT : un ancien serveur déjà remplacé émet encore des erreurs à la
+    // fermeture, et il remettait alors à zéro l'état du nouveau — statut
+    // « port indisponible » mensonger, stop() sans effet, et le port suivant
+    // bloqué par le module lui-même.
+    if (server !== srv) { try { srv.close(); } catch (e2) {} return; }
     log('port ' + want + ' indisponible : ' + e.message);
+    try { srv.close(); } catch (e2) {}
     server = null;
     listenPort = 0;
     wantedPort = 0;
   });
   // 127.0.0.1 uniquement : le pont ne sort jamais de la machine.
-  server.listen(want, '127.0.0.1', () => {
-    listenPort = server.address().port;
+  srv.listen(want, '127.0.0.1', () => {
+    if (server !== srv) { try { srv.close(); } catch (e) {} return; }
+    listenPort = srv.address().port;
     log('pont compatible SOS à l’écoute sur 127.0.0.1:' + listenPort);
   });
 }

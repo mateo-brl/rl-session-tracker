@@ -29,27 +29,42 @@ const { spawn, spawnSync } = require('child_process');
 // UTF-8. Décoder en 'utf8' transformait « Mathéo » en U+FFFD : le SteamPath
 // devenait un chemin fantôme, libraryfolders.vdf n'était jamais lu, et TOUTES
 // les bibliothèques Steam (même celles au chemin sans accent) étaient perdues.
-// On passe donc par PowerShell en forçant sa sortie en UTF-8.
+//
+// On lit donc reg.exe en latin1 — instantané (~30 ms) et correct pour un
+// chemin ASCII, c'est-à-dire l'immense majorité. PowerShell (~1 s de démarrage
+// à froid, sur le thread principal) n'est appelé QU'EN DERNIER RECOURS, quand
+// le chemin obtenu contient du non-ASCII ou n'existe pas sur le disque :
+// l'appeler systématiquement figeait le dashboard et l'overlay une à trois
+// secondes au lancement du jeu, puis toutes les 10 minutes.
 function regQuery(key, value) {
-  const ps = '[Console]::OutputEncoding=[Text.Encoding]::UTF8;'
-    + '(Get-ItemProperty -LiteralPath ' + psQuote(toPsPath(key))
-    + ' -Name ' + psQuote(value) + ').' + '\'' + value.replace(/'/g, "''") + '\'';
-  try {
-    const out = spawnSync('powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
-      { encoding: 'utf8', windowsHide: true, timeout: 15000 });
-    const v = String((out && out.stdout) || '').trim();
-    if (v) return v;
-  } catch (e) { /* on retombe sur reg.exe ci-dessous */ }
-  // Repli : reg.exe, en décodant le buffer en latin1 plutôt qu'en UTF-8 —
-  // imparfait pour les accents mais bien meilleur que des U+FFFD.
+  let raw = null;
   try {
     const out = spawnSync('reg', ['query', key, '/v', value],
       { windowsHide: true, timeout: 10000 });
     const txt = out.stdout ? Buffer.from(out.stdout).toString('latin1') : '';
     const m = /REG_SZ\s+(.+)/.exec(txt);
-    return m ? m[1].trim() : null;
-  } catch (e) { return null; }
+    if (m) raw = m[1].trim();
+  } catch (e) { /* on tente PowerShell ci-dessous */ }
+
+  // Chemin propre et existant : rien de plus à faire.
+  if (raw && !/[^\x00-\x7F]/.test(raw)) return raw;
+  if (raw) {
+    try { if (fs.existsSync(raw)) return raw; } catch (e) {}
+  }
+
+  // Repli coûteux : sortie forcée en UTF-8, seul moyen sûr pour un chemin
+  // accentué (fréquent chez les utilisateurs francophones du projet).
+  try {
+    const ps = '[Console]::OutputEncoding=[Text.Encoding]::UTF8;'
+      + '(Get-ItemProperty -LiteralPath ' + psQuote(toPsPath(key))
+      + ' -Name ' + psQuote(value) + ').' + psQuote(value);
+    const out = spawnSync('powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+      { encoding: 'utf8', windowsHide: true, timeout: 15000 });
+    const v = String((out && out.stdout) || '').trim();
+    if (v) return v;
+  } catch (e) { /* on garde ce que reg.exe a donné */ }
+  return raw;
 }
 
 // « HKCU\Software\… » → « HKCU:\Software\… » (forme attendue par PowerShell).
@@ -214,7 +229,7 @@ const PS_LINES = [
   "    $cfg=Join-Path $c 'TAGame\\Config'",
   "    $ip=Join-Path $cfg 'DefaultStatsAPI.ini'",
   '    try{',
-  "      if(Test-Path $ip){Copy-Item $ip ($ip+'.bak') -Force -ErrorAction SilentlyContinue}",
+  "      if((Test-Path $ip) -and -not(Test-Path ($ip+'.bak'))){Copy-Item $ip ($ip+'.bak') -ErrorAction SilentlyContinue}",
   '      Set-Content -Path $ip -Value $ini -Encoding ASCII -Force',
   '      $ok+=$c',
   // ── LE point qui rend Steam durable ──
@@ -303,7 +318,10 @@ function writeIniDirect(installs, port) {
   for (const p of installs) {
     const file = path.join(p, 'TAGame', 'Config', 'DefaultStatsAPI.ini');
     try {
-      try { fs.copyFileSync(file, file + '.bak'); } catch (e) { /* pas d'ini à sauver */ }
+      // La sauvegarde n'est faite QU'UNE FOIS : chaque réparation silencieuse
+      // recopiait par-dessus l'ini que Steam venait de restaurer, détruisant
+      // le seul retour en arrière dont disposait l'utilisateur.
+      if (!fs.existsSync(file + '.bak')) fs.copyFileSync(file, file + '.bak');
       fs.writeFileSync(file, iniBody(port));
       done.push(p);
     } catch (e) { /* droits insuffisants : il faudra passer par l'élévation */ }
