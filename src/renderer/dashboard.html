@@ -835,6 +835,14 @@
       // journal du jeu (state.currentRankedAuto), pas d'une préférence.
       rkAutoLbl: 'Auto',
       rkAutoTip: 'Classé / Casual déduit automatiquement du journal du jeu — tu gardes la main pour le corriger.',
+      // Pastille « Jeu » sur la carte d'un mode : la base de calibrage du
+      // MMR de ce mode vient d'un relevé automatique du journal du jeu
+      // (Launch.log) et non d'une saisie manuelle dans les réglages.
+      mmrLogLbl: 'Jeu',
+      mmrLogTip: function (step) {
+        return 'MMR relevé automatiquement dans le journal de Rocket League '
+          + 'à chaque mise en file classée — pas utilisé : ' + step + ' points.';
+      },
       thPlayer: 'Joueur', thGoals: 'Buts', thAssists: 'Pass', thSaves: 'Arr', thPts: 'Pts',
       you: 'Toi',
       evoEmpty: 'Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.',
@@ -882,6 +890,11 @@
       ranked: 'Ranked', casual: 'Casual',
       rkAutoLbl: 'Auto',
       rkAutoTip: 'Ranked / Casual detected automatically from the game log — you can still override it.',
+      mmrLogLbl: 'Game',
+      mmrLogTip: function (step) {
+        return 'MMR read automatically from the Rocket League log '
+          + 'every time you queue for a ranked match — step used: ' + step + ' points.';
+      },
       thPlayer: 'Player', thGoals: 'Goals', thAssists: 'Ast', thSaves: 'Saves', thPts: 'Pts',
       you: 'You',
       evoEmpty: 'Set your MMR in the settings:<br/>the curve then draws itself match after match.',
@@ -1169,7 +1182,10 @@
     // Sans ce signal, la courbe MMR se fige en silence pendant que le vrai
     // MMR du joueur continue de bouger. Simple avertissement ici : la
     // correction du pseudo se fait dans la fenêtre de réglages.
-    var unknown = ses.unknown || 0;
+    // On se base sur `unmatched` (joueur introuvable dans le match) et non
+    // sur `unknown` (tout match sans verdict, y compris un forfait à score
+    // égal, sans rapport avec le pseudo) : sinon on accuse le pseudo à tort.
+    var unknown = ses.unmatched || 0;
     if (unknown > 0) {
       $('unknownBadge').className = 'streak-banner tilt';
       $('unknownTxt').textContent = T.unknownWarn(unknown);
@@ -1187,10 +1203,20 @@
     keys.forEach(function (k) {
       var m = pm[k];
       var r = mmr[k];
+      // Pastille « Jeu » : la base de calibrage de ce mode a été recalée
+      // automatiquement sur le journal du jeu (Launch.log) plutôt que
+      // saisie à la main. Sans ce repère, un MMR qui « bouge tout seul »
+      // se lit comme un bug plutôt que comme la fonctionnalité de recalage
+      // auto — l'infobulle rappelle aussi le pas utilisé pour ce mode.
+      var fromLogTag = (r && r.fromLog)
+        ? ' <span class="ot-mini" title="' + T.mmrLogTip(r.step || 9) + '">'
+          + T.mmrLogLbl + '</span>'
+        : '';
       var mmrLine = r
         ? '<div class="mmr">MMR <b>' + r.value + '</b>'
           + (r.delta ? ' <span class="' + (r.delta > 0 ? 'up' : 'down') + '">'
             + (r.delta > 0 ? '+' : '') + r.delta + '</span>' : '')
+          + fromLogTag
           + '</div>'
         : '';
       if (m) {

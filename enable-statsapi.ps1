@@ -19,20 +19,61 @@
 # n'est alors jamais lu et Rocket League installé sur D:\SteamLibrary (ou
 # tout disque autre que C:) devient introuvable — seuls les chemins par
 # défaut sous C: survivaient à ce bug.
+#
+# PARITÉ AVEC L'APPLICATION (revue de code) : ce script est le filet de
+# secours manuel documenté dans le README quand l'activation automatique a
+# échoué — ses utilisateurs ne passent donc JAMAIS par le chemin applicatif.
+# Deux points étaient restés désynchronisés de src/main/enable-statsapi.js,
+# corrigés ici : (1) le port est désormais paramétrable via -Port (au lieu
+# d'être figé à 49123), transmis à l'instance élevée comme -Installs —
+# sinon un port personnalisé fait que la vérification de l'application ne
+# reconnaît jamais l'ini écrit ici comme valide, et redéclenche une
+# réparation (UAC) en boucle ; (2) le script pose maintenant l'ACL icacls
+# sur TAGame\Config (voir « LE correctif durable pour Steam » plus bas) —
+# sans quoi les utilisateurs envoyés ici, ceux dont l'automatique a
+# précisément échoué, n'en bénéficiaient jamais.
 
 param(
   # Liste de dossiers d'installation déjà détectés et validés côté
   # utilisateur (session non élevée), séparés par ';'. Transmis
   # automatiquement par ce script à sa propre instance élevée — un
   # utilisateur ne doit normalement jamais renseigner ce paramètre à la main.
-  [string]$Installs = ''
+  [string]$Installs = '',
+
+  # Port d'écoute du socket local de la Stats API. Optionnel : 49123 par
+  # défaut. DOIT correspondre au port configuré côté application
+  # (statsApiPort) : un port différent ferait que la vérification de
+  # l'application ne reconnaît jamais cet ini comme valide, et déclenche une
+  # réparation (invite UAC) en boucle alors que l'utilisateur vient
+  # justement de « réparer » à la main. Chaîne (pas [int]) pour ne jamais
+  # faire échouer le script sur une valeur non numérique en ligne de
+  # commande — validée plus bas, avec repli sur 49123 si absurde.
+  [string]$Port = '49123',
+
+  # Compte Windows (DOMAINE\nom) à qui accorder l'écriture du dossier de
+  # config, résolu dans la session du VRAI utilisateur puis transmis
+  # automatiquement à l'instance élevée — voir Get-CurrentAccountForAcl et
+  # l'avertissement UAC en tête de fichier. Un utilisateur ne doit
+  # normalement jamais renseigner ce paramètre à la main.
+  [string]$GrantUser = ''
 )
 
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 
 # ───────── Paramètres ─────────
-$Port = 49123   # port d'écoute du socket local
+# Validation du port reçu (-Port) : un entier hors de la plage usuelle
+# (1024-65535), ou une valeur non numérique, est presque certainement une
+# erreur de saisie ou un argument corrompu en route vers l'instance élevée —
+# on retombe sur le port par défaut plutôt que d'écrire un ini avec un port
+# absurde, qui ne serait alors jamais reconnu comme valide par l'app.
+$parsedPort = 0
+if (-not [int]::TryParse($Port, [ref]$parsedPort) -or $parsedPort -lt 1024 -or $parsedPort -gt 65535) {
+  Write-Host "  Port '$Port' invalide (entier attendu entre 1024 et 65535) : repli sur 49123." -ForegroundColor Yellow
+  $parsedPort = 49123
+}
+$Port = $parsedPort   # port d'écoute du socket local, désormais validé
+
 # 120 maj/s : nécessaire pour la réactivité du son Alpha Boost (voir
 # src/main/enable-statsapi.js). La vérification côté application n'exige
 # qu'un rate "> 0" : une valeur plus basse écrite ici serait donc toujours
@@ -144,6 +185,21 @@ function Find-RLInstalls {
   $valid | Select-Object -Unique
 }
 
+# ───────── Compte à qui accorder l'écriture du dossier de config ─────────
+# Vise le compte RÉEL de l'utilisateur (DOMAINE\nom), exactement comme
+# currentUserForIcacls() dans src/main/enable-statsapi.js. PIÈGE UAC : sous
+# élévation vers un AUTRE compte (cas familial très courant, voir l'en-tête),
+# $env:USERNAME devient celui de l'ADMINISTRATEUR. Cette fonction ne doit
+# donc être appelée que dans une session dont on sait qu'elle est celle du
+# vrai utilisateur — voir les deux points d'appel plus bas, jamais
+# « au cas où » dans l'instance élevée après un changement de compte.
+function Get-CurrentAccountForAcl {
+  $user = $env:USERNAME
+  if ([string]::IsNullOrWhiteSpace($user)) { return '' }
+  if ($env:USERDOMAIN) { return "$($env:USERDOMAIN)\$user" }
+  return $user
+}
+
 # ───────── Élévation automatique en administrateur ─────────
 $principal = New-Object Security.Principal.WindowsPrincipal(
   [Security.Principal.WindowsIdentity]::GetCurrent())
@@ -155,11 +211,24 @@ if (-not $isAdmin) {
   Write-Host "  Détection de l'installation (session utilisateur)..." -ForegroundColor Yellow
   $detected = @(Find-RLInstalls)
 
+  # Résolu ICI, dans la session du vrai utilisateur, pour la même raison que
+  # Find-RLInstalls ci-dessus (voir Get-CurrentAccountForAcl et l'en-tête).
+  if (-not $GrantUser) { $GrantUser = Get-CurrentAccountForAcl }
+
   Write-Host '  Élévation des privilèges (administrateur requis)...' -ForegroundColor Yellow
   $psArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
   if ($detected.Count -gt 0) {
     $psArgs += '-Installs'
     $psArgs += "`"$($detected -join ';')`""
+  }
+  # Le port est toujours retransmis, même la valeur par défaut : sans ça,
+  # l'instance élevée perdrait un port personnalisé et écrirait 49123 à sa
+  # place (voir le commentaire du paramètre -Port).
+  $psArgs += '-Port'
+  $psArgs += "`"$Port`""
+  if ($GrantUser) {
+    $psArgs += '-GrantUser'
+    $psArgs += "`"$GrantUser`""
   }
 
   try {
@@ -208,12 +277,21 @@ if ($Installs) {
     if ($c) { $installs += $c }
   }
   $installs = @($installs | Select-Object -Unique)
+  # $GrantUser vient de la session utilisateur, transmis avant l'élévation :
+  # s'il est vide ici, sa résolution a échoué là-bas. On se garde bien de le
+  # redéduire dans CETTE instance élevée : $env:USERNAME y serait celui de
+  # l'administrateur, pas de l'utilisateur réel (voir Get-CurrentAccountForAcl).
+  # L'ACL sera alors sautée proprement plus bas plutôt que d'accorder des
+  # droits au mauvais compte.
 } else {
   # Aucune liste reçue : ce script a été lancé directement en administrateur
   # (ex. clic droit > Exécuter en tant qu'administrateur), sans passer par
   # la détection préalable côté utilisateur. Le compte n'a pas changé ici,
-  # donc relire le registre (HKCU compris) reste fiable.
+  # donc relire le registre (HKCU compris) reste fiable — et $env:USERNAME
+  # aussi, d'où la résolution de $GrantUser ci-dessous si elle n'a pas déjà
+  # été transmise.
   $installs = @(Find-RLInstalls)
+  if (-not $GrantUser) { $GrantUser = Get-CurrentAccountForAcl }
 }
 
 if ($installs.Count -eq 0) {
@@ -239,7 +317,8 @@ PacketSendRate=$Rate
 
 $configured = @()
 foreach ($dir in $installs) {
-  $iniPath = Join-Path $dir 'TAGame\Config\DefaultStatsAPI.ini'
+  $cfgDir = Join-Path $dir 'TAGame\Config'
+  $iniPath = Join-Path $cfgDir 'DefaultStatsAPI.ini'
   try {
     if (Test-Path $iniPath) {
       Copy-Item $iniPath "$iniPath.bak" -Force -ErrorAction SilentlyContinue
@@ -250,6 +329,33 @@ foreach ($dir in $installs) {
   } catch {
     Write-Host "  [ÉCHEC] $iniPath" -ForegroundColor Red
     Write-Host "          $($_.Exception.Message)" -ForegroundColor DarkGray
+    continue
+  }
+
+  # ── ACL : LE correctif durable pour Steam ──
+  # DefaultStatsAPI.ini vit dans le dossier du jeu, donc dans le dépôt Steam :
+  # chaque mise à jour de Rocket League et chaque « vérification de
+  # l'intégrité des fichiers » le restaure. On accorde donc une fois pour
+  # toutes la modification du dossier de config à l'utilisateur RÉEL : les
+  # réparations suivantes (faites en silence par l'application, voir
+  # PS_LINES dans src/main/enable-statsapi.js) se font alors sans UAC. Sans
+  # ça, les utilisateurs envoyés vers CE script manuel — ceux dont
+  # l'activation automatique a précisément échoué — n'en bénéficiaient
+  # jamais. Un échec ici n'invalide PAS l'activation : l'ini est écrit,
+  # c'est l'essentiel ; on se contente d'avertir.
+  if ($GrantUser) {
+    try {
+      icacls "$cfgDir" /grant ("${GrantUser}:(OI)(CI)M") /T /C 2>$null | Out-Null
+      if ($LASTEXITCODE -eq 0) {
+        Write-Host "          Droits d'écriture accordés à $GrantUser sur TAGame\Config (réparations futures sans UAC)." -ForegroundColor DarkGray
+      } else {
+        Write-Host "          /!\ ACL non appliquée sur $cfgDir (icacls a retourné $LASTEXITCODE) — non bloquant." -ForegroundColor Yellow
+      }
+    } catch {
+      Write-Host "          /!\ ACL non appliquée sur $cfgDir : $($_.Exception.Message) — non bloquant." -ForegroundColor Yellow
+    }
+  } else {
+    Write-Host '          Compte utilisateur inconnu : ACL non posée (les réparations suivantes redemanderont l''UAC).' -ForegroundColor Yellow
   }
 }
 

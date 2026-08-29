@@ -159,3 +159,32 @@ test('parseLastQueue expose la position de la ligne trouvée', () => {
 test('playlist 4 (chaos) vaut 4v4, pas 3v3', () => {
   assert.equal(playlistInfo(4).mode, '4v4');
 });
+
+// ───────── Régression : ne jamais mêler le MMR d’une file casual ─────────
+// Les lignes MMR/palier PRÉCÈDENT leur StartMatchmaking. Un balayage arrière
+// rencontrait d'abord la file casual, puis le MMR de CETTE file, puis le
+// StartMatchmaking classé précédent — et attribuait le MMR casual au mode
+// classé, écrasant la base de calibrage avec une valeur sans rapport.
+
+test('file classée suivie d’une file casual : c’est le MMR CLASSÉ qui compte', () => {
+  const r = parseLatest(queue('25', 18, 11) + '\n' + queue('56.7', 1, 2));
+  assert.equal(r.mode, '2v2');
+  assert.equal(r.mmr, 600);          // 25 × 20 + 100, pas le relevé casual
+  assert.equal(r.tier, 18);
+});
+
+test('deux files classées : la plus récente gagne', () => {
+  const r = parseLatest(queue('25', 18, 11) + '\n' + queue('30', 19, 13));
+  assert.equal(r.mode, '3v3');
+  assert.equal(r.mmr, 700);
+});
+
+test('uniquement du casual : aucun relevé exploitable', () => {
+  assert.equal(parseLatest(queue('56.7', 1, 2)), null);
+});
+
+test('MMR sans sa ligne de file : jamais rattaché à la file suivante', () => {
+  const orphan = '[1] Matchmaking: Pre-divide PartyLeaderMMR: 99\n';
+  const r = parseLatest(orphan + queue('25', 18, 11));
+  assert.equal(r.mmr, 600);          // le MMR orphelin est ignoré
+});
