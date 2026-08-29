@@ -206,6 +206,11 @@ function setGameRunning(running) {
   state.game.since = running ? Date.now() : 0;
   log('Rocket League : ' + (running ? 'détecté' : 'fermé'));
   if (running) {
+    // Le tracker démarre avec Windows et vit des jours : la vérification du
+    // lancement date alors du login, et la suivante peut être à 4 h. Lancer le
+    // jeu est LE moment où l'on regarde l'application — c'est donc là qu'une
+    // mise à jour doit être proposée, pas au petit bonheur du minuteur.
+    updater.check();
     if (config.get().autoDashboard) openDashboard();
     if (config.get().overlayEnabled) openOverlay();
     if (alphaEnabled()) openAlphaAudio();
@@ -318,6 +323,16 @@ function startStatsApi() {
 
   api.on('connection', (d) => {
     state.game.statsConnected = d.connected;
+    // Socket coupé : le connecteur a jeté son match, mais l'état affiché
+    // resterait figé sur le dernier score (le jeu tourne toujours, donc rien
+    // ne le remet à zéro). Pire, `currentRanked` non nul faisait sauter la
+    // détection classé/casual du match SUIVANT, qui héritait du verdict
+    // précédent.
+    if (!d.connected) {
+      state.live = null;
+      state.currentRanked = null;
+      state.currentRankedAuto = null;
+    }
     recomputeRunning();
   });
   api.on('state', (d) => {
@@ -534,8 +549,16 @@ function logStatsApiResult(r) {
 // de l'ini (sans élévation) à chaque lancement, et réactivation automatique
 // (une invite UAC) uniquement si la panne est avérée.
 let repairing = false;
+// Une réparation demande une élévation (UAC) tant que l'ACL n'est pas posée.
+// Si l'utilisateur refuse — ou n'est pas administrateur — réessayer sans fin
+// lui collerait une invite toutes les 10 minutes pendant des jours. On borne
+// donc les tentatives automatiques ; le bouton « Réactiver » reste toujours
+// disponible, et le compteur repart à chaque réparation réussie.
+const MAX_AUTO_REPAIRS = 3;
+let autoRepairFails = 0;
 async function repairStatsApiIfNeeded(origin) {
   if (repairing) return;            // une invite UAC à la fois
+  if (autoRepairFails >= MAX_AUTO_REPAIRS) return;
   let check;
   try { check = checkStatsApi(config.get().statsApiPort); } catch (e) { return; }
   if (!check.installs.length || !check.broken.length) {
@@ -556,6 +579,15 @@ async function repairStatsApiIfNeeded(origin) {
   // dès qu'UNE installation avait été écrite. Si c'est justement celle de
   // Steam qui a échoué, le voyant passait au vert alors que rien ne marchait.
   refreshStatsApiFlag();
+  if (state.game.statsApiBroken) {
+    autoRepairFails++;
+    if (autoRepairFails >= MAX_AUTO_REPAIRS) {
+      log('réparation automatique abandonnée après ' + autoRepairFails
+        + ' échecs — utiliser le bouton « Réactiver »');
+    }
+  } else {
+    autoRepairFails = 0;
+  }
   pushState();
 }
 
@@ -716,22 +748,27 @@ ipcMain.handle('enable-statsapi', async () => {
   catch (e) { r = { ok: false, reason: e.message }; }
   logStatsApiResult(r);
   refreshStatsApiFlag();     // on relit l'ini plutôt que de croire le script
+  autoRepairFails = 0;       // action volontaire : on refait confiance à l'auto
   pushState();
   return r;
 });
 // Export du journal : 2000 matchs ne doivent pas rester enfermés dans un
 // fichier interne. CSV (une ligne par match, ouvrable dans un tableur) ou
 // JSON complet, au choix de l'extension retenue dans la boîte de dialogue.
-function toCsv(rows) {
+function toCsv(rows, pseudo) {
   const cell = (v) => {
     const t = v === null || v === undefined ? '' : String(v);
     // Un pseudo peut contenir « ; », un guillemet ou un retour à la ligne.
     return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
   };
   // Coéquipiers ou adversaires, du point de vue du joueur suivi.
+  // Le joueur suivi est écarté de la colonne « coéquipiers » par son PSEUDO :
+  // le reconnaître à ses stats effaçait un coéquipier ayant fini avec les
+  // mêmes points et buts — cas courant en 2v2.
+  const me = String(pseudo || '').trim().toLowerCase();
   const names = (m, mine) => (Array.isArray(m.players) && m.myTeam !== null
     ? m.players.filter((p) => (p.team === m.myTeam) === mine
-        && !(mine && m.me && p.score === m.me.score && p.goals === m.me.goals))
+        && !(mine && String(p.name || '').trim().toLowerCase() === me))
       .map((p) => p.name).join(', ')
     : '');
   const head = ['date', 'mode', 'classe', 'resultat', 'score', 'prolongation',
@@ -775,7 +812,8 @@ ipcMain.handle('export-matches', async () => {
     // calcul : on exporte donc l'historique évalué, pas les données brutes.
     const rows = store.exportRows(config.get().pseudo);
     const json = /\.json$/i.test(r.filePath);
-    fs.writeFileSync(r.filePath, json ? JSON.stringify(rows, null, 2) + '\n' : toCsv(rows));
+    fs.writeFileSync(r.filePath,
+      json ? JSON.stringify(rows, null, 2) + '\n' : toCsv(rows, config.get().pseudo));
     log('export de ' + rows.length + ' match(s) vers ' + r.filePath);
     return { ok: true, file: r.filePath, count: rows.length };
   } catch (e) {

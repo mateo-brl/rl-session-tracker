@@ -284,9 +284,12 @@ class SessionStore {
       const e = this._evaluate(m, pseudo);
       if (e.result === 'W') wins++;
       else if (e.result === 'L') losses++;
-      // Un match où l'on ne s'est pas reconnu a quand même bougé le vrai MMR :
-      // l'appelant doit pouvoir refuser d'apprendre sur un intervalle troué.
-      else if (!e.me) unmatched++;
+      // TOUT match sans verdict troue l'intervalle : qu'on ne s'y soit pas
+      // reconnu OU que le résultat soit indécidable (forfait à score égal), il
+      // a bougé le vrai MMR sans apparaître dans `net`. Ne compter que le
+      // premier cas laissait passer des intervalles troués et le pas appris
+      // sortait gonflé d'autant.
+      else unmatched++;
     }
     return { wins, losses, unmatched, net: wins - losses };
   }

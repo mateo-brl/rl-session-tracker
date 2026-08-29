@@ -449,3 +449,48 @@ test('podiumstart est diffusé (les overlays SOS basculent dessus)', () => {
   feed(api, 'PodiumStart', {});
   assert.equal(podium, 1);
 });
+
+// ───────── Régression : vainqueur d’une forme inattendue ─────────
+// La règle d'omission du jeu (« champ à 0 = absent ») ne vaut que pour un
+// champ ABSENT. Un champ PRÉSENT mais illisible (objet, autre clé) mis à 0
+// par défaut faisait enregistrer une défaite 1-4 comme une victoire, car
+// _evaluate préfère winnerTeam au score.
+
+test('matchended avec un Winner illisible : on laisse le score trancher', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);                 // score 1-3
+  feed(api, 'MatchEnded', { Winner: { Name: 'foo', TeamNum: 1 } });
+  assert.equal(snap.winnerTeam, null);             // et non 0
+});
+
+test('matchended avec Winner absent : équipe 0 (règle d’omission)', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  feed(api, 'UpdateState', STATE);
+  feed(api, 'MatchEnded', { MatchGuid: 'x' });
+  assert.equal(snap.winnerTeam, 0);
+});
+
+// ───────── Régression : un remplaçant ne change pas le mode ─────────
+
+test('remplacement en cours de match : le mode reste celui joué', () => {
+  const api = new RLStatsAPI();
+  let snap = null;
+  api.on('ended', (s) => { snap = s; });
+  feed(api, 'MatchCreated', {});
+  const six = {};
+  for (let i = 0; i < 6; i++) six['P' + i] = { Name: 'J' + i, TeamNum: i % 2, Score: 10 };
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] }, Players: six });
+  assert.equal(api.match.mode, '3v3');
+  // « J1 » part, « Remplacant » arrive : 6 joueurs simultanés, 7 au cumul.
+  const after = { ...six, P1: { Name: 'Remplacant', TeamNum: 1, Score: 5 } };
+  feed(api, 'UpdateState', { Game: { Teams: [{ Score: 0 }, { Score: 0 }] }, Players: after });
+  feed(api, 'MatchEnded', { Winner: 0 });
+  assert.equal(snap.mode, '3v3');        // et non « 4v4 »
+  assert.equal(snap.players.length, 7);  // le partant reste dans les stats
+});

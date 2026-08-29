@@ -96,47 +96,43 @@ function tailText(file, bytes) {
   return t ? t.text : null;
 }
 
-// Extrait le DERNIER relevé de MMR du texte fourni.
-// Les trois lignes (MMR, palier, playlist) sont consécutives dans le journal :
-// on balaie de la fin vers le début et on retient la première grappe complète.
-// Le palier et la playlist sont facultatifs — un MMR sans mode identifiable
-// n'est pas exploitable, mais un MMR sans palier l'est.
+// Extrait le dernier relevé de MMR d'une file CLASSÉE.
+//
+// Le jeu écrit toujours dans cet ordre, par mise en file :
+//   PartyLeaderMMR  →  PartyLeaderTier  →  StartMatchmaking … playlists N
+// On balaie donc vers l'AVANT en accumulant le MMR et le palier en attente,
+// et on ne les valide qu'en arrivant sur leur ligne StartMatchmaking.
+//
+// Un balayage arrière ne marche PAS ici : en remontant, on rencontre d'abord
+// le StartMatchmaking d'une file casual, puis le MMR de cette même file
+// casual, et enfin le StartMatchmaking classé précédent — le MMR casual se
+// retrouvait alors attribué au mode classé, et écrasait la base de calibrage
+// avec une valeur qui n'a rien à voir.
 function parseLatest(text) {
   if (!text) return null;
-  const lines = String(text).split(/\r?\n/);
-  let mmr = null;
-  let tier = null;
-  let mode = null;
+  let pendingMmr = null;
+  let pendingTier = null;
+  let found = null;
 
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines[i];
-    if (mode === null) {
-      const p = /StartMatchmaking\b[^\n]*?\bfor playlists?\s+(\d+)/i.exec(line);
-      if (p) {
-        mode = RANKED_PLAYLISTS[Number(p[1])] || null;
-        // Playlist non classée (casual, extra modes) : ce relevé ne nous
-        // intéresse pas, on continue de remonter.
-        if (mode === null) { mmr = null; tier = null; }
-        continue;
+  for (const line of String(text).split(/\r?\n/)) {
+    const m = /PartyLeaderMMR[:=]?\s*(-?\d+(?:\.\d+)?)/i.exec(line);
+    if (m) { pendingMmr = Number(m[1]); continue; }
+    const t = /PartyLeaderTier\s*=?\s*\(?\s*(\d+)/i.exec(line);
+    if (t) { pendingTier = Number(t[1]); continue; }
+    const p = /StartMatchmaking\b[^\n]*?\bfor playlists?\s+(\d+)/i.exec(line);
+    if (!p) continue;
+    const mode = RANKED_PLAYLISTS[Number(p[1])];
+    // Le relevé n'appartient qu'à SA file : classée ou non, on repart à zéro.
+    if (mode && pendingMmr !== null) {
+      const mmr = Math.round(pendingMmr * MMR_SCALE + MMR_OFFSET);
+      if (Number.isFinite(mmr) && mmr > 0 && mmr <= 5000) {
+        found = { mode: mode, mmr: mmr, tier: pendingTier };
       }
     }
-    if (tier === null) {
-      const t = /PartyLeaderTier\s*=?\s*\(?\s*(\d+)/i.exec(line);
-      if (t) { tier = Number(t[1]); continue; }
-    }
-    if (mmr === null) {
-      const m = /PartyLeaderMMR[:=]?\s*(-?\d+(?:\.\d+)?)/i.exec(line);
-      if (m) {
-        mmr = Math.round(Number(m[1]) * MMR_SCALE + MMR_OFFSET);
-        continue;
-      }
-    }
-    if (mmr !== null && mode !== null) break;
+    pendingMmr = null;
+    pendingTier = null;
   }
-
-  if (mmr === null || mode === null) return null;
-  if (!Number.isFinite(mmr) || mmr <= 0 || mmr > 5000) return null;
-  return { mode, mmr, tier };
+  return found;
 }
 
 // Dernière mise en file, classée OU casual. C'est ce qui permet enfin de
@@ -183,7 +179,7 @@ class RLLogReader extends EventEmitter {
   refreshQueue() {
     const t = readTail(this.file, TAIL_BYTES);
     if (!t) return this.lastQueue;
-    this._applyQueue(parseLastQueue(t.text), t.from);
+    this._applyQueue(parseLastQueue(t.text), t.from, t.text);
     return this.lastQueue;
   }
 
@@ -192,9 +188,15 @@ class RLLogReader extends EventEmitter {
   // journal : deux files successives sur la même playlist sont bien
   // distinguées, et relire la même ligne ne rafraîchit pas son horodatage —
   // sans quoi le garde de fraîcheur n'expirait jamais.
-  _applyQueue(q, from) {
+  _applyQueue(q, from, text) {
     if (!q) return false;
-    const key = q.playlist + '@' + (from + q.offset);
+    // `from` est un décalage en OCTETS, `q.offset` un index de CARACTÈRES : les
+    // additionner dérivait dès le moindre caractère non-ASCII dans le journal
+    // (pseudo accentué, chemin Windows, U+FFFD d'une fenêtre coupée en plein
+    // caractère). La même ligne changeait alors de clé à chaque scrutation, et
+    // le garde de fraîcheur n'expirait jamais.
+    const bytes = Buffer.byteLength(String(text).slice(0, q.offset), 'utf8');
+    const key = q.playlist + '@' + (from + bytes);
     if (key === this._queueKey) return false;
     this._queueKey = key;
     this.lastQueue = { ...q, at: Date.now() };
@@ -223,7 +225,7 @@ class RLLogReader extends EventEmitter {
 
     const t = readTail(this.file, TAIL_BYTES);
     if (!t) return;
-    if (this._applyQueue(parseLastQueue(t.text), t.from)) {
+    if (this._applyQueue(parseLastQueue(t.text), t.from, t.text)) {
       this.emit('queue', this.lastQueue);
     }
 
