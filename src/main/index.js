@@ -523,6 +523,9 @@ function startMmrFromLog() {
     const cur = (config.get().mmr || {})[r.mode];
     if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
     learnMmrStep(r, cur);
+    // L'ancre est archivée dans le journal : c'est elle qui porte la courbe.
+    // La base de configuration ne sert plus qu'au cas « aucun relevé ».
+    store.addMmrReading(r.mode, r.mmr, r.tier);
     config.update({ mmrSet: { mode: r.mode, value: r.mmr, fromLog: true } });
     state.mmrLog = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: Date.now() };
     refreshSession();

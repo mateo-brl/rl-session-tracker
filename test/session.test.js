@@ -384,3 +384,89 @@ test('bornes du pas MMR exportées une seule fois', () => {
   assert.equal(SessionStore.MMR_STEP_MAX, 20);
   assert.equal(SessionStore.MMR_STEP, 9);
 });
+
+// ───────── Courbe d'évolution ancrée sur les relevés du jeu ─────────
+// Régression : le recalage repoussait `setAt` à « maintenant » à chaque mise
+// en file, et la courbe — qui ne gardait que les matchs postérieurs — se
+// réduisait à un seul point. Les relevés sont désormais des ANCRES datées.
+
+function withReadings(readings) {
+  const s = tmpStore();
+  s.mmrReadings = readings;
+  return s;
+}
+const LOGCFG = { mmr: { '2v2': { base: 1000, setAt: 0, fromLog: true } }, mmrCounts: true };
+
+test('la courbe survit au recalage : elle garde tout l’historique', () => {
+  const t0 = Date.now() - 100000;
+  const s = withReadings({ '2v2': [{ t: t0 - 1000, v: 1000, tier: 18 }] });
+  [1, 0, 1, 1, 0].forEach((w, i) => s.addMatch(snap(w
+    ? { endedAt: t0 + i * 1000 }
+    : { endedAt: t0 + i * 1000, winnerTeam: 1, score: [0, 2] })));
+  const evo = s.snapshot('Mateo', LOGCFG).evolution['2v2'];
+  assert.deepEqual(evo.map((p) => p.v), [1000, 1009, 1000, 1009, 1018, 1009]);
+});
+
+test('un nouveau relevé reprend la main sur l’estimation', () => {
+  const t0 = Date.now() - 100000;
+  const s = withReadings({ '2v2': [
+    { t: t0 - 1000, v: 1000, tier: 18 },
+    { t: t0 + 1500, v: 1042, tier: 19 },   // le vrai MMR a bougé plus que prévu
+  ] });
+  s.addMatch(snap({ endedAt: t0 }));                 // victoire estimée : 1009
+  s.addMatch(snap({ endedAt: t0 + 3000 }));          // après l'ancre : 1042 + 9
+  const evo = s.snapshot('Mateo', LOGCFG).evolution['2v2'];
+  assert.deepEqual(evo.map((p) => p.v), [1000, 1009, 1042, 1051]);
+  assert.deepEqual(evo.map((p) => !!p.real), [true, false, true, false]);
+});
+
+test('rang déduit du palier du dernier relevé', () => {
+  const s = withReadings({ '2v2': [{ t: Date.now() - 5000, v: 1400, tier: 18 }] });
+  s.addMatch(snap({}));
+  const m = s.snapshot('Mateo', LOGCFG).session.mmr['2v2'];
+  assert.equal(m.rank, 'Champion III');
+  assert.equal(m.tier, 18);
+  assert.equal(SessionStore.tierName(22), 'Supersonic Legend');
+  assert.equal(SessionStore.tierName(0), 'Non classé');
+  assert.equal(SessionStore.tierName(99), null);
+});
+
+test('variation de session mesurée sur les vrais relevés', () => {
+  const t0 = Date.now() - 50000;
+  const s = withReadings({ '2v2': [{ t: t0 - 1000, v: 1000, tier: 18 }] });
+  s.addMatch(snap({ endedAt: t0 }));
+  s.addMatch(snap({ endedAt: t0 + 1000 }));
+  const m = s.snapshot('Mateo', LOGCFG).session.mmr['2v2'];
+  assert.equal(m.delta, 18);          // deux victoires depuis le début
+  assert.equal(m.deltaReal, true);
+});
+
+test('un même relevé répété ne crée pas de point en double', () => {
+  const s = tmpStore();
+  assert.equal(s.addMmrReading('2v2', 1200, 18), true);
+  assert.equal(s.addMmrReading('2v2', 1200, 18), false);
+  assert.equal(s.addMmrReading('2v2', 1209, 18), true);
+  assert.equal(s.mmrReadings['2v2'].length, 2);
+  assert.deepEqual(s.lastReading('2v2').v, 1209);
+});
+
+test('relevés persistés et relus depuis le fichier', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-test-'));
+  new SessionStore(dir).addMmrReading('3v3', 950, 15);
+  const s2 = new SessionStore(dir);
+  assert.equal(s2.lastReading('3v3').v, 950);
+  assert.equal(s2.lastReading('3v3').tier, 15);
+});
+
+// ───────── « Ne compter que le classé » ─────────
+
+test('rankedOnly retire le casual de la session sans toucher au journal', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));                       // classé, victoire
+  s.addMatch(snap({ ranked: false }));        // casual, victoire
+  const all = s.snapshot('Mateo', { mmr: {}, mmrCounts: true });
+  const only = s.snapshot('Mateo', { mmr: {}, mmrCounts: true, rankedOnly: true });
+  assert.equal(all.session.played, 2);
+  assert.equal(only.session.played, 1);
+  assert.equal(s.matches.length, 2);          // rien n'est supprimé
+});
