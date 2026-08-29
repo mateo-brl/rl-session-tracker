@@ -17,6 +17,9 @@ const DEFAULTS = {
   // calibrage), puis l'application l'estime match après match.
   mmr: {},               // '2v2' → { base: 1234, setAt: timestamp }
   mmrCounts: true,       // les matchs sont classés par défaut (sinon casual)
+  // N'afficher et ne compter que les matchs classés. Les parties casual
+  // restent au journal — elles sont seulement retirées de la session.
+  rankedOnly: false,
   // Recalage automatique du MMR sur le journal du jeu (Launch.log) : le jeu y
   // écrit son VRAI MMR à chaque mise en file classée. L'estimation à ±9 ne
   // sert alors plus qu'entre deux files, au lieu de dériver indéfiniment.
@@ -140,6 +143,9 @@ function update(partial) {
     }
     if (typeof partial.mmrFromLog === 'boolean') {
       config.mmrFromLog = partial.mmrFromLog;
+    }
+    if (typeof partial.rankedOnly === 'boolean') {
+      config.rankedOnly = partial.rankedOnly;
     }
     if (partial.mmrStep && typeof partial.mmrStep === 'object') {
       const out = {};

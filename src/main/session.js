@@ -20,6 +20,7 @@ const MAX_MATCHES = 2000;                      // borne la taille du journal
 // le fichier est réécrit intégralement après chaque match. Passé ce seuil,
 // seul le résultat déjà calculé subsiste — ce qui suffit largement.
 const EVENTS_KEPT = 100;
+const MAX_READINGS = 400;    // ancres de MMR conservées par mode
 const SESSION_GAP_MS = 2 * 60 * 60 * 1000;     // 2 h sans match = nouvelle session
 const HISTORY_SHOWN = 30;                      // matchs envoyés au dashboard
 const MMR_STEP = 9;                            // gain/perte moyen d'un match classé
@@ -31,6 +32,25 @@ const MMR_STEP_MAX = 20;
 const EVOLUTION_POINTS = 80;                   // points max de la courbe MMR
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Paliers Rocket League : le journal du jeu donne un numéro (PartyLeaderTier),
+// le joueur, lui, raisonne en rang. 0 = non classé, 22 = Supersonic Legend.
+const TIERS = [
+  'Non classé',
+  'Bronze I', 'Bronze II', 'Bronze III',
+  'Argent I', 'Argent II', 'Argent III',
+  'Or I', 'Or II', 'Or III',
+  'Platine I', 'Platine II', 'Platine III',
+  'Diamant I', 'Diamant II', 'Diamant III',
+  'Champion I', 'Champion II', 'Champion III',
+  'Grand Champion I', 'Grand Champion II', 'Grand Champion III',
+  'Supersonic Legend',
+];
+
+function tierName(tier) {
+  const n = Number(tier);
+  return Number.isInteger(n) && n >= 0 && n < TIERS.length ? TIERS[n] : null;
+}
+
 function norm(s) {
   return String(s || '').trim().toLowerCase();
 }
@@ -41,6 +61,11 @@ class SessionStore {
     this.matches = [];        // ordre chronologique, données brutes
     this.resetAt = 0;         // début de la liste des « matchs récents »
     this.playersSeen = [];    // pseudos croisés récemment (aide à la config)
+    // Relevés de MMR lus dans le journal du jeu : '2v2' → [{ t, v, tier }].
+    // Ce sont des ANCRES : chacune est une valeur vraie, datée. La courbe est
+    // reconstruite à partir d'elles, au lieu d'être remise à zéro à chaque
+    // recalage — ce qui la réduisait à un point unique.
+    this.mmrReadings = {};
     this._load();
   }
 
@@ -50,6 +75,8 @@ class SessionStore {
       this.matches = Array.isArray(raw.matches) ? raw.matches : [];
       this.resetAt = raw.resetAt || 0;
       this.playersSeen = Array.isArray(raw.playersSeen) ? raw.playersSeen : [];
+      this.mmrReadings = (raw.mmrReadings && typeof raw.mmrReadings === 'object')
+        ? raw.mmrReadings : {};
     } catch (e) {
       // ENOENT = vrai premier lancement, rien à sauver.
       // Tout le reste = le fichier EXISTE mais est illisible. Or l'application
@@ -78,6 +105,7 @@ class SessionStore {
         matches: this.matches,
         resetAt: this.resetAt,
         playersSeen: this.playersSeen,
+        mmrReadings: this.mmrReadings,
       }) + '\n');
       fs.renameSync(tmp, this.file);
     } catch (e) { /* le journal en mémoire reste valable */ }
@@ -129,6 +157,27 @@ class SessionStore {
     }
     this._persist();
     return true;
+  }
+
+  // Enregistre un relevé de MMR. Renvoie `true` si c'est une nouvelle ancre.
+  // Un même relevé répété (le joueur relance une file sans avoir joué) ne
+  // crée pas de point supplémentaire.
+  addMmrReading(mode, value, tier) {
+    const v = Math.round(Number(value));
+    if (!mode || !Number.isFinite(v) || v <= 0) return false;
+    const list = this.mmrReadings[mode] || (this.mmrReadings[mode] = []);
+    const last = list[list.length - 1];
+    if (last && last.v === v) return false;
+    list.push({ t: Date.now(), v: v, tier: Number.isFinite(tier) ? tier : null });
+    if (list.length > MAX_READINGS) list.splice(0, list.length - MAX_READINGS);
+    this._persist();
+    return true;
+  }
+
+  // Dernière ancre connue d'un mode.
+  lastReading(mode) {
+    const list = this.mmrReadings[mode] || [];
+    return list.length ? list[list.length - 1] : null;
   }
 
   _rememberPlayers(players) {
@@ -294,32 +343,68 @@ class SessionStore {
     return { wins, losses, unmatched, net: wins - losses };
   }
 
-  // Seuls les matchs CLASSÉS font bouger le MMR estimé.
-  _mmrForMode(mode, entry, pseudo, step) {
-    let v = entry.base;
+  // ───────── Courbe d'évolution du MMR ─────────
+  // Construite sur une CHRONOLOGIE : chaque relevé du journal du jeu est une
+  // ancre (valeur vraie, datée) ; entre deux ancres, les matchs classés font
+  // bouger la valeur du pas estimé. La courbe suit donc la réalité et se
+  // corrige à chaque file, au lieu d'être remise à zéro.
+  //
+  // C'était le bug : le recalage repoussait `setAt` à « maintenant » et la
+  // courbe, qui ne gardait que les matchs postérieurs, se réduisait à un seul
+  // point à chaque mise en file.
+  _timeline(mode, entry, pseudo, step) {
+    const anchors = (this.mmrReadings[mode] || [])
+      .filter((a) => a && Number.isFinite(a.v))
+      .slice()
+      .sort((a, b) => a.t - b.t);
+
+    // Point de départ : la première ancre si on en a une, sinon la base
+    // saisie à la main (comportement historique, sans relevé du journal).
+    const startAt = anchors.length ? anchors[0].t : (entry ? entry.setAt : 0);
+    let v = anchors.length ? anchors[0].v : (entry ? entry.base : null);
+    if (v === null || !Number.isFinite(v)) return [];
+
+    const events = [];
+    for (const a of anchors.slice(1)) events.push({ t: a.t, anchor: a });
     for (const m of this.matches) {
-      if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
+      if (m.mode !== mode || m.ranked === false || m.endedAt <= startAt) continue;
       const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') v += step;
-      else if (r === 'L') v -= step;
+      if (r === 'W' || r === 'L') events.push({ t: m.endedAt, win: r === 'W' });
     }
-    return v;
+    events.sort((a, b) => a.t - b.t);
+
+    const points = [{ t: startAt, v: Math.round(v), real: true }];
+    for (const e of events) {
+      if (e.anchor) v = e.anchor.v;                 // la vérité reprend la main
+      else v += e.win ? step : -step;
+      points.push({ t: e.t, v: Math.round(v), real: !!e.anchor });
+    }
+    return points;
   }
 
-  // Courbe d'évolution du MMR d'un mode : un point par match classé depuis
-  // le calibrage, en partant de la base.
-  _evolutionForMode(mode, entry, pseudo, step) {
-    const points = [{ t: entry.setAt, v: entry.base }];
-    let v = entry.base;
-    for (const m of this.matches) {
-      if (m.mode !== mode || m.ranked === false || m.endedAt <= entry.setAt) continue;
-      const r = this._evaluate(m, pseudo).result;
-      if (r === 'W') v += step;
-      else if (r === 'L') v -= step;
-      else continue;
-      points.push({ t: m.endedAt, v: v });
+  // Valeur courante : le dernier point de la chronologie.
+  _mmrForMode(mode, entry, pseudo, step) {
+    const pts = this._timeline(mode, entry, pseudo, step);
+    return pts.length ? pts[pts.length - 1].v : (entry ? entry.base : null);
+  }
+
+  // Variation depuis un instant donné (début de session) : différence entre la
+  // valeur d'alors et la valeur courante. C'est le « +27 en 2v2 ce soir » que
+  // l'on veut lire d'un coup d'œil.
+  _mmrDeltaSince(mode, entry, pseudo, step, since) {
+    const pts = this._timeline(mode, entry, pseudo, step);
+    if (pts.length < 2) return null;
+    let before = null;
+    for (const p of pts) {
+      if (p.t <= since) before = p;
+      else break;
     }
-    return points.slice(-EVOLUTION_POINTS);
+    if (before === null) return null;
+    return pts[pts.length - 1].v - before.v;
+  }
+
+  _evolutionForMode(mode, entry, pseudo, step) {
+    return this._timeline(mode, entry, pseudo, step).slice(-EVOLUTION_POINTS);
   }
 
   // Bilan des 7 derniers jours + records de tous les temps.
@@ -383,7 +468,12 @@ class SessionStore {
 
   // Statistiques agrégées envoyées aux fenêtres.
   snapshot(pseudo, cfg) {
-    const session = this._sessionMatches().map((m) => this._evaluate(m, pseudo));
+    // « Ne compter que le classé » : les parties casual restent au journal
+    // (rien n'est perdu) mais disparaissent de la session et de ses totaux.
+    const rankedOnly = !!(cfg && cfg.rankedOnly);
+    const session = this._sessionMatches()
+      .filter((m) => !rankedOnly || m.ranked !== false)
+      .map((m) => this._evaluate(m, pseudo));
 
     const agg = {
       startedAt: session.length ? session[0].endedAt : null,
@@ -454,14 +544,23 @@ class SessionStore {
       if (!entry || !Number.isFinite(entry.base)) continue;
       const pm = agg.perMode[mode];
       const step = this._step(mode, cfg);
+      const value = this._mmrForMode(mode, entry, pseudo, step);
+      // Variation de la session : mesurée sur la chronologie quand elle
+      // remonte assez loin (donc au vrai MMR), sinon estimée au pas.
+      const since = agg.startedAt ? agg.startedAt - 1 : null;
+      const real = since === null
+        ? null : this._mmrDeltaSince(mode, entry, pseudo, step, since);
+      const last = this.lastReading(mode);
       agg.mmr[mode] = {
-        value: Math.round(this._mmrForMode(mode, entry, pseudo, step)),
-        delta: pm ? Math.round(step * pm.rankedDiff) : 0,
+        value: value === null ? null : Math.round(value),
+        delta: real !== null ? real : (pm ? Math.round(step * pm.rankedDiff) : 0),
+        deltaReal: real !== null,
         step: step,
         fromLog: !!entry.fromLog,
+        tier: last ? last.tier : null,
+        rank: last ? tierName(last.tier) : null,
       };
-      evolution[mode] = this._evolutionForMode(mode, entry, pseudo, step)
-        .map((p) => ({ t: p.t, v: Math.round(p.v) }));
+      evolution[mode] = this._evolutionForMode(mode, entry, pseudo, step);
     }
 
     const lt = this._longTerm(pseudo);
@@ -484,3 +583,5 @@ module.exports = SessionStore;
 module.exports.MMR_STEP_MIN = MMR_STEP_MIN;
 module.exports.MMR_STEP_MAX = MMR_STEP_MAX;
 module.exports.MMR_STEP = MMR_STEP;
+module.exports.tierName = tierName;
+module.exports.TIERS = TIERS;

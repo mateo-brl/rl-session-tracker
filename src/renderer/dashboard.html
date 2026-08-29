@@ -27,6 +27,12 @@
     --blue:#2f9bff; --blue-deep:#1466b8;
     --orange:#ff8a1e; --orange-deep:#c45f00;
     --gold:#ffc233;
+    /* Couleurs de palier de rang (Bronze → Supersonic Legend) : c'est une
+       identité de jeu Rocket League, pas un accent d'interface — elle reste
+       FIXE quelle que soit la palette choisie par l'utilisateur (applyTheme
+       ne touche jamais ces variables), contrairement à --blue/--orange/--gold. */
+    --tier-1:#b07a4a; --tier-2:#a7b0bb; --tier-3:#dcae44; --tier-4:#43b8ae;
+    --tier-5:#5f8fe6; --tier-6:#a06bec; --tier-7:#e5602f; --tier-8:#ff9a3c;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
@@ -180,15 +186,25 @@
 
   /* ─── Modes ─── */
   .modes { }
-  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
   .mode {
-    background:var(--panel2); border:1px solid var(--line);
+    background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--line);
     clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
-    padding:12px 14px;
+    padding:13px 15px;
   }
+  /* Liseré gauche coloré par palier : identité de rang au premier regard,
+     sans pavé de couleur — reste sobre (cf demande utilisateur). */
+  .mode.rk1 { border-left-color:var(--tier-1); }
+  .mode.rk2 { border-left-color:var(--tier-2); }
+  .mode.rk3 { border-left-color:var(--tier-3); }
+  .mode.rk4 { border-left-color:var(--tier-4); }
+  .mode.rk5 { border-left-color:var(--tier-5); }
+  .mode.rk6 { border-left-color:var(--tier-6); }
+  .mode.rk7 { border-left-color:var(--tier-7); }
+  .mode.rk8 { border-left-color:var(--tier-8); }
   .mode .name {
     font-style:italic; font-weight:800; font-size:15px; letter-spacing:.1em;
-    color:var(--text); margin-bottom:6px; text-transform:uppercase;
+    color:var(--text); margin-bottom:7px; text-transform:uppercase;
   }
   .mode .rec { font-size:27px; font-weight:800; font-variant-numeric:tabular-nums; }
   .mode .rec .mw { color:var(--blue); }
@@ -196,16 +212,48 @@
   .mode .sub { font-size:13px; font-weight:600; color:var(--muted);
     margin-top:3px; letter-spacing:.03em; }
   .mode .mmr {
-    font-size:13px; font-weight:600; color:var(--muted); margin-top:8px;
-    padding-top:8px; border-top:1px solid var(--line);
-    font-variant-numeric:tabular-nums; letter-spacing:.04em;
-    text-transform:uppercase;
+    margin-top:10px; padding-top:9px; border-top:1px solid var(--line);
   }
-  .mode .mmr b { color:var(--text); font-size:16px; }
-  .mode .mmr .up { color:var(--blue); font-weight:800; }
-  .mode .mmr .down { color:var(--orange); font-weight:800; }
+  .mode .mmr-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .mode .mmr-val { color:var(--text); font-size:17px; font-weight:800;
+    font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+  /* Récap « ce que j'ai gagné cette session » : le delta est la ligne la
+     plus voyante du bloc — c'est la question posée par l'utilisateur. */
+  .mode .mmr-delta { margin-top:6px; display:flex; align-items:center; gap:7px;
+    font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .mode .mmr-delta .flat { color:var(--muted); }
+  .mode .mmr-delta .up { color:var(--blue); }
+  .mode .mmr-delta .down { color:var(--orange); }
+  /* Pastille « estimation » : deltaReal=false → discrète, pas un pavé de
+     texte (cf consigne) — juste un point à côté du chiffre. */
+  .est-dot { width:6px; height:6px; flex:none; border-radius:50%;
+    background:var(--muted); display:inline-block; }
   .mode.empty { opacity:.4; }
   .mode.empty .mmr { opacity:1; }
+  /* Rang en clair, mis en avant devant le MMR brut (retour utilisateur :
+     « j'ai juste mon MMR, pas mon rang »). Chip skewé, dans l'esprit des
+     autres pastilles de l'appli (.tag/.chip/.res-chip…). */
+  .rank-pill {
+    display:inline-block; transform:skewX(-12deg);
+    background:var(--panel2); border:1px solid currentColor;
+    padding:2px 9px; font-style:italic; font-weight:800; font-size:11px;
+    letter-spacing:.07em; text-transform:uppercase; line-height:1.5;
+  }
+  .rank-pill > span { display:inline-block; transform:skewX(12deg); }
+  .rank-pill:empty { display:none; }
+  .rank-pill.sm { font-size:9.5px; padding:1px 7px; }
+  .rank-pill.rk0 { color:var(--muted); }
+  .rank-pill.rk1 { color:var(--tier-1); }
+  .rank-pill.rk2 { color:var(--tier-2); }
+  .rank-pill.rk3 { color:var(--tier-3); }
+  .rank-pill.rk4 { color:var(--tier-4); }
+  .rank-pill.rk5 { color:var(--tier-5); }
+  .rank-pill.rk6 { color:var(--tier-6); }
+  .rank-pill.rk7 { color:var(--tier-7); }
+  /* Supersonic Legend : seul palier à porter un soupçon de dégradé — le
+     rang le plus rare de l'échelle, discret mais reconnaissable. */
+  .rank-pill.rk8 { color:var(--tier-8);
+    background:linear-gradient(135deg, rgba(255,154,60,.18), rgba(160,107,236,.18)); }
 
   /* ─── Match en cours ─── */
   .live { }
@@ -278,12 +326,45 @@
   .evo-tab.on { border-color:var(--blue); color:var(--text);
     background:var(--blue-deep); }
   .evo-chart { flex:1; min-height:52px; position:relative; }
-  .evo-chart svg { position:absolute; inset:0; width:100%; height:100%; }
+  .evo-chart svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  /* Courbe : ligne franche + remplissage dégradé sous la courbe. La couleur
+     suit le sens de la session (gagné depuis le premier point de la
+     période affichée = bleu, perdu = orange) — mêmes teintes que le reste
+     de l'appli (.mode .rec .mw/.ml), pas de couleur nouvelle. */
+  .evo-chart .grid { stroke:var(--line); stroke-width:1; }
+  .evo-chart .ln { stroke:var(--blue); stroke-width:2;
+    stroke-linecap:round; stroke-linejoin:round; }
+  .evo-chart.down .ln { stroke:var(--orange); }
+  .evo-chart stop.g-top { stop-color:var(--blue); stop-opacity:.24; }
+  .evo-chart stop.g-bot { stop-color:var(--blue); stop-opacity:0; }
+  .evo-chart.down stop.g-top { stop-color:var(--orange); stop-opacity:.24; }
+  .evo-chart.down stop.g-bot { stop-color:var(--orange); stop-opacity:0; }
+  /* Ancres (evolution[].real=true) : de vrais relevés en jeu, distingués
+     des points estimés par un point plein cerclé — le reste de la courbe
+     (estimée entre deux relevés) ne porte volontairement aucun marqueur. */
+  .evo-chart .anchor { fill:var(--blue); stroke:var(--panel); stroke-width:2; }
+  .evo-chart.down .anchor { fill:var(--orange); }
+  /* Point final mis en valeur : plus gros ; anneau pointillé si CETTE
+     valeur précise est encore une estimation (deltaReal=false / dernier
+     point sans relevé réel), plein si c'est une ancre confirmée. */
+  .evo-chart .end { fill:var(--blue); stroke:var(--panel); stroke-width:2.5; }
+  .evo-chart.down .end { fill:var(--orange); }
+  .evo-chart .end.est { stroke-dasharray:2.5 2; }
   .evo-empty { flex:1; display:flex; align-items:center; justify-content:center;
     color:var(--muted); font-size:14px; font-weight:600; text-align:center;
     line-height:1.6; min-height:52px; }
-  .evo-range { display:flex; justify-content:space-between; font-size:12px;
-    font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums; }
+  /* Repères min / actuel / max, lisibles d'un coup d'œil à distance —
+     « actuel » est la valeur la plus grosse, c'est celle qui compte pendant
+     la partie. */
+  .evo-range { display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
+  .evo-stat { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; }
+  .evo-stat:first-child { align-items:flex-start; }
+  .evo-stat:last-child { align-items:flex-end; }
+  .evo-stat b { font-size:15px; font-weight:800; color:var(--text);
+    font-variant-numeric:tabular-nums; }
+  .evo-stat > span:last-child { font-size:10px; font-weight:700; color:var(--muted);
+    text-transform:uppercase; letter-spacing:.12em; }
+  .evo-stat.now b { font-size:28px; }
   .evo-foot { display:flex; gap:22px; margin-top:10px; padding-top:9px;
     border-top:1px solid var(--line); font-size:13px; font-weight:600;
     color:var(--muted); letter-spacing:.04em; text-transform:uppercase;
@@ -679,10 +760,14 @@
       <div class="tag"><span data-i18n="tagEvo">Évolution MMR</span></div>
       <div class="evo-head" id="evoTabs"></div>
       <div class="evo-chart" id="evoChart" style="display:none">
-        <svg id="evoSvg" preserveAspectRatio="none" viewBox="0 0 100 40"></svg>
+        <!-- viewBox recalé en pixels par drawEvolution() : voir le CSS pour
+             le pourquoi (marqueurs ronds non déformés). -->
+        <svg id="evoSvg" viewBox="0 0 100 40"></svg>
       </div>
       <div class="evo-range" id="evoRange" style="display:none">
-        <span id="evoMin"></span><span id="evoMax"></span>
+        <div class="evo-stat"><b id="evoMin"></b><span data-i18n="evoMinLbl">Min</span></div>
+        <div class="evo-stat now"><span class="rank-pill sm" id="evoCurRank"></span><b id="evoCur"></b><span data-i18n="evoCurLbl">Actuel</span></div>
+        <div class="evo-stat"><b id="evoMax"></b><span data-i18n="evoMaxLbl">Max</span></div>
       </div>
       <div class="evo-empty" id="evoEmpty" data-i18n="evoEmpty">Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.</div>
       <div class="evo-foot">
@@ -815,6 +900,13 @@
     return d.innerHTML;
   }
 
+  // Palier RL (0 = non classé … 22 = Supersonic Legend) → famille de rang
+  // (Bronze … SSL), sur laquelle est indexée la couleur du liseré / de la
+  // pastille de rang. 3 paliers par famille pile jusqu'à SSL (22/3 → 8).
+  function tierClass(tier) {
+    return 'rk' + (tier ? Math.min(8, Math.max(1, Math.ceil(tier / 3))) : 0);
+  }
+
   var MODES = ['1v1', '2v2', '3v3'];
 
   // ─── Langue (FR / EN) ───
@@ -846,6 +938,10 @@
       thPlayer: 'Joueur', thGoals: 'Buts', thAssists: 'Pass', thSaves: 'Arr', thPts: 'Pts',
       you: 'Toi',
       evoEmpty: 'Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.',
+      evoMinLbl: 'Min', evoCurLbl: 'Actuel', evoMaxLbl: 'Max',
+      // Pastille discrète sur un delta de session (MMR gagné/perdu) : ce
+      // n'est pas un vrai relevé, juste une reconstitution via le pas MMR.
+      mmrEstTip: 'Estimation — pas encore confirmée par un relevé réel dans le jeu.',
       f7: '7 jours', fStreak: 'Record série', fDay: 'Record victoires / jour',
       ttGoals: 'Buts', ttAssists: 'Passes', ttSaves: 'Arrêts', ttShots: 'Tirs',
       histEmpty: 'Aucun match pour l’instant.<br/>Tout se remplit automatiquement dès la fin de ta première partie.',
@@ -898,6 +994,8 @@
       thPlayer: 'Player', thGoals: 'Goals', thAssists: 'Ast', thSaves: 'Saves', thPts: 'Pts',
       you: 'You',
       evoEmpty: 'Set your MMR in the settings:<br/>the curve then draws itself match after match.',
+      evoMinLbl: 'Min', evoCurLbl: 'Current', evoMaxLbl: 'Max',
+      mmrEstTip: 'Estimate — not yet confirmed by an actual in-game reading.',
       f7: 'Last 7 days', fStreak: 'Streak record', fDay: 'Wins / day record',
       ttGoals: 'Goals', ttAssists: 'Assists', ttSaves: 'Saves', ttShots: 'Shots',
       histEmpty: 'No matches yet.<br/>Everything fills in automatically when your first game ends.',
@@ -1212,13 +1310,31 @@
         ? ' <span class="ot-mini" title="' + T.mmrLogTip(r.step || 9) + '">'
           + T.mmrLogLbl + '</span>'
         : '';
-      var mmrLine = r
-        ? '<div class="mmr">MMR <b>' + r.value + '</b>'
-          + (r.delta ? ' <span class="' + (r.delta > 0 ? 'up' : 'down') + '">'
-            + (r.delta > 0 ? '+' : '') + r.delta + '</span>' : '')
-          + fromLogTag
-          + '</div>'
+      var tCls = tierClass(r && r.tier);
+      // Rang en clair devant le MMR brut — retour utilisateur : « au niveau
+      // du MMR je n'ai même pas le rang actuel ». On n'affiche RIEN si le
+      // rang est inconnu (jamais de « Non classé » deviné à tort).
+      var rankPill = (r && r.rank)
+        ? '<span class="rank-pill ' + tCls + '"><span>' + esc(r.rank) + '</span></span>'
         : '';
+      var mmrLine = '';
+      if (r && r.value != null) {
+        var hasDelta = r.delta != null;
+        var deltaCls = !hasDelta ? '' : r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : 'flat';
+        var deltaTxt = hasDelta ? (r.delta > 0 ? '+' : '') + r.delta : '';
+        // Pastille « estimation » : deltaReal=false → ce gain/perte n'est
+        // pas mesuré sur un vrai relevé mais reconstitué (pas MMR théorique)
+        // — un simple point, pas un pavé de texte (cf consigne).
+        var estDot = (hasDelta && r.deltaReal === false)
+          ? '<span class="est-dot" title="' + T.mmrEstTip + '"></span>' : '';
+        mmrLine = '<div class="mmr">'
+          + '<div class="mmr-top">' + rankPill
+            + '<b class="mmr-val">' + r.value + '</b>' + fromLogTag + '</div>'
+          + (hasDelta
+            ? '<div class="mmr-delta"><span class="' + deltaCls + '">' + deltaTxt
+              + '</span>' + estDot + '</div>'
+            : '') + '</div>';
+      }
       if (m) {
         var stm;
         if (m.streak && m.streak.count >= 2) {
@@ -1226,12 +1342,12 @@
         } else {
           stm = T.nMatches(m.played);
         }
-        html += '<div class="mode"><div class="name">' + esc(k) + '</div>'
+        html += '<div class="mode ' + tCls + '"><div class="name">' + esc(k) + '</div>'
           + '<div class="rec"><span class="mw">' + m.wins + '</span>'
           + ' – <span class="ml">' + m.losses + '</span></div>'
           + '<div class="sub">' + stm + '</div>' + mmrLine + '</div>';
       } else if (MODES.indexOf(k) !== -1) {
-        html += '<div class="mode empty"><div class="name">' + esc(k) + '</div>'
+        html += '<div class="mode empty ' + tCls + '"><div class="name">' + esc(k) + '</div>'
           + '<div class="rec">—</div><div class="sub">' + T.notPlayed + '</div>'
           + mmrLine + '</div>';
       }
@@ -1347,7 +1463,9 @@
   }
 
   // ─── Évolution du MMR + bilan long terme ───
-  var evoMode = null;     // mode affiché ; choix de l'utilisateur conservé
+  var evoMode = null;       // mode affiché ; choix de l'utilisateur conservé
+  var evoLastPoints = null; // dernier jeu de points dessiné, pour redessiner
+                             // proprement sur un simple redimensionnement.
   function renderEvolution(s) {
     var evo = s.evolution || {};
     var modes = Object.keys(evo).filter(function (k) {
@@ -1358,6 +1476,7 @@
       $('evoChart').style.display = 'none';
       $('evoRange').style.display = 'none';
       $('evoEmpty').style.display = 'flex';
+      evoLastPoints = null;
     } else {
       if (modes.indexOf(evoMode) === -1) {
         // Par défaut : le mode le plus joué (courbe la plus fournie).
@@ -1376,10 +1495,24 @@
         b.onclick = function () { evoMode = k; renderEvolution(cur); };
         tabs.appendChild(b);
       });
-      drawEvolution(evo[evoMode]);
+      // Le conteneur doit être visible AVANT de mesurer sa taille pour le
+      // viewBox du SVG (sinon clientWidth/Height valent 0, cf drawEvolution).
       $('evoChart').style.display = 'block';
       $('evoRange').style.display = 'flex';
       $('evoEmpty').style.display = 'none';
+      drawEvolution(evo[evoMode]);
+
+      // Rang courant du mode affiché, mis en avant à côté de « Actuel »
+      // (même repère visuel que dans les cartes « Par mode »).
+      var mmrCur = (s.session && s.session.mmr && s.session.mmr[evoMode]) || {};
+      var rankEl = $('evoCurRank');
+      if (mmrCur.rank) {
+        rankEl.className = 'rank-pill sm ' + tierClass(mmrCur.tier);
+        rankEl.innerHTML = '<span>' + esc(mmrCur.rank) + '</span>';
+      } else {
+        rankEl.className = 'rank-pill sm';
+        rankEl.innerHTML = '';
+      }
     }
 
     var wk = s.week;
@@ -1392,28 +1525,96 @@
   }
 
   function drawEvolution(points) {
+    evoLastPoints = points;
+    var box = $('evoChart');
     var svg = $('evoSvg');
+    // 0 point : rien à tracer (le conteneur est de toute façon masqué par
+    // l'appelant dans ce cas — filet de sécurité si drawEvolution est
+    // rappelé, ex. par le ResizeObserver, sur un état devenu vide).
+    if (!points || !points.length) { svg.innerHTML = ''; return; }
+
+    // 1 SVG unit = 1px CSS : le viewBox est calé sur la taille réelle du
+    // conteneur (mesurée ici) plutôt que sur une grille abstraite 100×40
+    // étirée par preserveAspectRatio="none" — c'était la vraie source du
+    // rendu « pas beau » : dès que le widget n'était pas dans le ratio
+    // 2.5:1, les points ronds devenaient des ellipses.
+    var W = Math.max(1, Math.round(box.clientWidth || 100));
+    var H = Math.max(1, Math.round(box.clientHeight || 40));
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
     var vs = points.map(function (p) { return p.v; });
     var min = Math.min.apply(null, vs), max = Math.max.apply(null, vs);
+    // Amplitude minimale de 10 points MMR : sans ce plancher, une session
+    // stable (ou un point unique) donne (max - min) = 0 → la courbe
+    // s'aplatit sur une ligne invisible et y() diviserait par zéro.
     if (max - min < 10) { var mid = (max + min) / 2; min = mid - 5; max = mid + 5; }
-    var W = 100, H = 40, PAD = 2;
+    var PADX = Math.min(12, W * 0.06), PADY = Math.min(14, H * 0.18);
     function x(i) {
-      return points.length < 2 ? W / 2 : PAD + (i / (points.length - 1)) * (W - 2 * PAD);
+      return points.length < 2 ? W / 2 : PADX + (i / (points.length - 1)) * (W - 2 * PADX);
     }
-    function y(v) { return H - PAD - ((v - min) / (max - min)) * (H - 2 * PAD); }
-    var line = points.map(function (p, i) {
-      return x(i).toFixed(2) + ',' + y(p.v).toFixed(2);
-    }).join(' ');
+    function y(v) { return H - PADY - ((v - min) / (max - min)) * (H - 2 * PADY); }
+
+    // Sens de la session affichée (premier → dernier point) : pilote la
+    // couleur de toute la courbe, mêmes teintes que le reste de l'appli.
     var up = vs[vs.length - 1] >= vs[0];
-    var color = up ? '#2f9bff' : '#ff8a1e';
-    var last = points[points.length - 1];
+    box.classList.toggle('down', !up);
+
+    // Grille discrète : mini / médiane / maxi, hairline, en retrait.
+    var grid = [min, (min + max) / 2, max].map(function (v) {
+      var gy = y(v).toFixed(1);
+      return '<line class="grid" x1="' + PADX.toFixed(1) + '" x2="' + (W - PADX).toFixed(1)
+        + '" y1="' + gy + '" y2="' + gy + '"/>';
+    }).join('');
+
+    var coords = points.map(function (p, i) { return [x(i), y(p.v)]; });
+    var line = coords.map(function (c) { return c[0].toFixed(1) + ',' + c[1].toFixed(1); }).join(' ');
+    // Aire sous la courbe, fermée sur la base : dégradé posé dessus via
+    // le <linearGradient> ci-dessous (fill="url(#evoGrad)").
+    var base = (H - 0.5).toFixed(1);
+    var area = 'M' + coords[0][0].toFixed(1) + ',' + base
+      + ' L' + line.split(' ').join(' L')
+      + ' L' + coords[coords.length - 1][0].toFixed(1) + ',' + base + ' Z';
+
+    // Ancres (evolution[].real=true) : de vrais relevés en jeu, marquées
+    // d'un point plein cerclé — le reste de la courbe (estimée entre deux
+    // relevés) ne porte volontairement aucun marqueur, pour ne pas noyer
+    // l'info sous des puces (le point final a son propre marqueur ci-dessous).
+    var anchors = points.map(function (p, i) {
+      if (!p.real || i === points.length - 1) return '';
+      return '<circle class="anchor" cx="' + coords[i][0].toFixed(1)
+        + '" cy="' + coords[i][1].toFixed(1) + '" r="3.5"/>';
+    }).join('');
+
+    // Point final mis en valeur (c'est la valeur « actuelle ») : plus gros,
+    // anneau pointillé si cette dernière valeur est elle-même estimée
+    // (pas encore confirmée par un relevé réel), plein si c'est une ancre.
+    var lastI = points.length - 1;
+    var lastReal = !!points[lastI].real;
+    var endMarker = '<circle class="end' + (lastReal ? '' : ' est') + '" cx="'
+      + coords[lastI][0].toFixed(1) + '" cy="' + coords[lastI][1].toFixed(1) + '" r="6"/>';
+
     svg.innerHTML =
-      '<polyline points="' + line + '" fill="none" stroke="' + color
-        + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'
-      + '<circle cx="' + x(points.length - 1).toFixed(2) + '" cy="'
-        + y(last.v).toFixed(2) + '" r="1.8" fill="' + color + '"/>';
+      '<defs><linearGradient id="evoGrad" x1="0" y1="0" x2="0" y2="1">'
+      + '<stop class="g-top" offset="0%"/><stop class="g-bot" offset="100%"/>'
+      + '</linearGradient></defs>'
+      + grid
+      + '<path class="area" d="' + area + '" fill="url(#evoGrad)" stroke="none"/>'
+      + '<polyline class="ln" points="' + line + '" fill="none"/>'
+      + anchors + endMarker;
+
     $('evoMin').textContent = Math.round(min);
     $('evoMax').textContent = Math.round(max);
+    $('evoCur').textContent = Math.round(vs[vs.length - 1]);
+  }
+
+  // Redessine proprement quand le widget change de taille (glissé /
+  // redimensionné en mode « Personnaliser », fenêtre redimensionnée…) :
+  // sans ça, le viewBox calé en pixels resterait périmé jusqu'au prochain
+  // état poussé par le processus principal.
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      if (evoLastPoints) drawEvolution(evoLastPoints);
+    }).observe($('evoChart'));
   }
 
   // ─── Classé / casual du match en cours ───
