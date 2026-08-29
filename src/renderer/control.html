@@ -116,6 +116,12 @@
     letter-spacing:.08em; margin-bottom:4px; text-transform:uppercase;
   }
   .mmr-cell input { font-variant-numeric:tabular-nums; }
+  /* Rang en clair sous le MMR : simple info de contexte à côté d'un champ
+     de réglage, jamais la donnée principale — d'où une taille réduite et
+     la même couleur atténuée que .hint. Masqué par défaut (display:none
+     inline) : le rang n'existe pas tant que le mode n'a pas de MMR connu. */
+  .mmr-rank { display:block; font-size:10.5px; color:var(--muted);
+    margin-top:4px; letter-spacing:.02em; }
 
   .check { display:flex; align-items:center; gap:9px; padding:6px 0;
     font-size:13px; cursor:pointer; }
@@ -261,17 +267,27 @@
       <label class="field" data-i18n="lMmr">Mon MMR (optionnel)</label>
       <div class="mmr-grid">
         <div class="mmr-cell"><span>1v1</span>
-          <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" /></div>
+          <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" />
+          <small class="mmr-rank" id="mmrRank1v1" style="display:none"></small></div>
         <div class="mmr-cell"><span>2v2</span>
-          <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" /></div>
+          <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" />
+          <small class="mmr-rank" id="mmrRank2v2" style="display:none"></small></div>
         <div class="mmr-cell"><span>3v3</span>
-          <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" /></div>
+          <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" />
+          <small class="mmr-rank" id="mmrRank3v3" style="display:none"></small></div>
       </div>
       <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
       <div class="hint warn" data-i18n="hintPlacement">Attention aux matchs de placement (début de saison) : les gains y sont bien plus gros (souvent ±15 et dégressifs), l'estimation dérive forcément. Recopie ton MMR en jeu une fois tes placements terminés.</div>
       <div class="hint warn" id="mmrDrift" style="display:none"></div>
       <div style="height:10px"></div>
       <label class="check"><input type="checkbox" id="optRanked" /><span data-i18n="cRanked">Par défaut mes matchs sont classés (modifiable à chaque match sur le dashboard)</span></label>
+      <!-- Filtre d'affichage pur : les parties casual restent dans le
+           journal (rien n'est jamais supprimé, comme "Vider les matchs
+           récents" plus bas). Seule la session affichée et ses totaux sont
+           recalculés sans elles. Il faut le dire explicitement dans l'aide
+           sinon l'utilisateur redoute de perdre ses données casual. -->
+      <label class="check"><input type="checkbox" id="optRankedOnly" /><span data-i18n="cRankedOnly">Ne compter que le classé dans la session</span></label>
+      <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs — elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
       <label class="check"><input type="checkbox" id="optAuto" /><span data-i18n="cAuto">Ouvrir le dashboard quand Rocket League démarre</span></label>
       <label class="check"><input type="checkbox" id="optFull" /><span data-i18n="cFull">Dashboard en plein écran (2ᵉ écran si présent)</span></label>
       <label class="check"><input type="checkbox" id="optOverlay" /><span data-i18n="cOverlay">Mini-overlay au premier plan pendant le jeu</span></label>
@@ -472,6 +488,8 @@
       hintPlacement: 'Attention aux matchs de placement (d\u00e9but de saison) : les gains y sont bien plus gros (souvent \u00b115 et d\u00e9gressifs), l\u2019estimation d\u00e9rive forc\u00e9ment. Recopie ton MMR en jeu une fois tes placements termin\u00e9s.',
       mmrDrift: function (d) { return '\u00c9cart de ' + (d > 0 ? '+' : '') + d + ' par rapport \u00e0 l\u2019estimation \u2014 normal pendant les placements ou apr\u00e8s une pause. L\u2019estimation vient d\u2019\u00eatre recal\u00e9e sur ta valeur.'; },
       cRanked: 'Par d\u00e9faut mes matchs sont class\u00e9s (modifiable \u00e0 chaque match sur le dashboard)',
+      cRankedOnly: 'Ne compter que le class\u00e9 dans la session',
+      hintRankedOnly: 'Les parties occasionnelles restent enregistr\u00e9es dans le journal des matchs \u2014 elles r\u00e9apparaissent d\u00e8s que tu d\u00e9coches cette option. Rien n\u2019est supprim\u00e9.',
       cAuto: 'Ouvrir le dashboard quand Rocket League d\u00e9marre',
       cFull: 'Dashboard en plein \u00e9cran (2\u1d49 \u00e9cran si pr\u00e9sent)',
       cOverlay: 'Mini-overlay au premier plan pendant le jeu',
@@ -575,6 +593,8 @@
       hintPlacement: 'Beware of placement matches (start of season): gains are much bigger there (often \u00b115 and decreasing), so the estimate inevitably drifts. Copy your in-game MMR again once your placements are done.',
       mmrDrift: function (d) { return 'Gap of ' + (d > 0 ? '+' : '') + d + ' versus the estimate \u2014 normal during placements or after a break. The estimate has just been reset to your value.'; },
       cRanked: 'My matches are ranked by default (changeable on each live match on the dashboard)',
+      cRankedOnly: 'Only count ranked matches in the session',
+      hintRankedOnly: 'Casual matches stay logged in the match history — they reappear as soon as you turn this off. Nothing is deleted.',
       cAuto: 'Open the dashboard when Rocket League starts',
       cFull: 'Fullscreen dashboard (second screen if present)',
       cOverlay: 'Always-on-top mini-overlay while playing',
@@ -813,6 +833,7 @@
     $('optAuto').checked = cfg.autoDashboard !== false;
     $('optFull').checked = cfg.dashboardFullscreen !== false;
     $('optRanked').checked = cfg.mmrCounts !== false;
+    $('optRankedOnly').checked = !!cfg.rankedOnly;
     $('optOverlay').checked = !!cfg.overlayEnabled;
     $('optSounds').checked = cfg.sounds !== false;
     $('optDiscord').checked = !!cfg.discordRpc;
@@ -913,8 +934,21 @@
     var est = (ses && ses.mmr) || {};
     ['1v1', '2v2', '3v3'].forEach(function (mode) {
       var input = $('mmr' + mode);
-      if (document.activeElement === input) return;
-      input.value = est[mode] ? est[mode].value : '';
+      if (document.activeElement !== input) {
+        input.value = est[mode] ? est[mode].value : '';
+      }
+      // Rang en clair, purement informatif à côté du champ MMR. Si le mode
+      // n'a pas encore de MMR calibré ou que le rang est inconnu (rank
+      // vaut null), on n'affiche RIEN — surtout pas "Non classé", qui
+      // laisserait croire à une info fiable alors qu'on n'en sait rien.
+      var rankEl = $('mmrRank' + mode);
+      var rank = est[mode] && est[mode].rank;
+      if (rank) {
+        rankEl.textContent = rank;
+        rankEl.style.display = 'block';
+      } else {
+        rankEl.style.display = 'none';
+      }
     });
 
     var dl = $('seen');
@@ -1065,6 +1099,9 @@
   });
   $('optRanked').onchange = function () {
     api.setConfig && api.setConfig({ mmrCounts: $('optRanked').checked });
+  };
+  $('optRankedOnly').onchange = function () {
+    api.setConfig && api.setConfig({ rankedOnly: $('optRankedOnly').checked });
   };
 
   $('optAuto').onchange = function () {
