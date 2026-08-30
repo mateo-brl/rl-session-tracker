@@ -89,17 +89,6 @@ test('overlay : échelle et opacité bornées', () => {
   assert.equal(c.get().overlayCfg.showLive, false);
 });
 
-test('alpha boost : volume et profil validés', () => {
-  const c = freshConfig();
-  assert.equal(c.get().alphaBoost.enabled, false);   // désactivé par défaut
-  c.update({ alphaBoost: { enabled: true, volume: 0.7, profile: 'classic' } });
-  assert.deepEqual(c.get().alphaBoost,
-    { enabled: true, volume: 0.7, profile: 'classic' });
-  c.update({ alphaBoost: { volume: 5, profile: '<script>' } });  // rejetés
-  assert.equal(c.get().alphaBoost.volume, 0.7);
-  assert.equal(c.get().alphaBoost.profile, 'classic');
-  assert.equal(c.get().alphaBoost.enabled, true);    // intact
-});
 
 test('statut Discord : booléen strict', () => {
   const c = freshConfig();

@@ -33,52 +33,133 @@
        ne touche jamais ces variables), contrairement à --blue/--orange/--gold. */
     --tier-1:#b07a4a; --tier-2:#a7b0bb; --tier-3:#dcae44; --tier-4:#43b8ae;
     --tier-5:#5f8fe6; --tier-6:#a06bec; --tier-7:#e5602f; --tier-8:#ff9a3c;
+    /* Dérivées (color-mix sur les variables ci-dessus) : voiles translucides
+       et arêtes, recalculés tout seuls quand applyTheme() repeint
+       --blue/--orange/--bg — aucune couleur nouvelle en dur, les 8 thèmes
+       utilisateur restent intacts. Le mélange vers le noir suit la même
+       convention que les variantes -deep calculées en JS. */
+    --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
+    --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
+    --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
+    --edge:color-mix(in srgb, #000 30%, transparent);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
   body {
-    background:var(--bg); color:var(--text);
+    /* Fond « arène » : deux halos aux couleurs des équipes (haut-droit bleu,
+       bas-gauche orange) + fine trame diagonale fantôme — le plateau n'est
+       plus un aplat muet, sans jamais gêner la lecture de loin. */
+    background:
+      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
+      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
+      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
+      var(--bg);
+    color:var(--text);
     font-family:'Barlow Condensed','Segoe UI',sans-serif;
     -webkit-user-select:none; user-select:none; overflow:hidden;
     display:flex; flex-direction:column;
   }
   .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
 
-  /* Carte : panneau plat, coin supérieur droit biseauté. */
+  /* Carte : plaque à deux chanfreins opposés (haut-droit + bas-gauche),
+     léger dégradé de panneau, coin d'accent REMPLI en haut à droite et
+     arête basse sombre en inset — du relief franc, pas du flou timide.
+     (Pas de drop-shadow : le clip-path la rognerait de toute façon.) */
   .card {
-    background:var(--panel); border:1px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
+    background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
+    border:1px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+    box-shadow:inset 0 -3px 0 var(--edge);
     padding:16px 20px; min-height:0; display:flex; flex-direction:column;
   }
-  /* Étiquette de section : ruban incliné. */
+  /* Liseré d'accent en tête de carte, qui s'éteint vers la droite. */
+  .card::before {
+    content:''; position:absolute; left:0; top:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--blue), var(--blue-soft) 55%, transparent 85%);
+    pointer-events:none;
+  }
+  /* Coin biseauté rempli : le clip-path de la carte taille ce carré en
+     triangle d'accent — la signature visuelle des plaques du dashboard. */
+  .card::after {
+    content:''; position:absolute; top:0; right:0; width:18px; height:18px;
+    background:var(--blue); pointer-events:none;
+  }
+  /* Étiquette de section : plaque inclinée pleine (l'ancien ruban discret
+     est devenu un vrai cartouche broadcast), prolongée d'un filet qui court
+     jusqu'au bord de la carte — le clip-path arrête la ligne proprement. */
   .tag {
-    display:inline-block; transform:skewX(-12deg);
-    background:var(--panel2); border-left:3px solid var(--blue);
-    padding:4px 12px 4px 10px; margin-bottom:14px; width:max-content;
+    display:inline-block; transform:skewX(-14deg); position:relative;
+    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 135%);
+    border-left:4px solid var(--blue);
+    padding:5px 14px 5px 11px; margin-bottom:14px; width:max-content;
+  }
+  .tag::after {
+    content:''; position:absolute; left:calc(100% + 10px); top:50%; height:1px;
+    width:100vw; background:linear-gradient(90deg, var(--line), transparent 72%);
+    pointer-events:none;
   }
   .tag > span {
-    display:inline-block; transform:skewX(12deg);
-    font-style:italic; font-weight:700; font-size:13px;
-    letter-spacing:.14em; text-transform:uppercase; color:var(--muted);
+    display:inline-block; transform:skewX(14deg);
+    font-style:italic; font-weight:800; font-size:14px;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--text);
   }
 
-  /* ─── En-tête ─── */
+  /* ─── En-tête : barre de score broadcast ─── */
   header {
-    display:flex; align-items:center; gap:14px;
-    padding:14px 26px; border-bottom:1px solid var(--line);
-    background:var(--panel);
+    position:relative; display:flex; align-items:center; gap:14px;
+    padding:12px 26px;
+    background:linear-gradient(90deg, var(--panel2), var(--panel) 46%);
+  }
+  /* Filet bleu → orange sous le bandeau : les deux couleurs d'équipe,
+     l'identité Rocket League au premier regard, pilotée par le thème. */
+  header::after {
+    content:''; position:absolute; left:0; right:0; bottom:0; height:3px;
+    background:linear-gradient(90deg, var(--blue) 0 34%, var(--orange) 66% 100%);
+    pointer-events:none;
   }
   .logo {
-    font-style:italic; font-weight:800; font-size:21px; letter-spacing:.04em;
-    text-transform:uppercase;
+    display:flex; align-items:center; gap:9px;
+    font-style:italic; font-weight:800; font-size:21px; letter-spacing:.05em;
+    text-transform:uppercase; white-space:nowrap;
   }
   .logo b { color:var(--blue); font-weight:800; }
+  /* Sigle « RL » sur plaque inclinée pleine : le logo devient un badge. */
+  .logo-plate {
+    display:inline-block; transform:skewX(-14deg);
+    background:var(--blue); color:#fff; padding:1px 9px;
+  }
+  .logo-plate > span { display:inline-block; transform:skewX(14deg); }
+  /* Ligne de score de session, au centre du bandeau : V–D, winrate et
+     série toujours visibles, même quand les widgets sont réorganisés —
+     c'est ce qu'on lit depuis le canapé entre deux matchs. */
+  .hd-score {
+    display:flex; align-items:center; gap:12px;
+    font-variant-numeric:tabular-nums; white-space:nowrap;
+  }
+  .hd-score .hd-w, .hd-score .hd-l {
+    font-size:34px; font-weight:800; font-style:italic; line-height:1;
+  }
+  .hd-score .hd-w { color:var(--blue); }
+  .hd-score .hd-l { color:var(--orange); }
+  .hd-bar { width:3px; height:24px; background:var(--line);
+    transform:skewX(-14deg); flex:none; }
+  .hd-wr { font-size:21px; font-weight:800; font-style:italic;
+    color:var(--text); }
+  .hd-streak {
+    display:none; transform:skewX(-14deg); color:#fff;
+    font-style:italic; font-weight:800; font-size:15px; padding:2px 10px;
+  }
+  .hd-streak > span { display:inline-block; transform:skewX(14deg); }
+  .hd-streak.hot { background:var(--blue-deep); }
+  .hd-streak.tilt { background:var(--orange-deep); }
+  /* En mode « Personnaliser », la place est reprise par les outils. */
+  body.editing .hd-score { display:none; }
   .chip {
     display:flex; align-items:center; gap:8px;
     background:var(--panel2); border:1px solid var(--line);
-    transform:skewX(-12deg); padding:5px 14px;
+    transform:skewX(-14deg); padding:5px 14px;
   }
-  .chip > * { transform:skewX(12deg); }
+  .chip > * { transform:skewX(14deg); }
   .chip .lbl {
     font-weight:700; font-size:13px; letter-spacing:.1em;
     text-transform:uppercase; color:var(--muted);
@@ -91,9 +172,9 @@
   .upd-pill {
     display:none; align-items:center; gap:12px;
     background:var(--panel2); border:1px solid var(--blue-deep);
-    transform:skewX(-12deg); padding:5px 8px 5px 14px;
+    transform:skewX(-14deg); padding:5px 8px 5px 14px;
   }
-  .upd-pill > * { transform:skewX(12deg); }
+  .upd-pill > * { transform:skewX(14deg); }
   .upd-pill span { font-weight:600; font-size:14px; letter-spacing:.04em; }
   .upd-pill button {
     border:0; background:var(--blue); color:#fff; cursor:pointer;
@@ -107,7 +188,7 @@
   }
   .fs-btn:hover { border-color:var(--blue); color:var(--text); }
   .clock {
-    font-weight:700; font-size:24px; letter-spacing:.04em;
+    font-weight:800; font-style:italic; font-size:26px; letter-spacing:.04em;
     font-variant-numeric:tabular-nums;
   }
 
@@ -139,11 +220,11 @@
 
   .hdr-btn {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    transform:skewX(-12deg); padding:7px 14px; cursor:pointer;
+    transform:skewX(-14deg); padding:7px 14px; cursor:pointer;
     font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
     letter-spacing:.1em; text-transform:uppercase;
   }
-  .hdr-btn > span { display:inline-block; transform:skewX(12deg); }
+  .hdr-btn > span { display:inline-block; transform:skewX(14deg); }
   .hdr-btn:hover { border-color:var(--blue); color:var(--text); }
   .hdr-btn.accent { border-color:var(--blue); color:#fff;
     background:var(--blue-deep); }
@@ -152,35 +233,45 @@
   body.editing #editBtn { display:none; }
   .ghost-chip {
     border:1px dashed var(--line); background:transparent; color:var(--muted);
-    transform:skewX(-12deg); padding:6px 12px; cursor:pointer;
+    transform:skewX(-14deg); padding:6px 12px; cursor:pointer;
     font-family:inherit; font-weight:700; font-size:11.5px;
     letter-spacing:.08em; text-transform:uppercase;
   }
-  .ghost-chip > span { display:inline-block; transform:skewX(12deg); }
+  .ghost-chip > span { display:inline-block; transform:skewX(14deg); }
   .ghost-chip:hover { border-color:var(--blue); color:var(--text); }
 
   /* ─── Bilan de session ─── */
   .hero { }
   .hero-main { display:flex; align-items:center; gap:38px; flex-wrap:wrap; }
-  .wl { display:flex; align-items:baseline; gap:16px;
+  .wl { display:flex; align-items:baseline; gap:18px;
     font-variant-numeric:tabular-nums; }
-  .wl .w { font-size:88px; font-weight:800; color:var(--blue); line-height:.95; }
-  .wl .sep { font-size:50px; color:var(--line); font-weight:500; }
-  .wl .l { font-size:88px; font-weight:800; color:var(--orange); line-height:.95; }
+  /* Chiffres-clés : condensé italique lourd + ombre portée FRANCHE
+     (décalage net, zéro flou) — l'ADN visuel des scores Rocket League. */
+  .wl .w { font-size:96px; font-weight:800; font-style:italic;
+    color:var(--blue); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
+  /* Le tiret devient une barre inclinée bleu → orange : un vrai séparateur
+     d'équipes de tableau d'affichage (le « – » du HTML est réduit à néant
+     par font-size:0, le bloc dessine la barre). */
+  .wl .sep { font-size:0; width:7px; height:58px; align-self:center;
+    background:linear-gradient(180deg, var(--blue), var(--orange));
+    transform:skewX(-14deg); }
+  .wl .l { font-size:96px; font-weight:800; font-style:italic;
+    color:var(--orange); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
   .wl-cap { display:flex; gap:52px; margin-top:8px; }
   .wl-cap span { font-size:12px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.16em; }
   .hero-side { display:flex; flex-direction:column; gap:10px; }
   .kv { display:flex; align-items:baseline; gap:10px; }
-  .kv b { font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .kv b { font-size:33px; font-weight:800; font-style:italic;
+    font-variant-numeric:tabular-nums; }
   .kv span { font-size:13px; font-weight:600; color:var(--muted);
     text-transform:uppercase; letter-spacing:.08em; }
   .streak-banner {
-    display:none; margin-top:10px; transform:skewX(-12deg); width:max-content;
+    display:none; margin-top:10px; transform:skewX(-14deg); width:max-content;
     padding:8px 18px; font-style:italic; font-weight:800; font-size:17px;
     letter-spacing:.06em; text-transform:uppercase;
   }
-  .streak-banner > span { display:inline-block; transform:skewX(12deg); }
+  .streak-banner > span { display:inline-block; transform:skewX(14deg); }
   .streak-banner.hot { display:block; background:var(--blue-deep); color:#fff; }
   .streak-banner.tilt { display:block; background:var(--orange-deep); color:#fff; }
 
@@ -188,8 +279,9 @@
   .modes { }
   .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
   .mode {
-    background:var(--panel2); border:1px solid var(--line); border-left:3px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+    background:linear-gradient(168deg, var(--panel2), var(--panel) 80%);
+    border:1px solid var(--line); border-left:4px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
     padding:13px 15px;
   }
   /* Liseré gauche coloré par palier : identité de rang au premier regard,
@@ -206,7 +298,8 @@
     font-style:italic; font-weight:800; font-size:15px; letter-spacing:.1em;
     color:var(--text); margin-bottom:7px; text-transform:uppercase;
   }
-  .mode .rec { font-size:27px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .mode .rec { font-size:30px; font-weight:800; font-style:italic;
+    font-variant-numeric:tabular-nums; }
   .mode .rec .mw { color:var(--blue); }
   .mode .rec .ml { color:var(--orange); }
   .mode .sub { font-size:13px; font-weight:600; color:var(--muted);
@@ -215,8 +308,10 @@
     margin-top:10px; padding-top:9px; border-top:1px solid var(--line);
   }
   .mode .mmr-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .mode .mmr-val { color:var(--text); font-size:17px; font-weight:800;
-    font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+  /* Le MMR est LA valeur que l'utilisateur vient lire : chiffre monté d'un
+     cran, italique, au-dessus du rang en toutes lettres. */
+  .mode .mmr-val { color:var(--text); font-size:21px; font-weight:800;
+    font-style:italic; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
   /* Récap « ce que j'ai gagné cette session » : le delta est la ligne la
      plus voyante du bloc — c'est la question posée par l'utilisateur. */
   .mode .mmr-delta { margin-top:6px; display:flex; align-items:center; gap:7px;
@@ -234,12 +329,12 @@
      « j'ai juste mon MMR, pas mon rang »). Chip skewé, dans l'esprit des
      autres pastilles de l'appli (.tag/.chip/.res-chip…). */
   .rank-pill {
-    display:inline-block; transform:skewX(-12deg);
+    display:inline-block; transform:skewX(-14deg);
     background:var(--panel2); border:1px solid currentColor;
     padding:2px 9px; font-style:italic; font-weight:800; font-size:11px;
     letter-spacing:.07em; text-transform:uppercase; line-height:1.5;
   }
-  .rank-pill > span { display:inline-block; transform:skewX(12deg); }
+  .rank-pill > span { display:inline-block; transform:skewX(14deg); }
   .rank-pill:empty { display:none; }
   .rank-pill.sm { font-size:9.5px; padding:1px 7px; }
   .rank-pill.rk0 { color:var(--muted); }
@@ -266,19 +361,25 @@
     letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
   .live-training .sub { font-size:15px; font-weight:600; color:var(--muted); }
   .live-mode {
-    font-style:italic; font-weight:800; font-size:17px; color:var(--text);
+    font-style:italic; font-weight:800; font-size:18px; color:var(--text);
     text-transform:uppercase; letter-spacing:.22em;
-    border-bottom:2px solid var(--blue); padding-bottom:4px;
+    border-bottom:3px solid var(--blue); padding-bottom:5px;
   }
   .live-score { display:flex; align-items:center; gap:24px;
     font-variant-numeric:tabular-nums; }
-  .live-score .s0 { font-size:110px; font-weight:800; color:var(--blue); line-height:1; }
-  .live-score .s1 { font-size:110px; font-weight:800; color:var(--orange); line-height:1; }
-  .live-score .vs { font-size:34px; color:var(--line); font-weight:700; }
+  .live-score .s0 { font-size:112px; font-weight:800; font-style:italic;
+    color:var(--blue); line-height:1; text-shadow:5px 5px 0 var(--edge); }
+  .live-score .s1 { font-size:112px; font-weight:800; font-style:italic;
+    color:var(--orange); line-height:1; text-shadow:5px 5px 0 var(--edge); }
+  /* Même séparateur incliné bicolore que le bilan de session : le « : »
+     du HTML est éteint (font-size:0), la barre fait le travail. */
+  .live-score .vs { font-size:0; width:7px; height:72px; align-self:center;
+    background:linear-gradient(180deg, var(--blue), var(--orange));
+    transform:skewX(-14deg); }
   .live-time { font-size:30px; font-weight:700;
     font-variant-numeric:tabular-nums; letter-spacing:.04em; }
   .live-time .ot {
-    display:inline-block; transform:skewX(-12deg); background:var(--gold);
+    display:inline-block; transform:skewX(-14deg); background:var(--gold);
     color:#1a1405; font-style:italic; font-weight:800; font-size:14px;
     letter-spacing:.12em; padding:3px 10px; margin-left:12px; vertical-align:4px;
   }
@@ -318,11 +419,11 @@
   .evo-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .evo-tab {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    transform:skewX(-12deg); padding:4px 12px; cursor:pointer;
+    transform:skewX(-14deg); padding:4px 12px; cursor:pointer;
     font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
     letter-spacing:.08em; text-transform:uppercase;
   }
-  .evo-tab > span { display:inline-block; transform:skewX(12deg); }
+  .evo-tab > span { display:inline-block; transform:skewX(14deg); }
   .evo-tab.on { border-color:var(--blue); color:var(--text);
     background:var(--blue-deep); }
   .evo-chart { flex:1; min-height:52px; position:relative; }
@@ -364,7 +465,7 @@
     font-variant-numeric:tabular-nums; }
   .evo-stat > span:last-child { font-size:10px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.12em; }
-  .evo-stat.now b { font-size:28px; }
+  .evo-stat.now b { font-size:32px; font-style:italic; }
   .evo-foot { display:flex; gap:22px; margin-top:10px; padding-top:9px;
     border-top:1px solid var(--line); font-size:13px; font-weight:600;
     color:var(--muted); letter-spacing:.04em; text-transform:uppercase;
@@ -375,11 +476,11 @@
   .ranked-toggle { display:flex; align-items:center; gap:6px; margin-top:10px; }
   .ranked-toggle button {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    transform:skewX(-12deg); padding:5px 14px; cursor:pointer;
+    transform:skewX(-14deg); padding:5px 14px; cursor:pointer;
     font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
     letter-spacing:.1em; text-transform:uppercase;
   }
-  .ranked-toggle button > span { display:inline-block; transform:skewX(12deg); }
+  .ranked-toggle button > span { display:inline-block; transform:skewX(14deg); }
   .ranked-toggle button.on { border-color:var(--blue); color:#fff;
     background:var(--blue-deep); }
 
@@ -393,9 +494,13 @@
   .totals { }
   .totals-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
     flex:1; align-content:center; }
-  .tot { text-align:center; border-left:1px solid var(--line); }
-  .tot:first-child { border-left:0; }
-  .tot b { display:block; font-size:32px; font-weight:800;
+  /* Séparateurs INCLINÉS entre compteurs : même langage diagonal que les
+     chips, à la place des bordures droites d'origine. */
+  .tot { text-align:center; position:relative; }
+  .tot::before { content:''; position:absolute; left:-7px; top:12%; bottom:12%;
+    width:2px; background:var(--line); transform:skewX(-14deg); }
+  .tot:first-child::before { display:none; }
+  .tot b { display:block; font-size:36px; font-weight:800; font-style:italic;
     font-variant-numeric:tabular-nums; line-height:1.1; }
   .tot span { font-size:11.5px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.14em; }
@@ -410,16 +515,47 @@
   table.hist td { padding:8px; border-top:1px solid var(--line);
     font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600; }
   table.hist tr:first-child td { border-top:0; }
-  td.res { width:40px; }
+  /* Survol de ligne : révèle les micro-boutons de correction (voir .hfix)
+     et souligne la ligne visée — indispensable pour viser le bon match. */
+  table.hist tr:hover td { background:var(--panel2); }
+  /* Ligne en cours de correction : grisée le temps que le processus
+     principal repousse l'état recalculé. */
+  table.hist tr.busy td { opacity:.45; pointer-events:none; }
+  td.res { width:44px; }
   .res-chip {
-    display:inline-block; transform:skewX(-12deg); width:26px;
-    text-align:center; font-style:italic; font-weight:800; font-size:14px;
-    padding:2px 0; color:#fff;
+    display:inline-block; transform:skewX(-14deg); width:28px;
+    text-align:center; font-style:italic; font-weight:800; font-size:15px;
+    padding:2px 0; color:#fff; position:relative;
   }
-  .res-chip > span { display:inline-block; transform:skewX(12deg); }
+  .res-chip > span { display:inline-block; transform:skewX(14deg); }
   .res-chip.W { background:var(--blue-deep); }
   .res-chip.L { background:var(--orange-deep); }
   .res-chip.U { background:var(--panel2); color:var(--muted); }
+  /* Marqueur « résultat corrigé à la main » : simple onglet doré sur le
+     coin de la pastille — discret mais reconnaissable, l'infobulle (title)
+     porte l'explication complète. */
+  .res-chip.ov::after { content:''; position:absolute; top:-2px; right:-2px;
+    width:7px; height:7px; background:var(--gold); }
+  /* ─── Correction manuelle d'un résultat (forfait adverse mal compté…) ───
+     Trois micro-boutons par ligne, invisibles hors survol : V force la
+     victoire, D la défaite, ↺ rend la main au calcul automatique. Pas de
+     fenêtre modale : un clic suffit, l'état recalculé revient tout seul. */
+  td.hfix { width:1%; text-align:right; padding-left:2px; }
+  .fixbtn {
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    transform:skewX(-14deg); padding:2px 8px; margin-left:4px; cursor:pointer;
+    font-family:inherit; font-style:italic; font-weight:800; font-size:11.5px;
+    opacity:0; transition:opacity .12s;
+  }
+  .fixbtn > span { display:inline-block; transform:skewX(14deg); }
+  table.hist tr:hover .fixbtn, .fixbtn:focus-visible { opacity:1; }
+  .fixbtn:hover { color:var(--text); border-color:var(--blue); }
+  /* Le bouton du résultat actuellement retenu est marqué et inerte :
+     impossible de « re-forcer » ce qui est déjà affiché. */
+  .fixbtn:disabled { cursor:default; }
+  .fixbtn.w.cur { background:var(--blue-deep); border-color:var(--blue); color:#fff; }
+  .fixbtn.l.cur { background:var(--orange-deep); border-color:var(--orange); color:#fff; }
+  .fixbtn.auto:hover { border-color:var(--gold); color:var(--gold); }
   td.hmode { color:var(--text); font-style:italic; font-weight:800;
     text-transform:uppercase; letter-spacing:.06em; width:56px; }
   td.hscore { font-weight:800; width:76px; font-size:16px; }
@@ -441,15 +577,16 @@
   /* ─── Widgets bonus : horloge et objectif ─── */
   .clock-wrap { flex:1; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:2px; }
-  .clock-big { font-size:64px; font-weight:800; line-height:1;
-    font-variant-numeric:tabular-nums; }
+  .clock-big { font-size:64px; font-weight:800; font-style:italic; line-height:1;
+    font-variant-numeric:tabular-nums; text-shadow:4px 4px 0 var(--edge); }
   .clock-date { font-size:14px; font-weight:600; color:var(--muted);
     text-transform:uppercase; letter-spacing:.1em; }
   .goal-wrap { flex:1; display:flex; flex-direction:column;
     justify-content:center; gap:10px; }
   .goal-nums { display:flex; align-items:baseline; gap:10px;
     font-variant-numeric:tabular-nums; }
-  .goal-nums b { font-size:42px; font-weight:800; line-height:1; }
+  .goal-nums b { font-size:44px; font-weight:800; font-style:italic;
+    line-height:1; text-shadow:3px 3px 0 var(--edge); }
   .goal-nums b.up { color:var(--blue); }
   .goal-nums b.down { color:var(--orange); }
   .goal-nums > span:first-of-type { font-size:16px; font-weight:700;
@@ -461,8 +598,10 @@
     cursor:pointer; font-family:inherit; line-height:1;
   }
   .goal-ctl button:hover { border-color:var(--blue); color:var(--text); }
-  .goal-bar { height:10px; background:var(--panel2);
-    border:1px solid var(--line); overflow:hidden; }
+  /* Barre de progression inclinée, dans le langage diagonal du reste. */
+  .goal-bar { height:11px; background:var(--panel2);
+    border:1px solid var(--line); overflow:hidden;
+    transform:skewX(-14deg); margin:0 5px; }
   .goal-bar i { display:block; height:100%; width:0; background:var(--blue);
     transition:width .4s; }
   .goal-sub { font-size:13px; font-weight:600; color:var(--muted);
@@ -517,17 +656,17 @@
     100% { transform:translateX(0); }
   }
   .result-sub {
-    transform:skewX(-12deg); background:var(--panel2);
+    transform:skewX(-14deg); background:var(--panel2);
     border:1px solid var(--line); padding:8px 22px;
     font-weight:700; font-size:25px; letter-spacing:.08em;
     font-variant-numeric:tabular-nums; text-transform:uppercase;
   }
-  .result-sub > span { display:inline-block; transform:skewX(12deg); }
+  .result-sub > span { display:inline-block; transform:skewX(14deg); }
   .result-streak { font-size:16px; font-weight:700; color:var(--muted);
     letter-spacing:.12em; text-transform:uppercase; }
   .confetti-piece {
     position:absolute; top:-26px; width:9px; height:18px;
-    animation:fall linear forwards; transform:skewX(-12deg);
+    animation:fall linear forwards; transform:skewX(-14deg);
   }
   @keyframes fall {
     to { transform:translateY(108vh) rotate(620deg); opacity:.85; }
@@ -673,11 +812,22 @@
 <body>
 
   <header>
-    <div class="logo">RL <b>Session Tracker</b></div>
+    <div class="logo"><span class="logo-plate"><span>RL</span></span> <b>Session Tracker</b></div>
     <div class="chip"><span class="sq" id="gameDot"></span>
       <span class="lbl" id="gameTxt">Rocket League</span></div>
     <div class="chip" id="pseudoPill" style="display:none">
       <span class="lbl on" id="pseudoTxt"></span></div>
+    <div class="spacer"></div>
+    <!-- Barre de score broadcast : le bilan de session reste sous les yeux
+         même si le widget « Session » est déplacé ou masqué. -->
+    <div class="hd-score">
+      <span class="hd-w" id="hdW">0</span>
+      <span class="hd-bar"></span>
+      <span class="hd-l" id="hdL">0</span>
+      <span class="hd-bar"></span>
+      <span class="hd-wr" id="hdWr">—</span>
+      <span class="hd-streak" id="hdStreak"><span id="hdStreakTxt"></span></span>
+    </div>
     <div class="spacer"></div>
     <div class="upd-pill" id="updPill">
       <span id="updTxt"></span>
@@ -971,6 +1121,15 @@
         totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif' },
       h2h: function (w, l) { return w + 'V – ' + l + 'D'; },
       h2hTip: 'Déjà croisé — ton bilan contre ce joueur',
+      // Lettres des pastilles de résultat (historique + boutons de
+      // correction) : V/D en français, W/L en anglais.
+      resW: 'V', resL: 'D',
+      // Correction manuelle d'un résultat : un forfait adverse peut encore
+      // être compté à l'envers — l'utilisateur reprend la main ici.
+      fixWinTip: 'Compter ce match comme une victoire',
+      fixLossTip: 'Compter ce match comme une défaite',
+      fixAutoTip: 'Revenir au résultat détecté automatiquement',
+      fixedTip: 'Résultat corrigé à la main — le verdict automatique est ignoré pour ce match.',
       locale: 'fr-FR',
     },
     en: {
@@ -1022,6 +1181,11 @@
         totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal' },
       h2h: function (w, l) { return w + 'W – ' + l + 'L'; },
       h2hTip: 'Seen before — your record against this player',
+      resW: 'W', resL: 'L',
+      fixWinTip: 'Count this match as a win',
+      fixLossTip: 'Count this match as a loss',
+      fixAutoTip: 'Back to the automatically detected result',
+      fixedTip: 'Result corrected by hand — the automatic verdict is ignored for this match.',
       locale: 'en-GB',
     },
   };
@@ -1274,6 +1438,22 @@
       badge.className = 'streak-banner';
     }
 
+    // Barre de score du bandeau d'en-tête : V–D, winrate et série de la
+    // session, toujours sous les yeux même si le widget « Session » est
+    // déplacé ou masqué — c'est ce qu'on lit de loin entre deux matchs.
+    $('hdW').textContent = ses.wins || 0;
+    $('hdL').textContent = ses.losses || 0;
+    $('hdWr').textContent = ses.winrate == null ? '—' : ses.winrate + ' %';
+    var hd = $('hdStreak');
+    if ((st.type === 'W' || st.type === 'L') && st.count >= 2) {
+      hd.style.display = 'inline-block';
+      hd.className = 'hd-streak ' + (st.type === 'W' ? 'hot' : 'tilt');
+      $('hdStreakTxt').textContent = '×' + st.count;
+      hd.title = T.resStreak(st.count, st.type === 'W');
+    } else {
+      hd.style.display = 'none';
+    }
+
     // Avertissement « matchs non attribués » : le pseudo réglé ne
     // correspond à aucun joueur sur un ou plusieurs matchs de la session
     // (changement de pseudo en jeu, espace insécable, variante unicode...).
@@ -1400,10 +1580,18 @@
     var hist = s.history || [];
     $('histScroll').style.display = hist.length ? 'block' : 'none';
     $('histEmpty').style.display = hist.length ? 'none' : 'flex';
+    // Les boutons de correction ne sont construits que si le pont expose
+    // setMatchResult (vieille version du pont : historique intact, sans
+    // affordance qui ne mènerait nulle part).
+    var canFix = typeof api.setMatchResult === 'function';
     var rows = '';
     hist.forEach(function (m) {
-      var res = m.result === 'W' ? 'V' : m.result === 'L' ? 'D' : '·';
+      var res = m.result === 'W' ? T.resW : m.result === 'L' ? T.resL : '·';
       var cls = m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : 'U';
+      // Correction manuelle active sur ce match : pastille marquée d'un
+      // onglet doré + infobulle qui explique pourquoi ce résultat diffère
+      // du verdict automatique.
+      var ov = !!m.overridden;
       var sc = m.score ? m.score[0] + ' – ' + m.score[1] : '—';
       var stats = m.me
         ? '<b>' + m.me.goals + '</b> ' + T.sG + '&nbsp;&nbsp;<b>' + m.me.assists
@@ -1413,13 +1601,29 @@
       var marks = (m.isOT ? ' <span class="ot-mini">OT</span>' : '')
         + (m.forfeit ? ' <span class="ff-chip">FF</span>' : '')
         + (m.ranked === false ? ' <span class="ot-mini">Cas</span>' : '');
-      rows += '<tr>'
-        + '<td class="res"><span class="res-chip ' + cls + '"><span>'
+      // Micro-boutons révélés au survol : forcer victoire / défaite, et,
+      // seulement si une correction est active, revenir à l'automatique.
+      // Le bouton du résultat déjà retenu est marqué « cur » et inerte.
+      var fix = '';
+      if (canFix && m.id) {
+        fix = '<button class="fixbtn w' + (m.result === 'W' ? ' cur' : '')
+            + '" data-set="W"' + (m.result === 'W' ? ' disabled' : '')
+            + ' title="' + T.fixWinTip + '"><span>' + T.resW + '</span></button>'
+          + '<button class="fixbtn l' + (m.result === 'L' ? ' cur' : '')
+            + '" data-set="L"' + (m.result === 'L' ? ' disabled' : '')
+            + ' title="' + T.fixLossTip + '"><span>' + T.resL + '</span></button>'
+          + (ov ? '<button class="fixbtn auto" data-set="" title="'
+              + T.fixAutoTip + '"><span>↺</span></button>' : '');
+      }
+      rows += '<tr data-id="' + esc(m.id || '') + '">'
+        + '<td class="res"><span class="res-chip ' + cls + (ov ? ' ov' : '')
+          + '"' + (ov ? ' title="' + T.fixedTip + '"' : '') + '><span>'
           + res + '</span></span></td>'
         + '<td class="hmode">' + esc(m.mode) + '</td>'
         + '<td class="hscore">' + sc + marks + '</td>'
         + '<td class="htime">' + fmtHour(m.endedAt) + '</td>'
         + '<td class="hstats">' + stats + '</td>'
+        + '<td class="hfix">' + fix + '</td>'
         + '</tr>';
     });
     $('histBody').innerHTML = rows;
@@ -1624,6 +1828,26 @@
   $('rkOff').onclick = function () {
     if (api.setCurrentRanked) api.setCurrentRanked(false);
   };
+
+  // ─── Correction manuelle d'un résultat de l'historique ───
+  // Délégation : les lignes sont reconstruites à chaque état poussé, un
+  // écouteur unique sur le tbody survit donc à tous les re-rendus.
+  $('histBody').addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('.fixbtn') : null;
+    if (!btn || btn.disabled || typeof api.setMatchResult !== 'function') return;
+    var tr = btn.closest('tr');
+    var id = tr && tr.getAttribute('data-id');
+    if (!id) return;
+    // data-set vide = « revenir au calcul automatique » (null côté pont).
+    var val = btn.dataset.set === 'W' ? 'W'
+      : btn.dataset.set === 'L' ? 'L' : null;
+    // Confirmation visuelle immédiate : la ligne se grise le temps que le
+    // processus principal recalcule stats et courbe, puis le nouvel état
+    // poussé re-rend l'historique complet (la classe disparaît avec lui).
+    tr.classList.add('busy');
+    Promise.resolve(api.setMatchResult(id, val))
+      .catch(function () { tr.classList.remove('busy'); });
+  });
 
   // ─── Jingles victoire / défaite (synthèse WebAudio, aucun fichier) ───
   var audioCtx = null;
