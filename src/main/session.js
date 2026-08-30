@@ -180,6 +180,70 @@ class SessionStore {
     return list.length ? list[list.length - 1] : null;
   }
 
+  // Correction manuelle du résultat d'un match : 'W', 'L', ou null pour
+  // revenir au calcul automatique. Le dernier recours quand ni le flux ni le
+  // journal n'ont permis de trancher un forfait — l'utilisateur, lui, sait.
+  overrideResult(id, result, pseudo) {
+    const m = this.matches.find((x) => x.id === id);
+    if (!m) return false;
+    if (result !== 'W' && result !== 'L') {
+      delete m.overrideWinner;
+      this._persist();
+      return true;
+    }
+    const me = m.players.find((p) => norm(p.name) === norm(pseudo));
+    if (!me) return false;              // sans équipe connue, pas de correction
+    m.overrideWinner = result === 'W' ? me.team : (me.team === 0 ? 1 : 0);
+    this._persist();
+    return true;
+  }
+
+  // ───────── Réconciliation des forfaits par le vrai MMR ─────────
+  // Un forfait adverse suivi d'un départ immédiat peut arriver au tracker
+  // sans AUCUN signal exploitable (ni vainqueur annoncé, ni podium) : il est
+  // alors compté défaite. Mais la vérité finit toujours par arriver — le
+  // prochain relevé du journal du jeu. Si la variation RÉELLE du MMR entre
+  // deux relevés contredit le bilan enregistré d'exactement deux pas (la
+  // signature d'un résultat inversé) et qu'UN SEUL forfait ambigu peut
+  // l'expliquer, on le corrige. Ambiguïté ou intervalle troué : on ne touche
+  // à rien — la correction manuelle reste possible.
+  reconcileForfeits(mode, from, to, newValue, step, pseudo) {
+    if (!from || !Number.isFinite(from.v) || !Number.isFinite(newValue)) return null;
+    const d = this.decidedBetween(mode, from.t, to, pseudo);
+    if (d.unmatched) return null;                 // intervalle troué : refus
+    const total = d.wins + d.losses;
+    if (!total || total > 8) return null;         // trop de bruit accumulé
+    const diff = (newValue - from.v) - d.net * step;
+
+    const me = norm(pseudo);
+    const candidates = this.matches.filter((m) => {
+      if (m.mode !== mode || m.ranked === false) return false;
+      if (m.endedAt <= from.t || m.endedAt > to) return false;
+      if (!m.forfeit || m.winnerTeam !== null) return false;
+      if (m.overrideWinner === 0 || m.overrideWinner === 1) return false;
+      return m.players.some((p) => norm(p.name) === me);
+    });
+
+    // Un « L » qui aurait dû être « W » gonfle diff de +2 pas (à un pas près
+    // de tolérance : les vrais gains varient d'un match à l'autre).
+    let want = null;
+    if (diff >= step && diff <= 3 * step) want = 'L';
+    else if (diff <= -step && diff >= -3 * step) want = 'W';
+    if (!want) return null;
+
+    const fixable = candidates.filter((m) => this._evaluate(m, pseudo).result === want);
+    if (fixable.length !== 1) return null;        // zéro ou plusieurs : ambigu
+
+    const m = fixable[0];
+    const mine = m.players.find((p) => norm(p.name) === me);
+    if (!mine) return null;
+    m.overrideWinner = want === 'L'
+      ? mine.team                                  // le L devient W : notre équipe
+      : (mine.team === 0 ? 1 : 0);                 // le W devient L : l'autre
+    this._persist();
+    return { id: m.id, flipped: want === 'L' ? 'W' : 'L' };
+  }
+
   _rememberPlayers(players) {
     for (const p of players) {
       const name = String(p.name || '').trim();
@@ -260,9 +324,20 @@ class SessionStore {
   _evaluate(m, pseudo) {
     const me = m.players.find((p) => norm(p.name) === norm(pseudo)) || null;
 
+    // Correction (manuelle ou réconciliée par le vrai MMR) : elle est stockée
+    // en ÉQUIPE gagnante, pas en « victoire/défaite » — le point de vue
+    // dépend du pseudo, qui peut changer, alors que l'équipe est un fait.
+    const ow = (m.overrideWinner === 0 || m.overrideWinner === 1)
+      ? m.overrideWinner : null;
+
     let result = null;                  // 'W' | 'L' | null (joueur non identifié)
     let mvp = false;
-    if (m.forfeit) {
+    if (ow !== null) {
+      if (me) result = me.team === ow ? 'W' : 'L';
+      if (me && result === 'W' && me.score > 0) {
+        mvp = m.players.every((p) => p === me || p.score <= me.score);
+      }
+    } else if (m.forfeit) {
       // Abandon : si le jeu a eu le temps d'annoncer un vainqueur (forfait
       // ADVERSE attrapé via bHasWinner), on le respecte.
       const w = (m.winnerTeam === 0 || m.winnerTeam === 1) ? m.winnerTeam : null;
@@ -300,6 +375,7 @@ class SessionStore {
       ranked: m.ranked !== false,
       forfeit: !!m.forfeit,
       podium: !!m.podium,
+      overridden: ow !== null,
       result: result,
       myTeam: me ? me.team : null,
       me: me ? {

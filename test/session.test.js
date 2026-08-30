@@ -470,3 +470,91 @@ test('rankedOnly retire le casual de la session sans toucher au journal', () => 
   assert.equal(only.session.played, 1);
   assert.equal(s.matches.length, 2);          // rien n'est supprimé
 });
+
+// ───────── Correction d'un résultat (manuelle et réconciliée) ─────────
+// Un forfait adverse suivi d'un départ immédiat peut arriver sans AUCUN
+// signal exploitable : ni vainqueur annoncé, ni podium. Deux filets :
+// la correction manuelle, et la réconciliation par le vrai MMR.
+
+test('correction manuelle : W, L, retour à l’automatique', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ forfeit: true, winnerTeam: null, score: [3, 0] }));
+  const id = s.matches[0].id;
+  assert.equal(s.snapshot('Nova', CFG).history[0].result, 'L');   // le bug vécu
+
+  assert.equal(s.overrideResult(id, 'W', 'Nova'), true);
+  const fixed = s.snapshot('Nova', CFG).history[0];
+  assert.equal(fixed.result, 'W');
+  assert.equal(fixed.overridden, true);
+
+  assert.equal(s.overrideResult(id, null, 'Nova'), true);
+  assert.equal(s.snapshot('Nova', CFG).history[0].result, 'L');
+  assert.equal(s.snapshot('Nova', CFG).history[0].overridden, false);
+});
+
+test('correction stockée en équipe : survit à un changement de casse du pseudo', () => {
+  const s = tmpStore();
+  s.addMatch(snap({ forfeit: true, winnerTeam: null, score: [3, 0] }));
+  s.overrideResult(s.matches[0].id, 'W', 'NOVA');
+  assert.equal(s.snapshot('nova', CFG).history[0].result, 'W');
+});
+
+test('correction refusée si le pseudo n’est pas dans le match', () => {
+  const s = tmpStore();
+  s.addMatch(snap({}));
+  assert.equal(s.overrideResult(s.matches[0].id, 'W', 'Inconnu'), false);
+  assert.equal(s.overrideResult('id-inexistant', 'W', 'Nova'), false);
+});
+
+test('réconciliation : le faux L devient W quand le vrai MMR le trahit', () => {
+  const t0 = Date.now() - 100000;
+  const s = tmpStore();
+  // Deux victoires normales + un forfait adverse compté L à tort.
+  s.addMatch(snap({ endedAt: t0 + 1000 }));
+  s.addMatch(snap({ endedAt: t0 + 2000, forfeit: true, winnerTeam: null, score: [3, 0] }));
+  s.addMatch(snap({ endedAt: t0 + 3000 }));
+  // Bilan enregistré : +1 net (W, L, W) → attendu +9. Vrai MMR : +27 (3 W).
+  const fixed = s.reconcileForfeits('2v2', { t: t0, v: 1000 }, t0 + 10000, 1027, 9, 'Nova');
+  assert.ok(fixed);
+  assert.equal(fixed.flipped, 'W');
+  assert.equal(s.snapshot('Nova', CFG).history.find((m) => m.forfeit).result, 'W');
+});
+
+test('réconciliation : rien sans écart significatif', () => {
+  const t0 = Date.now() - 100000;
+  const s = tmpStore();
+  s.addMatch(snap({ endedAt: t0 + 1000, forfeit: true, winnerTeam: null, score: [3, 0] }));
+  // Le vrai MMR colle au bilan (-9) : le L était un vrai L.
+  assert.equal(s.reconcileForfeits('2v2', { t: t0, v: 1000 }, t0 + 10000, 991, 9, 'Nova'), null);
+});
+
+test('réconciliation : ambiguïté (deux candidats) = on ne touche à rien', () => {
+  const t0 = Date.now() - 100000;
+  const s = tmpStore();
+  s.addMatch(snap({ endedAt: t0 + 1000, forfeit: true, winnerTeam: null, score: [3, 0] }));
+  s.addMatch(snap({ endedAt: t0 + 2000, forfeit: true, winnerTeam: null, score: [2, 0] }));
+  assert.equal(s.reconcileForfeits('2v2', { t: t0, v: 1000 }, t0 + 10000, 1000, 9, 'Nova'), null);
+});
+
+test('réconciliation : intervalle troué (match non attribué) = refus', () => {
+  const t0 = Date.now() - 100000;
+  const s = tmpStore();
+  s.addMatch(snap({ endedAt: t0 + 1000, forfeit: true, winnerTeam: null, score: [3, 0] }));
+  s.addMatch(snap({ endedAt: t0 + 2000, players: [
+    { name: 'Autre', team: 0, goals: 1, saves: 0, assists: 0, shots: 1, score: 100 },
+    { name: 'AdvZ', team: 1, goals: 0, saves: 0, assists: 0, shots: 1, score: 50 },
+  ] }));
+  assert.equal(s.reconcileForfeits('2v2', { t: t0, v: 1000 }, t0 + 10000, 1009, 9, 'Nova'), null);
+});
+
+test('réconciliation symétrique : un W de podium à tort redevient L', () => {
+  const t0 = Date.now() - 100000;
+  const s = tmpStore();
+  // Forfait avec podium et score en notre faveur → compté W… mais c'était
+  // NOTRE forfait (cas rare) : le vrai MMR a baissé.
+  s.addMatch(snap({ endedAt: t0 + 1000, forfeit: true, winnerTeam: null,
+    podium: true, score: [3, 0] }));
+  const fixed = s.reconcileForfeits('2v2', { t: t0, v: 1000 }, t0 + 10000, 991, 9, 'Nova');
+  assert.ok(fixed);
+  assert.equal(fixed.flipped, 'L');
+});
