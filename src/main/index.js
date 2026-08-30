@@ -213,36 +213,14 @@ function setGameRunning(running) {
     updater.check();
     if (config.get().autoDashboard) openDashboard();
     if (config.get().overlayEnabled) openOverlay();
-    if (alphaEnabled()) openAlphaAudio();
   } else {
     state.live = null;
     state.currentRanked = null;
     state.currentRankedAuto = null;
     windows.closeDashboard();
     windows.closeOverlay();
-    windows.closeAlphaAudio();
   }
   pushState();
-}
-
-// ───────── Son Alpha Boost ─────────
-// Joué par une fenêtre invisible (WebAudio), pilotée par la télémétrie de la
-// Stats API. 100 % externe : on ne touche ni aux fichiers ni à la mémoire du
-// jeu — même approche que le reste de l'application.
-function alphaEnabled() {
-  const ab = config.get().alphaBoost;
-  return !!(ab && ab.enabled);
-}
-
-function sendAlphaCfg() {
-  const w = windows.getAlphaAudio();
-  if (w) {
-    try { w.webContents.send('alpha-cfg', config.get().alphaBoost); } catch (e) {}
-  }
-}
-
-function openAlphaAudio() {
-  windows.openAlphaAudio(() => sendAlphaCfg());
 }
 
 function openOverlay() {
@@ -409,13 +387,6 @@ function startStatsApi() {
     obs.emit('goal', d);
     sos.send('goal', d);
   });
-  // Télémétrie boost → moteur audio Alpha Boost (fenêtre invisible).
-  api.on('telemetry', (d) => {
-    const w = windows.getAlphaAudio();
-    if (w) {
-      try { w.webContents.send('alpha-telemetry', d); } catch (e) {}
-    }
-  });
   api.on('ended', (snap) => {
     state.live = null;
     if (isTraining(snap)) {
@@ -523,6 +494,22 @@ function startMmrFromLog() {
     const cur = (config.get().mmr || {})[r.mode];
     if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
     learnMmrStep(r, cur);
+    // Réconciliation AVANT d'ancrer : le relevé qui arrive est la vérité, et
+    // c'est en le comparant au bilan enregistré depuis l'ancre PRÉCÉDENTE
+    // qu'un forfait mal compté se trahit (écart de deux pas exactement).
+    const prevAnchor = store.lastReading(r.mode);
+    if (prevAnchor) {
+      const learned = (config.get().mmrStep || {})[r.mode];
+      const step = (Number.isFinite(learned)
+        && learned >= MMR_STEP_MIN && learned <= MMR_STEP_MAX)
+        ? learned : SessionStore.MMR_STEP;
+      const fixed = store.reconcileForfeits(r.mode, prevAnchor, Date.now(),
+        r.mmr, step, config.get().pseudo);
+      if (fixed) {
+        log('forfait réconcilié par le vrai MMR : match ' + fixed.id
+          + ' recompté ' + (fixed.flipped === 'W' ? 'victoire' : 'défaite'));
+      }
+    }
     // L'ancre est archivée dans le journal : c'est elle qui porte la courbe.
     // La base de configuration ne sert plus qu'au cas « aucun relevé ».
     store.addMmrReading(r.mode, r.mmr, r.tier);
@@ -651,15 +638,6 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && partial.overlayCfg) {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
-  // Le son Alpha Boost suit son réglage sans redémarrage.
-  if (partial && partial.alphaBoost) {
-    if (alphaEnabled()) {
-      if (state.game.running) openAlphaAudio();
-      sendAlphaCfg();
-    } else {
-      windows.closeAlphaAudio();
-    }
-  }
   if (partial && partial.lang) buildTrayMenu();
   if (partial && typeof partial.discordRpc === 'boolean') {
     discord.setEnabled(partial.discordRpc, log);
@@ -692,39 +670,6 @@ ipcMain.on('preview-animation', (_e, result) => {
   }, already ? 50 : 900);
 });
 
-// Lit un sample Alpha Boost pour le moteur audio (nom strictement filtré,
-// dossier imposé : aucun chemin arbitraire ne peut sortir d'ici).
-ipcMain.handle('alpha-read-sound', (_e, name) => {
-  const safe = String(name).replace(/[^a-z0-9]/g, '');
-  return fs.readFileSync(
-    path.join(__dirname, '..', 'renderer', 'sounds', 'alpha', safe + '.ogg'));
-});
-
-// Essai du son Alpha Boost depuis les réglages : la fenêtre audio joue une
-// montée en vitesse simulée. Créée au besoin, refermée après si le jeu ne
-// tourne pas (pour ne pas garder un renderer inutile en mémoire).
-let alphaTestTimer = null;
-ipcMain.on('alpha-test', () => {
-  windows.openAlphaAudio(() => {
-    sendAlphaCfg();
-    const w = windows.getAlphaAudio();
-    if (w) {
-      try { w.webContents.send('alpha-test'); } catch (e) {}
-    }
-  });
-  // Le minuteur est REPOUSSÉ à chaque essai : avant, seul le tout premier
-  // essai en armait un, et il refermait la fenêtre en plein milieu d'un essai
-  // suivant — le son s'arrêtait net sans raison visible.
-  if (alphaTestTimer) { clearTimeout(alphaTestTimer); alphaTestTimer = null; }
-  if (!state.game.running) {
-    // L'essai dure ~4 s : large marge avant de refermer la fenêtre.
-    alphaTestTimer = setTimeout(() => {
-      alphaTestTimer = null;
-      if (!state.game.running) windows.closeAlphaAudio();
-    }, 12000);
-  }
-});
-
 // Marque le match EN COURS comme classé ou casual.
 ipcMain.on('set-current-ranked', (_e, ranked) => {
   if (state.live && !state.live.training) {
@@ -739,6 +684,21 @@ ipcMain.on('dashboard-fullscreen-toggle', () => {
   windows.setDashboardFullscreen(on);
   pushState();
 });
+// Correction manuelle d'un résultat depuis l'historique : 'W', 'L', ou null
+// pour revenir au calcul automatique. Stats, courbe et records se recalculent
+// rétroactivement — c'est le filet de sécurité quand un forfait est arrivé
+// sans aucun signal exploitable.
+ipcMain.handle('set-match-result', (_e, id, result) => {
+  const r = (result === 'W' || result === 'L') ? result : null;
+  const ok = store.overrideResult(String(id || ''), r, config.get().pseudo);
+  if (ok) {
+    refreshSession();
+    pushState();
+    log('résultat corrigé à la main : match ' + id + ' → ' + (r || 'auto'));
+  }
+  return { ok: ok };
+});
+
 ipcMain.handle('reset-session', () => {
   store.resetSession();
   refreshSession();

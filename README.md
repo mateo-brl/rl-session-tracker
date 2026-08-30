@@ -29,7 +29,7 @@ The next-generation Rocket League session tracker — real-time, 100% local, ant
 ## 🇫🇷 Français
 
 > **Avril 2026.** L'anti-triche de Rocket League débarque et emporte BakkesMod
-> avec lui. Plus d'overlays, plus de trackers de session, plus d'Alpha Boost.
+> avec lui. Plus d'overlays, plus de trackers de session.
 >
 > **Sauf que.** Le jeu expose désormais une **Stats API native** — un flux
 > local, officiel, compatible anti-triche. RL Session Tracker s'en sert pour
@@ -38,8 +38,8 @@ The next-generation Rocket League session tracker — real-time, 100% local, ant
 > internet.
 
 Victoires · défaites · série · stats par mode · MMR · bilan contre tes rivaux
-· son Alpha Boost — détectés à la seconde, directement depuis le jeu. Aucune
-inscription, aucun site externe, aucun risque de ban.
+— détectés à la seconde, directement depuis le jeu. Aucune inscription, aucun
+site externe, aucun risque de ban.
 
 ⭐ **L'app te sert ? Une étoile sur le dépôt aide d'autres joueurs à la
 trouver — et c'est le seul « merci » qu'elle demandera jamais.**
@@ -68,8 +68,8 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours, meilleure série, par mode (1v1 · 2v2 · 3v3). La liste des matchs récents repart à zéro à chaque lancement (ou d'un clic). |
 | 📈 **Évolution MMR** | Recopie une fois ton MMR affiché en jeu (saison 22+) : courbe d'évolution match après match, bilan des 7 derniers jours, records de tous les temps. |
 | 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
-| 🔉 **Son Alpha Boost** | Le boost légendaire de l'alpha, rejoué quand tu boostes — la sonorité suit ta vitesse en direct. 100 % externe via la Stats API : **aucun fichier du jeu n'est touché, rien d'injecté**. Marche aussi à la manette. |
 | ⚖️ **Comptage honnête** | Un forfait adverse compte comme une victoire, quitter un match classé comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
+| ✏️ **Corrige un résultat** | Un forfait adverse mal interprété ? Corrige n'importe quel match de l'historique du dashboard en un clic (victoire ↔ défaite) : stats et courbe MMR se recalculent aussitôt, rétroactivement. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -171,14 +171,6 @@ reclique **« Réactiver la Stats API du jeu »** et redémarre Rocket League.
 (Pareil pour la réparation Epic.)
 </details>
 
-<details>
-<summary><b>Le son Alpha Boost a du retard</b></summary>
-
-Clique **« Réactiver la Stats API du jeu »** dans les réglages puis redémarre
-Rocket League : ça passe le flux du jeu à 120 paquets/seconde, et le son
-devient instantané.
-</details>
-
 > ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). L'application est
 > Windows uniquement.
 
@@ -208,7 +200,10 @@ lui-même son MMR **en clair**, dans son journal
 (`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), à chaque mise
 en file classée. L'application le relit et recale automatiquement ta courbe
 dessus : entre deux files, elle continue d'estimer à ±9 par match, mais
-l'écart repart de zéro à chaque partie lancée au lieu de s'accumuler.
+l'écart repart de zéro à chaque partie lancée au lieu de s'accumuler. Mieux :
+elle compare aussi la variation réelle du MMR au bilan des matchs enregistrés
+sur la période — si un forfait mal classé explique l'écart, elle corrige le
+résultat automatiquement.
 
 C'est une simple lecture de fichier, en dehors du processus du jeu — aucune
 injection, aucune lecture mémoire, rien qui puisse déplaire à l'anti-triche.
@@ -217,17 +212,6 @@ le dernier match d'une session n'est pris en compte qu'à ta prochaine mise en
 file. Le format n'étant pas documenté par Psyonix, il peut changer à un patch :
 dans ce cas l'application ne casse pas, elle revient simplement à l'estimation
 seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
-
-**Et le son Alpha Boost, c'est risqué ?** Non — et c'est tout l'intérêt de
-cette approche. Les mods qui remplacent les fichiers audio du jeu vivent dans
-une zone grise depuis Easy Anti-Cheat ; ici le son est joué **par
-l'application, à côté du jeu**, à partir des champs `Speed` / `Boost` /
-`bBoosting` que la Stats API diffuse déjà. Aucun fichier modifié, aucune
-injection, aucun hook clavier/souris. L'idée et les samples viennent du
-projet communautaire
-[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
-(MIT) — merci à lui. Notre version y ajoute le support manette (détection
-100 % Stats API) et un fondu enchaîné entre les paliers de vitesse.
 
 ### 🧰 Pour les développeurs
 
@@ -285,9 +269,7 @@ rl-session-tracker/
 │       ├── control.html       # Fenêtre de contrôle / réglages
 │       ├── dashboard.html     # Le tracker plein écran
 │       ├── overlay.html       # Mini-overlay toujours au premier plan
-│       ├── alphaboost.html    # Moteur audio Alpha Boost (fenêtre invisible)
 │       ├── obs.html           # Overlay de stream (capturé dans OBS)
-│       ├── sounds/alpha/      # Samples Alpha Boost (projet trznx, MIT)
 │       └── fonts/             # Barlow Condensed (licence OFL-1.1)
 ├── build/icon.ico             # Icône de l'application
 ├── electron-builder.yml       # Empaquetage NSIS + publication GitHub
@@ -298,9 +280,8 @@ rl-session-tracker/
 
 ### 📄 Licence
 
-MIT — fais-en ce que tu veux. Les samples du son Alpha Boost proviennent du
-projet [trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
-(MIT) et la police Barlow Condensed est sous licence OFL-1.1.
+MIT — fais-en ce que tu veux. La police Barlow Condensed est sous licence
+OFL-1.1.
 
 <div align="center">
 
@@ -313,16 +294,16 @@ projet [trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-
 ## 🇬🇧 English
 
 > **April 2026.** Rocket League's anti-cheat arrives and takes BakkesMod down
-> with it. No more overlays, no more session trackers, no more Alpha Boost.
+> with it. No more overlays, no more session trackers.
 >
 > **Except.** The game now exposes a **native Stats API** — a local, official,
 > anti-cheat-friendly feed. RL Session Tracker uses it to rebuild everything,
 > better: a real session dashboard on your second screen that opens by itself
 > when you launch the game, and sends **nothing** to the internet.
 
-Wins · losses · streak · per-mode stats · MMR · record against your rivals ·
-Alpha Boost sound — detected the second they happen, straight from the game.
-No sign-up, no third-party website, no ban risk.
+Wins · losses · streak · per-mode stats · MMR · record against your rivals —
+detected the second they happen, straight from the game. No sign-up, no
+third-party website, no ban risk.
 
 ⭐ **Found it useful? A star on the repo helps other players discover it —
 and it's the only "thank you" this app will ever ask for.**
@@ -351,8 +332,8 @@ and it's the only "thank you" this app will ever ask for.**
 | 📊 **Your session** | Wins/losses, win rate, current streak, best streak, per mode (1v1 · 2v2 · 3v3). The recent-matches list starts fresh on every launch (or with one click). |
 | 📈 **MMR tracking** | Copy your in-game MMR once (Season 22+): match-by-match evolution chart, last-7-days summary, all-time records. |
 | 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
-| 🔉 **Alpha Boost sound** | The legendary alpha boost sound, replayed while you boost — the tone follows your live speed. 100% external through the Stats API: **no game file is touched, nothing is injected**. Works on controller too. |
 | ⚖️ **Honest counting** | An opponent forfeit counts as a win, leaving a ranked match as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
+| ✏️ **Fix a result** | Misjudged an opponent forfeit? Fix any match in the dashboard history in one click (win ↔ loss) — stats and the MMR chart recalculate instantly, retroactively. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -450,14 +431,6 @@ prompt to accept). If it happens mid-session, click **"Re-enable the game's
 Stats API"** again and restart Rocket League. (Same for Epic's repair.)
 </details>
 
-<details>
-<summary><b>The Alpha Boost sound lags behind</b></summary>
-
-Click **"Re-enable the game's Stats API"** in the settings, then restart
-Rocket League: it bumps the game's feed to 120 packets per second and the
-sound becomes instant.
-</details>
-
 > ⚠️ The Stats API only exists on **PC** (Epic / Steam). The app is
 > Windows-only.
 
@@ -487,7 +460,10 @@ its own MMR **in plain text**, in its log file
 (`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), every time you
 queue for a ranked match. The app reads it back and re-anchors your curve on
 it: between two queues it still estimates at ±9 per match, but the drift
-resets every time you queue instead of piling up.
+resets every time you queue instead of piling up. Better still: it also
+compares the real MMR change to the tally of recorded matches over that
+span — if a misclassified forfeit explains the gap, it fixes the result
+automatically.
 
 It's a plain file read, outside the game's process — no injection, no memory
 reading, nothing the anti-cheat could object to. Two accepted limits: nothing
@@ -496,16 +472,6 @@ accounted for at your next queue. Since Psyonix doesn't document the format, a
 patch could change it: the app won't break, it simply falls back to the
 estimate alone. You can also turn it all off and enter your MMR by hand, as
 before.
-
-**Is the Alpha Boost sound risky?** No — that's the whole point of this
-approach. Mods that replace the game's audio files live in a gray zone since
-Easy Anti-Cheat; here the sound is played **by the app, next to the game**,
-from the `Speed` / `Boost` / `bBoosting` fields the Stats API already
-broadcasts. No modified file, no injection, no keyboard/mouse hook. The idea
-and the samples come from the community project
-[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
-(MIT) — kudos to them. Our version adds controller support (100% Stats API
-detection) and crossfading between speed tiers.
 
 ### 🧰 For developers
 
@@ -562,9 +528,7 @@ rl-session-tracker/
 │       ├── control.html       # Control / settings window
 │       ├── dashboard.html     # The fullscreen tracker
 │       ├── overlay.html       # Always-on-top mini-overlay
-│       ├── alphaboost.html    # Alpha Boost audio engine (hidden window)
 │       ├── obs.html           # Stream overlay (captured in OBS)
-│       ├── sounds/alpha/      # Alpha Boost samples (trznx project, MIT)
 │       └── fonts/             # Barlow Condensed (OFL-1.1 license)
 ├── build/icon.ico             # App icon
 ├── electron-builder.yml       # NSIS packaging + GitHub publishing
@@ -575,9 +539,8 @@ rl-session-tracker/
 
 ### 📄 License
 
-MIT — do whatever you want with it. The Alpha Boost samples come from the
-[trznx/Rocket_League-Alpha_Boost](https://github.com/trznx/Rocket_League-Alpha_Boost)
-project (MIT), and the Barlow Condensed font is licensed under OFL-1.1.
+MIT — do whatever you want with it. The Barlow Condensed font is licensed
+under OFL-1.1.
 
 <div align="center">
 

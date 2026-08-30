@@ -188,9 +188,8 @@ const PS_LINES = [
   // vérification, elle, comparait au port configuré — un port personnalisé
   // provoquait donc une invite UAC à CHAQUE lancement, sans jamais converger.
   '$Port=__PORT__',
-  // 120 paquets/s : nécessaire pour la réactivité du son Alpha Boost (le
-  // tracker, lui, se contenterait de 10).
-  '$Rate=120',
+  // 30 paquets/s : large marge pour le score en direct et le pont SOS.
+  '$Rate=30',
   "$Result='__RESULT__'",
   "$GrantUser='__USER__'",
   // ── Élévation automatique : sans droits admin, on se relance élevé et on
@@ -257,8 +256,10 @@ function psQuote(s) {
   return "'" + String(s).replace(/'/g, "''") + "'";
 }
 
-// 120 paquets/s : nécessaire à la réactivité du son Alpha Boost.
-const PACKET_RATE = 120;
+// 30 paquets/s : large marge pour le score en direct et le pont SOS (l'état
+// diffusé aux fenêtres est de toute façon limité à 1/s). Un ini déjà écrit à
+// une autre cadence reste valide — la vérification n'exige qu'une valeur > 0.
+const PACKET_RATE = 30;
 const DEFAULT_PORT = 49123;
 
 function numOrPort(v) {

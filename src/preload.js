@@ -16,23 +16,15 @@ contextBridge.exposeInMainWorld('rl', {
   setAutostart: (on) => ipcRenderer.invoke('set-autostart', on),
   resetSession: () => ipcRenderer.invoke('reset-session'),
   exportMatches: () => ipcRenderer.invoke('export-matches'),
+  // Correction manuelle d'un résultat de l'historique : 'W', 'L', ou null
+  // pour revenir au calcul automatique.
+  setMatchResult: (id, result) => ipcRenderer.invoke('set-match-result', id, result),
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
   toggleFullscreen: () => ipcRenderer.send('dashboard-fullscreen-toggle'),
   setCurrentRanked: (on) => ipcRenderer.send('set-current-ranked', on),
   previewAnimation: (result) => ipcRenderer.send('preview-animation', result),
-
-  // Son Alpha Boost : essai (réglages) et flux vers le moteur audio caché.
-  alphaTest: () => ipcRenderer.send('alpha-test'),
-  onAlphaCfg: (cb) => ipcRenderer.on('alpha-cfg', (_e, c) => cb(c)),
-  onAlphaTelemetry: (cb) => ipcRenderer.on('alpha-telemetry', (_e, t) => cb(t)),
-  onAlphaTest: (cb) => ipcRenderer.on('alpha-test', () => cb()),
-  // Lecture d'un sample audio : fetch() refuse file:// et le preload est
-  // sandboxé (pas de fs) — c'est donc le processus principal qui lit le
-  // fichier (fs y est patché pour l'asar une fois l'application empaquetée).
-  readSound: (name) => ipcRenderer.invoke('alpha-read-sound', name)
-    .then((u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength)),
 
   // Mises à jour.
   updateCheck: () => ipcRenderer.send('update-check'),

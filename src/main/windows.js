@@ -14,7 +14,6 @@ const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
 let control = null;
 let dashboard = null;
 let overlay = null;
-let alphaAudio = null;
 
 // ───────── Durcissement commun à toutes les fenêtres ─────────
 // Défense en profondeur : la seule donnée contrôlée par un adversaire (les
@@ -242,47 +241,6 @@ function getOverlay() {
   return (overlay && !overlay.isDestroyed()) ? overlay : null;
 }
 
-// ───────── Moteur audio Alpha Boost (fenêtre invisible) ─────────
-// Le son est joué par un renderer caché : WebAudio y tourne sans fenêtre
-// visible, et continue même en arrière-plan (backgroundThrottling désactivé,
-// sinon Chromium ralentit les timers d'une fenêtre masquée).
-function openAlphaAudio(onReady) {
-  if (alphaAudio && !alphaAudio.isDestroyed()) {
-    if (onReady) onReady();
-    return alphaAudio;
-  }
-  alphaAudio = new BrowserWindow({
-    width: 80,
-    height: 60,
-    show: false,
-    frame: false,
-    skipTaskbar: true,
-    focusable: false,
-    title: 'RL Session Tracker — Audio',
-    webPreferences: {
-      preload: PRELOAD,
-      contextIsolation: true,
-      nodeIntegration: false,
-      backgroundThrottling: false,
-    },
-  });
-  hardenWindow(alphaAudio);
-  alphaAudio.loadFile(path.join(RENDERER, 'alphaboost.html'));
-  alphaAudio.webContents.on('did-finish-load', () => { if (onReady) onReady(); });
-  alphaAudio.on('closed', () => { alphaAudio = null; });
-  return alphaAudio;
-}
-
-function closeAlphaAudio() {
-  if (alphaAudio && !alphaAudio.isDestroyed()) alphaAudio.destroy();
-  alphaAudio = null;
-}
-
-function getAlphaAudio() {
-  return (alphaAudio && !alphaAudio.isDestroyed()) ? alphaAudio : null;
-}
-
-// Pousse l'état vers toutes les fenêtres ouvertes.
 function broadcast(channel, payload) {
   for (const w of [getControl(), getDashboard(), getOverlay()]) {
     if (w && w.webContents) {
@@ -296,6 +254,5 @@ module.exports = {
   openDashboard, closeDashboard, getDashboard,
   setDashboardFullscreen,
   openOverlay, closeOverlay, getOverlay, applyOverlayCfg,
-  openAlphaAudio, closeAlphaAudio, getAlphaAudio,
   broadcast,
 };
