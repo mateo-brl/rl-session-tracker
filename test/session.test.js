@@ -558,3 +558,48 @@ test('réconciliation symétrique : un W de podium à tort redevient L', () => {
   assert.ok(fixed);
   assert.equal(fixed.flipped, 'L');
 });
+
+// ───────── Rang dérivé du MMR, par playlist ─────────
+// Constaté en jeu : le palier écrit dans le journal (PartyLeaderTier) n'est
+// pas celui de la playlist mise en file — un Platine 1v1 s'affichait
+// « Champion », son meilleur rang ailleurs. Le rang vient donc du MMR, dont
+// l'exactitude est validée, avec les seuils PROPRES à chaque playlist.
+
+test('640 de MMR : Platine en 1v1, encore Or en 2v2 — les échelles diffèrent', () => {
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('1v1', 640)), /^Platine/);
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('2v2', 640)), /^Or/);
+  // Le cas rapporté : 700 en 1v1 = Platine.
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('1v1', 700)), /^Platine/);
+});
+
+test('le cas vécu : 700 en 1v1 ne doit JAMAIS afficher Champion', () => {
+  const name = SessionStore.tierName(SessionStore.tierFromMmr('1v1', 700));
+  assert.ok(!/Champion/.test(name), name);
+});
+
+test('paliers plausibles sur toute l’échelle 2v2', () => {
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('2v2', 100)), /^Bronze/);
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('2v2', 1264)), /^Champion/);
+  assert.match(SessionStore.tierName(SessionStore.tierFromMmr('2v2', 1500)), /^Grand Champion/);
+  assert.equal(SessionStore.tierName(SessionStore.tierFromMmr('2v2', 1950)), 'Supersonic Legend');
+});
+
+test('pas de table pour un mode : pas de rang, jamais un rang faux', () => {
+  assert.equal(SessionStore.tierFromMmr('4v4', 900), null);
+  assert.equal(SessionStore.tierFromMmr('2v2', null), null);
+  assert.equal(SessionStore.tierFromMmr('2v2', 0), null);
+});
+
+test('le rang affiché vient du MMR courant, pas du palier du journal', () => {
+  const s = tmpStore();
+  // Le journal prétend « Champion I » (tier 16) sur un relevé 1v1 à 700 :
+  // c'est le symptôme constaté — le rang doit sortir Platine quand même.
+  s.mmrReadings = { '1v1': [{ t: Date.now() - 5000, v: 700, tier: 16 }] };
+  s.addMatch(snap({ mode: '1v1', players: [
+    { name: 'Mateo', team: 0, goals: 1, saves: 0, assists: 0, shots: 2, score: 300 },
+    { name: 'Solo', team: 1, goals: 0, saves: 1, assists: 0, shots: 1, score: 150 },
+  ] }));
+  const cfg = { mmr: { '1v1': { base: 700, setAt: 0, fromLog: true } }, mmrCounts: true };
+  const m = s.snapshot('Mateo', cfg).session.mmr['1v1'];
+  assert.match(m.rank, /^Platine/);
+});

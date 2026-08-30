@@ -51,6 +51,37 @@ function tierName(tier) {
   return Number.isInteger(n) && n >= 0 && n < TIERS.length ? TIERS[n] : null;
 }
 
+// Seuils de MMR (début de division 1 de chaque palier), PAR playlist : les
+// échelles diffèrent — 640 en 1v1 est Platine quand 640 en 2v2 est encore Or.
+//
+// POURQUOI dériver le rang du MMR plutôt que lire `PartyLeaderTier` dans le
+// journal : constaté en jeu (30 août 2026), ce champ n'est pas le palier de la
+// playlist mise en file — un joueur Platine en 1v1 se voyait « Champion », son
+// meilleur rang ailleurs. Le MMR relevé, lui, est validé exact. Les seuils
+// bougent de quelques points à chaque saison : le rang affiché est donc juste
+// au palier près, ce qui est l'objectif (pas la division).
+const RANK_THRESHOLDS = {
+  '1v1': [0, 150, 213, 275, 335, 395, 445, 514, 575, 635, 695, 755,
+    815, 875, 935, 995, 1076, 1188, 1300, 1436, 1573, 1710],
+  '2v2': [0, 174, 235, 295, 355, 415, 475, 535, 595, 655, 715, 775,
+    835, 915, 995, 1075, 1195, 1315, 1435, 1575, 1715, 1876],
+  '3v3': [0, 174, 235, 295, 355, 415, 475, 535, 595, 655, 715, 775,
+    835, 915, 995, 1075, 1195, 1315, 1435, 1575, 1715, 1876],
+};
+
+// Palier (1-22) déduit du MMR pour une playlist. `null` hors classé (4v4) ou
+// sans relevé — on préfère ne rien afficher qu'afficher faux.
+function tierFromMmr(mode, mmr) {
+  const table = RANK_THRESHOLDS[mode];
+  const v = Number(mmr);
+  if (!table || !Number.isFinite(v) || v <= 0) return null;
+  let tier = 1;
+  for (let i = 0; i < table.length; i++) {
+    if (v >= table[i]) tier = i + 1;
+  }
+  return tier;
+}
+
 function norm(s) {
   return String(s || '').trim().toLowerCase();
 }
@@ -626,15 +657,20 @@ class SessionStore {
       const since = agg.startedAt ? agg.startedAt - 1 : null;
       const real = since === null
         ? null : this._mmrDeltaSince(mode, entry, pseudo, step, since);
-      const last = this.lastReading(mode);
+      // Rang dérivé du MMR courant, jamais du palier du journal (peu fiable
+      // par playlist — voir RANK_THRESHOLDS). Sans relevé du journal pour ce
+      // mode, le MMR n'est qu'une base saisie à la main : on n'affiche un rang
+      // que si un vrai relevé existe.
+      const hasReading = !!this.lastReading(mode);
+      const tier = hasReading ? tierFromMmr(mode, value) : null;
       agg.mmr[mode] = {
         value: value === null ? null : Math.round(value),
         delta: real !== null ? real : (pm ? Math.round(step * pm.rankedDiff) : 0),
         deltaReal: real !== null,
         step: step,
         fromLog: !!entry.fromLog,
-        tier: last ? last.tier : null,
-        rank: last ? tierName(last.tier) : null,
+        tier: tier,
+        rank: tierName(tier),
       };
       evolution[mode] = this._evolutionForMode(mode, entry, pseudo, step);
     }
@@ -660,4 +696,5 @@ module.exports.MMR_STEP_MIN = MMR_STEP_MIN;
 module.exports.MMR_STEP_MAX = MMR_STEP_MAX;
 module.exports.MMR_STEP = MMR_STEP;
 module.exports.tierName = tierName;
+module.exports.tierFromMmr = tierFromMmr;
 module.exports.TIERS = TIERS;
