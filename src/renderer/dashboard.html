@@ -1248,15 +1248,42 @@
     clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
     goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
   };
+  // Écran en PORTRAIT : les deux colonnes 55/44 pensées pour un moniteur
+  // paysage y donnaient des cartes squelettiques, aux trois quarts vides.
+  // Colonne unique, hauteurs proportionnées au contenu. Ne sert que de
+  // défaut : dès que l'utilisateur personnalise, sa disposition prime.
+  var LAYOUT_PORTRAIT = {
+    hero: { x: 0, y: 0, w: 100, h: 13 },
+    live: { x: 0, y: 14, w: 100, h: 27 },
+    modes: { x: 0, y: 42, w: 100, h: 14 },
+    evo: { x: 0, y: 57, w: 100, h: 16 },
+    history: { x: 0, y: 74, w: 100, h: 18 },
+    totals: { x: 0, y: 93, w: 100, h: 7 },
+    clockw: { x: 0, y: 93, w: 40, h: 7, hidden: true },
+    goalw: { x: 60, y: 93, w: 40, h: 7, hidden: true },
+  };
+  function baseLayout() {
+    return window.innerHeight > window.innerWidth ? LAYOUT_PORTRAIT : LAYOUT_DEFAULT;
+  }
   function mergeLayout(cfgLayout) {
+    var base = baseLayout();
     var out = {};
-    Object.keys(LAYOUT_DEFAULT).forEach(function (id) {
-      out[id] = Object.assign({ hidden: false }, LAYOUT_DEFAULT[id],
+    Object.keys(base).forEach(function (id) {
+      out[id] = Object.assign({ hidden: false }, base[id],
         (cfgLayout || {})[id] || {});
     });
     return out;
   }
   var layout = mergeLayout(null);
+  // Mémorise la dernière disposition reçue de la config : si l'écran change
+  // d'orientation (fenêtre déplacée sur un autre moniteur), le défaut adapté
+  // est rechoisi — uniquement hors personnalisation, qui garde la main.
+  var lastCfgLayout = null;
+  window.addEventListener('resize', function () {
+    if (editing) return;
+    layout = mergeLayout(lastCfgLayout);
+    applyLayout();
+  });
   var editing = false;
   var adoptNextLayout = false;   // un changement de profil force l'adoption
   function widgetEl(id) { return document.querySelector('.card.' + id); }
@@ -1400,7 +1427,8 @@
     // (un changement de profil force quand même l'adoption).
     if (!editing || adoptNextLayout) {
       adoptNextLayout = false;
-      layout = mergeLayout(cfgLayout(cfg));
+      lastCfgLayout = cfgLayout(cfg);
+      layout = mergeLayout(lastCfgLayout);
       applyLayout();
     }
 
