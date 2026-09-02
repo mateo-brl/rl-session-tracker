@@ -83,11 +83,30 @@ test('patch : rechiffré avec la clé de DESTINATION si elle diffère', () => {
   assert.equal(upk.inspect(r.buffer, [dstKey]).ok, true);                 // mais la destination
 });
 
-test('patch : refus si le nouveau nom est plus long, ou en collision', () => {
+test('patch : un nom plus long passe si la table a du mou ailleurs', () => {
+  // La contrainte porte sur la TAILLE TOTALE de la table, pas sur chaque nom.
+  // Ici « Boost_AlphaReward_SF » raccourcit de 5 octets, ce qui finance
+  // l'allongement de « FX_Trail ».
+  const { buf } = build({ names: ALPHA });
+  const r = upk.patchPackage(buf, {
+    pairs: [['Boost_AlphaReward_SF', 'Boost_X_SF'], ['FX_Trail', 'FX_Trail_PlusLong']],
+    keys: upk.loadKeys(),
+  });
+  const back = upk.inspect(r.buffer, upk.loadKeys());
+  assert.equal(back.ok, true);
+  assert.ok(back.names.includes('FX_Trail_PlusLong'));
+  assert.ok(back.names.includes('Boost_X_SF'));
+  assert.equal(back.nameOffset, upk.parseHeader(buf).nameOffset);
+  assert.equal(back.importOffset, upk.parseHeader(buf).importOffset);   // rien n'a bougé
+  assert.ok(r.buffer.length === buf.length);
+});
+
+test('patch : refus quand la table n’a pas assez de mou, ou en collision', () => {
   const { buf } = build({ names: ALPHA });
   assert.throws(() => upk.patchPackage(buf, {
-    pairs: [['Boost_AlphaReward', 'Boost_UnNomBeaucoupTropLongPourTenir']], keys: upk.loadKeys(),
-  }), /ne tient pas/);
+    pairs: [['Boost_AlphaReward', 'Boost_UnNomBeaucoupTropLongPourTenirDansCettePetiteTableDeNoms']],
+    keys: upk.loadKeys(),
+  }), /il manque/);
   assert.throws(() => upk.patchPackage(buf, {
     pairs: [['Boost_AlphaReward', 'FX_Trail']], keys: upk.loadKeys(),
   }), /collision/);
