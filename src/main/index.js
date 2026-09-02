@@ -23,7 +23,8 @@ const { MMR_STEP_MIN, MMR_STEP_MAX } = SessionStore;
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
-const { enableStatsApi, checkStatsApi } = require('./enable-statsapi');
+const Cosmetics = require('./cosmetics');
+const { enableStatsApi, checkStatsApi, detectInstalls } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
@@ -44,6 +45,7 @@ process.on('unhandledRejection', (e) => log('unhandledRejection : ' + (e && (e.m
 // ───────── État partagé, poussé aux fenêtres ─────────
 let store = null;
 let tray = null;
+let cosmetics = null;   // swaps cosmétiques (seul module qui touche aux fichiers du jeu)
 
 const state = {
   version: app.getVersion(),
@@ -69,6 +71,7 @@ const state = {
   obs: { running: false, port: 0, error: null },   // serveur overlay OBS
   sos: { running: false, port: 0, clients: 0 },    // pont compatible SOS
   hotkey: { accel: 'Ctrl+Alt+R', ok: false },      // raccourci global de la fenêtre
+  cosmetics: { count: 0, applied: 0, reverted: 0, gameRunning: false },
   update: updater.getState(),
 };
 
@@ -173,6 +176,7 @@ function pushState() {
   state.config = config.get();
   state.lang = resolveLang();
   state.sos = sos.status();   // le serveur démarre en asynchrone : on relit
+  refreshCosmetics();
 
   refreshH2h();
   discord.refresh(state);
@@ -761,6 +765,53 @@ function toCsv(rows, pseudo) {
   return '\uFEFF' + lines.join('\r\n') + '\r\n';
 }
 
+// ───────── Cosmétiques (swaps de paquets du jeu) ─────────
+function refreshCosmetics() {
+  if (cosmetics) state.cosmetics = cosmetics.summary();
+}
+function cosmeticsResult(r) {
+  refreshCosmetics();
+  pushState();
+  return r;
+}
+ipcMain.handle('cosmetics-list', () => (cosmetics ? cosmetics.list()
+  : { installs: [], swaps: [], gameRunning: false }));
+ipcMain.handle('cosmetics-targets', (_e, install, query) =>
+  (cosmetics ? cosmetics.targets(String(install || ''), String(query || '')) : []));
+ipcMain.handle('cosmetics-add', async (_e, opts) => {
+  if (!cosmetics) return { ok: false, error: 'Module indisponible.' };
+  const o = opts || {};
+  if (cosmetics.isGameRunning()) {
+    return { ok: false, error: 'Rocket League est ouvert : ferme le jeu d’abord.' };
+  }
+  const ext = String(o.target || '').split('.').pop().toLowerCase();
+  const r = await dialog.showOpenDialog({
+    title: state.lang === 'en' ? 'Replacement file' : 'Fichier de remplacement',
+    properties: ['openFile'],
+    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+  });
+  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
+  return cosmeticsResult(cosmetics.add({
+    install: o.install, target: o.target, label: o.label, sourcePath: r.filePaths[0],
+  }));
+});
+ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+ipcMain.handle('cosmetics-add-preset', (_e, id, opts) =>
+  cosmeticsResult(cosmetics ? cosmetics.addPreset(String(id || ''), opts || {})
+    : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-apply', (_e, id) =>
+  cosmeticsResult(cosmetics ? cosmetics.apply(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-restore', (_e, id) =>
+  cosmeticsResult(cosmetics ? cosmetics.restore(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-remove', (_e, id) =>
+  cosmeticsResult(cosmetics ? cosmetics.remove(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-toggle', (_e, id, enabled) =>
+  cosmeticsResult(cosmetics ? cosmetics.toggle(String(id || ''), !!enabled) : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-apply-all', () =>
+  cosmeticsResult(cosmetics ? cosmetics.applyAll() : { ok: false, error: 'Module indisponible.' }));
+ipcMain.handle('cosmetics-restore-all', () =>
+  cosmeticsResult(cosmetics ? cosmetics.restoreAll() : { ok: false, error: 'Module indisponible.' }));
+
 ipcMain.handle('export-matches', async () => {
   try {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -822,6 +873,12 @@ if (!gotLock) {
     const firstRun = !configExists();
     config.init(app.getPath('userData'));
     store = new SessionStore(app.getPath('userData'));
+    cosmetics = new Cosmetics(app.getPath('userData'), {
+      detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
+      isGameRunning: () => !!state.game.processRunning,
+      log: log,
+    });
+    refreshCosmetics();
     // Chaque lancement démarre une nouvelle liste de « matchs récents ».
     // Le journal complet est conservé : courbe MMR, 7 jours et records
     // continuent de tout voir.
@@ -865,6 +922,9 @@ if (!gotLock) {
         // prochaine session saine, et l'invite UAC ne tombe pas en pleine
         // partie. Sans ça, une mise à jour Steam coûtait une session entière.
         repairStatsApiIfNeeded('fermeture du jeu');
+        // Même logique pour les swaps cosmétiques : si une mise à jour a remis
+        // les originaux, on les réapplique maintenant, jeu fermé.
+        if (cosmetics) { cosmetics.reapplyReverted(); refreshCosmetics(); }
       }
       recomputeRunning();
     });
@@ -880,6 +940,13 @@ if (!gotLock) {
       await repairStatsApiIfNeeded('lancement');
     }
 
+    // Au lancement, jeu fermé : remettre en place les swaps que Steam aurait
+    // défaits pendant que l'application ne tournait pas.
+    if (cosmetics && !state.game.processRunning) {
+      setTimeout(() => {
+        if (!state.game.processRunning) { cosmetics.reapplyReverted(); refreshCosmetics(); pushState(); }
+      }, 15000);
+    }
     log('application lancée v' + state.version + (SILENT ? ' (silencieux)' : ''));
   });
 }
