@@ -149,3 +149,26 @@ test('persistance : relecture depuis le fichier', () => {
   config.init(dir);
   assert.equal(config.get().pseudo, 'Mateo');
 });
+
+// ───────── Fenêtre de configuration : géométrie mémorisée, barre des tâches ─────────
+
+test('trayOnly : booléen strict, défaut vrai', () => {
+  const c = freshConfig();
+  assert.equal(c.get().trayOnly, true);
+  c.update({ trayOnly: false });
+  assert.equal(c.get().trayOnly, false);
+  c.update({ trayOnly: 'non' });          // ignoré
+  assert.equal(c.get().trayOnly, false);
+});
+
+test('controlBounds : validé, arrondi, jamais absurde', () => {
+  const c = freshConfig();
+  assert.equal(c.get().controlBounds, null);
+  c.update({ controlBounds: { x: 10.6, y: 20.2, width: 1080.4, height: 720, maximized: 1 } });
+  assert.deepEqual(c.get().controlBounds,
+    { x: 11, y: 20, width: 1080, height: 720, maximized: true });
+  c.update({ controlBounds: { x: 0, y: 0, width: 50, height: 50 } });   // trop petit
+  assert.equal(c.get().controlBounds.width, 1080);
+  c.update({ controlBounds: { x: 'a', y: 0, width: 900, height: 700 } }); // NaN
+  assert.equal(c.get().controlBounds.width, 1080);
+});

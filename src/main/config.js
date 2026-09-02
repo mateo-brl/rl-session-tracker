@@ -27,6 +27,11 @@ const DEFAULTS = {
   // Pas MMR réellement observé par mode, appris en comparant deux relevés du
   // journal. Remplace la moyenne figée à 9 quand il est disponible.
   mmrStep: {},            // '2v2' → 8.4
+  // Fenêtre de configuration : cachée dans la zone de notification à la
+  // fermeture (défaut), ou réduite dans la barre des tâches où elle reste
+  // visible — pour ceux chez qui Windows replie l'icône derrière la flèche.
+  trayOnly: true,
+  controlBounds: null,   // { x, y, width, height, maximized } mémorisés
   sounds: true,          // jingles victoire / défaite
   overlayEnabled: false, // mini-overlay toujours au premier plan pendant le jeu
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
@@ -143,6 +148,20 @@ function update(partial) {
     }
     if (typeof partial.rankedOnly === 'boolean') {
       config.rankedOnly = partial.rankedOnly;
+    }
+    if (typeof partial.trayOnly === 'boolean') {
+      config.trayOnly = partial.trayOnly;
+    }
+    if (partial.controlBounds && typeof partial.controlBounds === 'object') {
+      const b = partial.controlBounds;
+      if ([b.x, b.y, b.width, b.height].every(Number.isFinite)
+          && b.width >= 400 && b.height >= 300) {
+        config.controlBounds = {
+          x: Math.round(b.x), y: Math.round(b.y),
+          width: Math.round(b.width), height: Math.round(b.height),
+          maximized: !!b.maximized,
+        };
+      }
     }
     if (partial.mmrStep && typeof partial.mmrStep === 'object') {
       const out = {};
