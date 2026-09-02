@@ -227,7 +227,13 @@ publique), renomme ses entrées à longueur constante, rechiffre — sans touche
 au corps du fichier. C'est ce que contiennent les fichiers « préparés » que
 les communautés partagent, et tu peux aussi en fournir un directement. Si un
 paquet n'est pas déchiffrable (clé inconnue), rien n'est écrit et un rapport
-de diagnostic est produit. L'appli sauvegarde l'original une
+de diagnostic est produit.
+
+Le son suit un chemin différent du visuel : chaque boost a sa banque Wwise
+(`SFX_Boost_*.bnk`) et sa fiche audio nommée d'après l'objet. L'appli renomme
+donc aussi cette fiche, en gardant l'événement Alpha. Comme le renommage se
+fait à longueur constante, un boost dont le nom interne est plus long que
+celui d'Alpha est refusé, et l'appli propose ceux qui conviennent. L'appli sauvegarde l'original une
 fois pour toutes, n'écrit jamais tant que le jeu tourne, et tout se restaure
 d'un clic — en cas de doute, « Vérifier l'intégrité des fichiers » dans Steam
 remet le jeu d'origine. Sans ban documenté depuis Easy Anti-Cheat, mais à la
@@ -502,7 +508,13 @@ the Alpha package header (AES, public key), renames its entries at constant
 length, re-encrypts — without touching the file body. That's what the
 "prepared" files communities share contain, and you can also provide one
 directly. If a package can't be decrypted (unknown key), nothing is written
-and a diagnostic report is produced. The app backs up the original once and
+and a diagnostic report is produced.
+
+Sound follows a different path from visuals: each boost has its own Wwise
+bank (`SFX_Boost_*.bnk`) and an audio cue named after the item. The app also
+renames that cue while keeping the Alpha event. Since renaming is
+length-constrained, a boost whose internal name is longer than Alpha's is
+refused, and the app suggests ones that fit. The app backs up the original once and
 for all, never writes while the game runs, and everything restores in one
 click — when in doubt, "Verify integrity of game files" in Steam brings the
 stock game back. No documented ban since Easy Anti-Cheat, but against the
