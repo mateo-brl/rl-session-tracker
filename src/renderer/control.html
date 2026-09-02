@@ -888,7 +888,7 @@
                pas ; le code reste prêt pour un futur préréglage. -->
           <div class="card" id="cosPresetCard" style="display:none">
             <h2 data-i18n="hCosAlpha">Préréglage : Alpha Boost</h2>
-            <p class="txt" style="margin-bottom:12px" data-i18n="pCosAlpha">Le paquet Alpha Boost (<b>Boost_AlphaReward_SF.upk</b>) est déjà dans les fichiers du jeu. Ce préréglage le copie par-dessus le boost que tu choisis : en jeu, ce boost prend l’apparence de l’Alpha Boost. Visuel uniquement — le son d’un boost est une autre mécanique, il ne change pas.</p>
+            <p class="txt" style="margin-bottom:12px" data-i18n="pCosAlpha">Le paquet Alpha Boost (<b>Boost_AlphaReward_SF.upk</b>) est déjà dans les fichiers du jeu. Ce préréglage le copie par-dessus le boost que tu choisis : en jeu, ce boost prend l’apparence de l’Alpha Boost. Le son suit aussi : la fiche audio du paquet est renommée, l’événement Alpha restant, donc le boost sonne comme l’Alpha.</p>
             <div id="cosAlphaForm">
               <div id="cosAlphaInstallRow" style="display:none">
                 <label class="field" for="cosAlphaInstall" data-i18n="lCosInstall">Installation</label>
@@ -900,6 +900,8 @@
               <div class="hint" data-i18n="hintCosAlphaTarget">Choisis un boost que tu possèdes, non peint de préférence — Bubbles est le choix conseillé.</div>
               <div class="gap"></div>
               <button class="primary" id="cosAlphaBtn" data-i18n="bCosAlpha">Activer l’Alpha Boost</button>
+              <button class="ghost" id="cosAlphaCheck" data-i18n="bCosCheck">Vérifier tous les boosts</button>
+              <div class="hint" id="cosAlphaCheckOut" style="display:none"></div>
               <div class="hint warn" id="cosAlphaNa" style="display:none"></div>
               <div class="hint warn" id="cosAlphaErr" style="display:none"></div>
             </div>
@@ -1136,6 +1138,11 @@
       lCosAlphaTarget: 'Boost \u00e0 remplacer',
       hintCosAlphaTarget: 'Choisis un boost que tu poss\u00e8des, non peint de pr\u00e9f\u00e9rence \u2014 Bubbles est le choix conseill\u00e9.',
       cosRecommended: 'conseill\u00e9',
+      bCosCheck: 'Vérifier tous les boosts',
+      cosCheckCompat: 'boosts compatibles sur',
+      cosCheckNone: 'Aucun boost compatible trouvé.',
+      cosCheckKo: 'Incompatibles :',
+      cosCheckWait: 'Vérification en cours…',
       bCosAlpha: 'Activer l\u2019Alpha Boost', cosAlphaBusy: 'Activation\u2026',
       cosAlphaNa: 'Paquet Alpha Boost introuvable dans cette installation (Boost_AlphaReward_SF.upk) : le pr\u00e9r\u00e9glage n\u2019est pas disponible ici.',
       cosAlphaActive: 'Pr\u00e9r\u00e9glage actif. Il appara\u00eet aussi dans la liste des swaps ci-dessous.',
@@ -1314,6 +1321,11 @@
       lCosAlphaTarget: 'Boost to replace',
       hintCosAlphaTarget: 'Pick a boost you own, preferably unpainted \u2014 Bubbles is the recommended choice.',
       cosRecommended: 'recommended',
+      bCosCheck: 'Check every boost',
+      cosCheckCompat: 'compatible boosts out of',
+      cosCheckNone: 'No compatible boost found.',
+      cosCheckKo: 'Not compatible:',
+      cosCheckWait: 'Checking…',
       bCosAlpha: 'Enable Alpha Boost', cosAlphaBusy: 'Enabling\u2026',
       cosAlphaNa: 'Alpha Boost package not found in this install (Boost_AlphaReward_SF.upk): the preset is not available here.',
       cosAlphaActive: 'Preset active. It also appears in the swap list below.',
@@ -2430,6 +2442,24 @@
   });
   // L'essai joue avec les réglages affichés, même pas encore sauvegardés :
   // on sauvegarde d'abord, l'essai part une fois la config relayée.
+  $('cosAlphaCheck').onclick = function () {
+    var out = $('cosAlphaCheckOut');
+    out.style.display = 'block';
+    out.textContent = T.cosCheckWait;
+    var entry = cosAlphaEntry();
+    if (!entry || !entry.install) { out.textContent = ''; out.style.display = 'none'; return; }
+    api.cosmeticsCheckTargets(entry.id || 'alpha', entry.install).then(function (r) {
+      if (!r || !r.ok) { out.textContent = (r && r.error) || '?'; return; }
+      var total = r.compatible.length + r.incompatible.length;
+      if (!r.compatible.length) { out.textContent = T.cosCheckNone; return; }
+      var txt = r.compatible.length + ' ' + T.cosCheckCompat + ' ' + total + '.';
+      if (r.incompatible.length) {
+        txt += ' ' + T.cosCheckKo + ' ' + r.incompatible.map(function (k) { return k.name; }).join(', ');
+      }
+      out.textContent = txt;
+    }).catch(function (e) { out.textContent = String(e && e.message || e); });
+  };
+
   $('abTest').onclick = function () {
     Promise.resolve(saveAlpha()).then(function () {
       if (api.alphaTest) api.alphaTest();

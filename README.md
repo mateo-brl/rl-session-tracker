@@ -234,7 +234,9 @@ Le son suit un chemin différent du visuel : chaque boost a sa banque Wwise
 donc aussi cette fiche, en gardant l'événement Alpha. La contrainte porte sur la taille
 TOTALE de la table des noms, pas sur chaque nom : raccourcir le nom du paquet
 finance l'allongement de la fiche. Si la place manque quand même, la cible est
-refusée avant toute écriture et l'appli propose des boosts qui conviennent. L'appli sauvegarde l'original une
+refusée avant toute écriture et l'appli propose des boosts qui conviennent.
+Le bouton « Vérifier tous les boosts » passe en revue l'installation entière et
+dit lesquels acceptent le swap, sans rien écrire. L'appli sauvegarde l'original une
 fois pour toutes, n'écrit jamais tant que le jeu tourne, et tout se restaure
 d'un clic — en cas de doute, « Vérifier l'intégrité des fichiers » dans Steam
 remet le jeu d'origine. Sans ban documenté depuis Easy Anti-Cheat, mais à la
@@ -516,7 +518,8 @@ bank (`SFX_Boost_*.bnk`) and an audio cue named after the item. The app also
 renames that cue while keeping the Alpha event. The constraint is on the TOTAL size of the name
 table, not on each name: shortening the package name pays for a longer cue. If
 room is still missing, the target is refused before anything is written and the
-app suggests boosts that fit. The app backs up the original once and
+app suggests boosts that fit. The "Check every boost" button sweeps the whole
+install and reports which ones accept the swap, writing nothing. The app backs up the original once and
 for all, never writes while the game runs, and everything restores in one
 click — when in doubt, "Verify integrity of game files" in Steam brings the
 stock game back. No documented ban since Easy Anti-Cheat, but against the

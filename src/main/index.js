@@ -904,6 +904,9 @@ ipcMain.handle('cosmetics-add', async (_e, opts) => {
   }));
 });
 ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+ipcMain.handle('cosmetics-check-targets', (_e, id, install) =>
+  (cosmetics ? cosmetics.checkTargets(id, install) : { ok: false, error: 'indisponible' }));
+
 ipcMain.handle('cosmetics-add-preset', (_e, id, opts) =>
   cosmeticsResult(cosmetics ? cosmetics.addPreset(String(id || ''), opts || {})
     : { ok: false, error: 'Module indisponible.' }));
