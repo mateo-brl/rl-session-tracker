@@ -70,7 +70,8 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
 | ⚖️ **Comptage honnête** | Un forfait adverse compte comme une victoire, quitter un match classé comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
 | ✏️ **Corrige un résultat** | Un forfait adverse mal interprété ? Corrige n'importe quel match de l'historique du dashboard en un clic (victoire ↔ défaite) : stats et courbe MMR se recalculent aussitôt, rétroactivement. |
-| 🎨 **Alpha Boost visuel (optionnel)** | Le paquet du Gold Rush est déjà dans ton installation : l'appli le copie par-dessus le boost que tu équipes (Bubbles conseillé), sauvegarde l'original, restaure d'un clic et **réapplique toute seule** après une mise à jour ou une vérification Steam. Section « Cosmétiques » — la seule de l'appli qui touche aux fichiers du jeu, jamais pendant qu'il tourne. |
+| 🎨 **Swaps cosmétiques (optionnel)** | Un fichier `.upk` préparé par la communauté (par ex. un preset Alpha Boost partagé sur le Discord de Shift) remplace un paquet du jeu, côté client. L'appli sauvegarde l'original une seule fois, restaure d'un clic et **réapplique toute seule** après une mise à jour ou une vérification Steam. Section « Cosmétiques » — la seule de l'appli qui touche aux fichiers du jeu, jamais pendant qu'il tourne. |
+| 🔉 **Son Alpha Boost (optionnel)** | Le son du boost Alpha, reproduit par un moteur audio **externe au jeu** piloté par la télémétrie de la Stats API (vitesse, jauge, boost enfoncé) : aucun fichier du jeu touché, rien à craindre de l'anti-triche. Profil dynamique (paliers de vitesse) ou classique, volume réglable, essai en un clic. Complète l'Alpha Boost visuel ci-dessus. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -218,16 +219,19 @@ seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
 
 **Et les cosmétiques, c'est sûr ?** C'est la seule section de l'appli qui
 modifie des fichiers de Rocket League, et elle ne fait rien tant que tu n'y
-touches pas. Elle ne télécharge rien : le paquet Alpha Boost est déjà chez toi
-(`Boost_AlphaReward_SF.upk`), comme chez tout le monde — c'est la possession qui
-est côté serveur. L'appli le copie par-dessus le paquet d'un boost que tu
-possèdes, après avoir sauvegardé l'original une fois pour toutes ; rien n'est
-écrit tant que le jeu tourne, et tout se restaure d'un clic. C'est la méthode
-de Shift, RLPeak ou Bakkboard, sans ban documenté depuis l'arrivée d'Easy
-Anti-Cheat — mais elle contrevient à la lettre aux conditions du jeu
-(« exposition de contenu non déverrouillé ») : c'est ton choix, et l'appli te
-le rappelle. Le son de l'Alpha Boost est une autre mécanique (un overlay audio,
-pas un fichier) et n'est pas inclus.
+touches pas. Elle ne télécharge rien : c'est toi qui fournis le fichier
+préparé (`.upk`, ou `.bnk` pour un son), récupéré sur un Discord comme celui
+de Shift. Pourquoi « préparé » ? Parce que copier tel quel un paquet du jeu
+par-dessus un autre ne fonctionne pas — testé : le boost devient transparent.
+Les fichiers qui marchent ont leur en-tête réécrit pour le nouveau nom, et
+c'est ce que ces communautés partagent. L'appli sauvegarde l'original une
+fois pour toutes, n'écrit jamais tant que le jeu tourne, et tout se restaure
+d'un clic — en cas de doute, « Vérifier l'intégrité des fichiers » dans Steam
+remet le jeu d'origine. Sans ban documenté depuis Easy Anti-Cheat, mais à la
+lettre contraire aux conditions du jeu : c'est ton choix, et l'appli te le
+rappelle. Le son de l'Alpha Boost est une autre mécanique (un overlay audio,
+pas un fichier) : c'est l'option « Son Alpha Boost », dans Dashboard &
+overlay — elle ne touche à rien dans le jeu.
 
 ### 🧰 Pour les développeurs
 
@@ -278,6 +282,7 @@ rl-session-tracker/
 │   │   ├── discord-rpc.js     # Statut Discord (pipe IPC local, sans dépendance)
 │   │   ├── obs-server.js      # Mode streamer : overlay OBS servi en local (SSE)
 │   │   ├── sos-bridge.js      # Pont WebSocket compatible plugin SOS (49122)
+│   │   ├── cosmetics.js       # Swaps cosmétiques (Alpha Boost visuel), jeu fermé
 │   │   ├── rl-log.js          # Vrai MMR + playlist lus dans Launch.log
 │   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
@@ -350,7 +355,8 @@ and it's the only "thank you" this app will ever ask for.**
 | 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
 | ⚖️ **Honest counting** | An opponent forfeit counts as a win, leaving a ranked match as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
 | ✏️ **Fix a result** | Misjudged an opponent forfeit? Fix any match in the dashboard history in one click (win ↔ loss) — stats and the MMR chart recalculate instantly, retroactively. |
-| 🎨 **Visual Alpha Boost (optional)** | The Gold Rush package is already in your install: the app copies it over the boost you equip (Bubbles recommended), backs up the original, restores in one click and **re-applies by itself** after a game update or a Steam integrity check. "Cosmetics" section — the only part of the app that touches game files, never while the game is running. |
+| 🎨 **Cosmetic swaps (optional)** | A community-prepared `.upk` (e.g. an Alpha Boost preset shared on Shift's Discord) replaces a game package, client-side. The app backs up the original once, restores in one click and **re-applies by itself** after a game update or a Steam integrity check. "Cosmetics" section — the only part of the app that touches game files, never while the game is running. |
+| 🔉 **Alpha Boost sound (optional)** | The Alpha boost sound, recreated by an audio engine **outside the game**, driven by the Stats API telemetry (speed, gauge, boost held): no game file touched, nothing for the anti-cheat to object to. Dynamic profile (speed tiers) or classic, adjustable volume, one-click preview. Pairs with the visual Alpha Boost above. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -486,15 +492,18 @@ automatically.
 
 **Are cosmetics safe?** It's the only section of the app that modifies
 Rocket League files, and it does nothing until you use it. Nothing is
-downloaded: the Alpha Boost package is already on your disk
-(`Boost_AlphaReward_SF.upk`), as it is for everyone — ownership lives
-server-side. The app copies it over the package of a boost you own, after
-backing up the original once and for all; nothing is written while the game
-runs, and everything restores in one click. It's the method used by Shift,
-RLPeak or Bakkboard, with no documented ban since Easy Anti-Cheat arrived — but
-it goes against the letter of the game's terms ("exposing unreleased
-content"): your call, and the app says so. The Alpha Boost sound is a
-different mechanism (an audio overlay, not a file) and isn't included.
+downloaded: you provide the prepared file (`.upk`, or `.bnk` for a sound),
+picked up on a Discord such as Shift's. Why "prepared"? Because copying a
+game package as-is over another one does not work — tested: the boost turns
+invisible. Files that work have their header rewritten for the new name, and
+that's what those communities share. The app backs up the original once and
+for all, never writes while the game runs, and everything restores in one
+click — when in doubt, "Verify integrity of game files" in Steam brings the
+stock game back. No documented ban since Easy Anti-Cheat, but against the
+letter of the game's terms: your call, and the app says so. The Alpha Boost
+sound is a different mechanism (an audio overlay, not a file): it's the
+"Alpha Boost sound" option under Dashboard & overlay — it touches nothing in
+the game.
 
 It's a plain file read, outside the game's process — no injection, no memory
 reading, nothing the anti-cheat could object to. Two accepted limits: nothing
@@ -552,6 +561,7 @@ rl-session-tracker/
 │   │   ├── discord-rpc.js     # Discord status (local IPC pipe, no dependency)
 │   │   ├── obs-server.js      # Streamer mode: locally served OBS overlay (SSE)
 │   │   ├── sos-bridge.js      # SOS-compatible WebSocket bridge (49122)
+│   │   ├── cosmetics.js       # Cosmetic swaps (visual Alpha Boost), game closed
 │   │   ├── rl-log.js          # Real MMR + playlist read from Launch.log
 │   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
 │   ├── preload.js             # Secure IPC bridge (contextIsolation)

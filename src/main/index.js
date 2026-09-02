@@ -24,7 +24,7 @@ const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
 const Cosmetics = require('./cosmetics');
-const { enableStatsApi, checkStatsApi, detectInstalls } = require('./enable-statsapi');
+const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, ALPHA_RATE } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
@@ -218,14 +218,51 @@ function setGameRunning(running) {
     updater.check();
     if (config.get().autoDashboard) openDashboard();
     if (config.get().overlayEnabled) openOverlay();
+    if (alphaEnabled()) openAlphaAudio();
   } else {
     state.live = null;
     state.currentRanked = null;
     state.currentRankedAuto = null;
     windows.closeDashboard();
     windows.closeOverlay();
+    windows.closeAlphaAudio();
   }
   pushState();
+}
+
+// Débit de la Stats API suffisant pour le son Alpha Boost (120/s).
+async function ensureAlphaRate() {
+  if (process.platform !== 'win32') return;
+  let low = [];
+  try { low = checkStatsApi(config.get().statsApiPort).installs
+    .filter((p) => iniRate(p) < ALPHA_RATE); } catch (e) { return; }
+  if (!low.length) return;
+  log('Alpha Boost : débit Stats API insuffisant dans ' + JSON.stringify(low) + ' — réécriture à ' + ALPHA_RATE + '/s');
+  let r;
+  try { r = await enableStatsApi(config.get().statsApiPort); } catch (e) { r = { ok: false, reason: e.message }; }
+  logStatsApiResult(r);
+  refreshStatsApiFlag();
+  pushState();
+}
+
+// ───────── Son Alpha Boost ─────────
+// Joué par une fenêtre invisible (WebAudio), pilotée par la télémétrie de la
+// Stats API. 100 % externe : on ne touche ni aux fichiers ni à la mémoire du
+// jeu — même approche que le reste de l'application.
+function alphaEnabled() {
+  const ab = config.get().alphaBoost;
+  return !!(ab && ab.enabled);
+}
+
+function sendAlphaCfg() {
+  const w = windows.getAlphaAudio();
+  if (w) {
+    try { w.webContents.send('alpha-cfg', config.get().alphaBoost); } catch (e) {}
+  }
+}
+
+function openAlphaAudio() {
+  windows.openAlphaAudio(() => sendAlphaCfg());
 }
 
 function openOverlay() {
@@ -384,6 +421,13 @@ function startStatsApi() {
     log('abandon enregistré : ' + (snap.mode || '?')
       + ' — résultat ' + ((last && last.result) || '?')
       + (snap.podium ? ' (podium atteint)' : ''));
+  });
+  // Télémétrie boost → moteur audio Alpha Boost (fenêtre invisible).
+  api.on('telemetry', (d) => {
+    const w = windows.getAlphaAudio();
+    if (w) {
+      try { w.webContents.send('alpha-telemetry', d); } catch (e) {}
+    }
   });
   api.on('podium', (d) => sos.send('podium', d));
   api.on('goal', (d) => {
@@ -643,6 +687,21 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && partial.overlayCfg) {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
+  // Le son Alpha Boost suit son réglage sans redémarrage. À l'activation, on
+  // s'assure aussi que la Stats API débite 120 paquets/s : un ini écrit à 30
+  // (le réglage par défaut sans le son) rendrait le son en retard, et la
+  // vérification ordinaire, qui n'exige qu'un débit > 0, ne l'aurait jamais
+  // relevé. Réécriture silencieuse grâce aux droits déjà posés ; il faudra
+  // redémarrer Rocket League pour qu'elle prenne effet.
+  if (partial && partial.alphaBoost) {
+    if (alphaEnabled()) {
+      if (state.game.running) openAlphaAudio();
+      sendAlphaCfg();
+      ensureAlphaRate();
+    } else {
+      windows.closeAlphaAudio();
+    }
+  }
   if (partial && partial.lang) buildTrayMenu();
   if (partial && typeof partial.trayOnly === 'boolean') windows.setTrayOnly(partial.trayOnly);
   if (partial && typeof partial.discordRpc === 'boolean') {
@@ -674,6 +733,39 @@ ipcMain.on('preview-animation', (_e, result) => {
     windows.broadcast('match-result', fake);
     obs.emit('result', fake);
   }, already ? 50 : 900);
+});
+
+// Lit un sample Alpha Boost pour le moteur audio (nom strictement filtré,
+// dossier imposé : aucun chemin arbitraire ne peut sortir d'ici).
+ipcMain.handle('alpha-read-sound', (_e, name) => {
+  const safe = String(name).replace(/[^a-z0-9]/g, '');
+  return fs.readFileSync(
+    path.join(__dirname, '..', 'renderer', 'sounds', 'alpha', safe + '.ogg'));
+});
+
+// Essai du son Alpha Boost depuis les réglages : la fenêtre audio joue une
+// montée en vitesse simulée. Créée au besoin, refermée après si le jeu ne
+// tourne pas (pour ne pas garder un renderer inutile en mémoire).
+let alphaTestTimer = null;
+ipcMain.on('alpha-test', () => {
+  windows.openAlphaAudio(() => {
+    sendAlphaCfg();
+    const w = windows.getAlphaAudio();
+    if (w) {
+      try { w.webContents.send('alpha-test'); } catch (e) {}
+    }
+  });
+  // Le minuteur est REPOUSSÉ à chaque essai : avant, seul le tout premier
+  // essai en armait un, et il refermait la fenêtre en plein milieu d'un essai
+  // suivant — le son s'arrêtait net sans raison visible.
+  if (alphaTestTimer) { clearTimeout(alphaTestTimer); alphaTestTimer = null; }
+  if (!state.game.running) {
+    // L'essai dure ~4 s : large marge avant de refermer la fenêtre.
+    alphaTestTimer = setTimeout(() => {
+      alphaTestTimer = null;
+      if (!state.game.running) windows.closeAlphaAudio();
+    }, 12000);
+  }
 });
 
 // Marque le match EN COURS comme classé ou casual.
@@ -956,13 +1048,12 @@ if (!gotLock) {
       await repairStatsApiIfNeeded('lancement');
     }
 
-    // Au lancement, jeu fermé : remettre en place les swaps que Steam aurait
-    // défaits pendant que l'application ne tournait pas.
-    if (cosmetics && !state.game.processRunning) {
-      setTimeout(() => {
-        if (!state.game.processRunning) { cosmetics.reapplyReverted(); refreshCosmetics(); pushState(); }
-      }, 15000);
-    }
+    // PAS de réapplication automatique au lancement de l'application. Leçon
+    // du terrain : après un swap qui avait cassé le jeu, l'utilisateur a
+    // restauré ses fichiers via Steam — et l'application, relancée au
+    // démarrage de Windows, les aurait re-cassés dans son dos. La
+    // réapplication n'a lieu qu'à la FERMETURE du jeu, quand l'utilisateur
+    // vient de jouer et a la main pour retirer un swap qui pose problème.
     log('application lancée v' + state.version + (SILENT ? ' (silencieux)' : ''));
   });
 }

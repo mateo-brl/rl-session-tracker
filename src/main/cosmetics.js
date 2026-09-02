@@ -56,8 +56,19 @@ function validTarget(name) {
   return EXTS.includes(path.extname(n).toLowerCase());
 }
 
+// Clé d'une installation : chemin résolu, séparateurs unifiés, casse ignorée
+// sous Windows. Deux orthographes du même dossier doivent donner la même clé —
+// sinon la même installation a deux sauvegardes, et la seconde peut capturer
+// un fichier déjà remplacé par la première (constaté en jeu : boost
+// transparent puis jeu figé).
+function pathKey(p) {
+  let out = path.resolve(String(p));
+  if (process.platform === 'win32') out = out.replace(/\//g, '\\').toLowerCase();
+  return out;
+}
+
 function short(p) {
-  return crypto.createHash('sha1').update(String(p).toLowerCase()).digest('hex').slice(0, 12);
+  return crypto.createHash('sha1').update(pathKey(p)).digest('hex').slice(0, 12);
 }
 
 // Préréglages : des swaps dont la SOURCE est un paquet déjà présent dans
@@ -69,6 +80,14 @@ function short(p) {
 // qu'on possède (Bubbles par convention communautaire : jamais peint, donc
 // aucun conflit) suffit — pour les boosts, la copie brute fonctionne sans
 // réécrire la table des noms, contrairement aux carrosseries ou explosions.
+// RETIRÉ DE L'INTERFACE (2 septembre 2026) : testé en jeu, la copie brute du
+// paquet Alpha par-dessus Bubbles donne un boost TRANSPARENT — le moteur ne
+// retrouve pas l'effet sous le nouveau nom de paquet. Les outils qui « font
+// marcher » l'Alpha Boost distribuent des fichiers déjà patchés (table des
+// noms réécrite dans un en-tête chiffré). Le mécanisme générique reste : un
+// fichier préparé passé par « Ajouter un swap » fonctionne. Le préréglage
+// reviendra avec un vrai patch de paquet, pas avant.
+const PRESETS_ENABLED = false;
 const PRESETS = {
   alpha: {
     label: 'Alpha Boost',
@@ -91,6 +110,7 @@ class Cosmetics {
     this.detectInstalls = o.detectInstalls || (() => []);
     this.isGameRunning = o.isGameRunning || (() => false);
     this.log = o.log || (() => {});
+    this._presetsForced = !!o.presets;   // tests : exercer le préréglage retiré
     this.swaps = [];
     this._load();
   }
@@ -118,7 +138,12 @@ class Cosmetics {
   }
 
   _checkInstall(install) {
-    return this.installs().includes(install);
+    const k = pathKey(install);
+    return this.installs().some((p) => pathKey(p) === k);
+  }
+
+  _sameInstall(a, b) {
+    return pathKey(a) === pathKey(b);
   }
 
   _targetPath(install, target) {
@@ -205,7 +230,8 @@ class Cosmetics {
     }
     if (!fs.existsSync(source)) return { ok: false, error: 'Fichier de remplacement introuvable.' };
     // Une cible ne peut porter qu'un swap : deux remplaçants se battraient.
-    if (this.swaps.some((s) => s.install === install && s.target.toLowerCase() === target.toLowerCase())) {
+    if (this.swaps.some((s) => this._sameInstall(s.install, install)
+        && s.target.toLowerCase() === target.toLowerCase())) {
       return { ok: false, error: 'Ce fichier a déjà un swap.' };
     }
 
@@ -234,6 +260,7 @@ class Cosmetics {
   // recommandation communautaire en tête si elle est présente.
   presets() {
     const out = [];
+    if (!PRESETS_ENABLED && !this._presetsForced) return out;
     for (const install of this.installs()) {
       for (const id of Object.keys(PRESETS)) {
         const p = PRESETS[id];
@@ -261,6 +288,9 @@ class Cosmetics {
   addPreset(id, opts) {
     const p = PRESETS[id];
     if (!p) return { ok: false, error: 'Préréglage inconnu.' };
+    if (!PRESETS_ENABLED && !this._presetsForced) {
+      return { ok: false, error: 'Préréglage indisponible : la copie brute ne fonctionne pas, utilise un fichier préparé.' };
+    }
     const o = opts || {};
     const target = String(o.target || '');
     if (!p.targetPattern.test(target)) return { ok: false, error: 'Cette cible n’est pas un boost.' };
@@ -399,3 +429,5 @@ class Cosmetics {
 module.exports = Cosmetics;
 module.exports.validTarget = validTarget;
 module.exports.fingerprint = fingerprint;
+module.exports.pathKey = pathKey;
+module.exports.PRESETS_ENABLED = PRESETS_ENABLED;
