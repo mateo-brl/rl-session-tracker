@@ -70,6 +70,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
 | ⚖️ **Comptage honnête** | Un forfait adverse compte comme une victoire, quitter un match classé comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
 | ✏️ **Corrige un résultat** | Un forfait adverse mal interprété ? Corrige n'importe quel match de l'historique du dashboard en un clic (victoire ↔ défaite) : stats et courbe MMR se recalculent aussitôt, rétroactivement. |
+| 🎨 **Alpha Boost visuel (optionnel)** | Le paquet du Gold Rush est déjà dans ton installation : l'appli le copie par-dessus le boost que tu équipes (Bubbles conseillé), sauvegarde l'original, restaure d'un clic et **réapplique toute seule** après une mise à jour ou une vérification Steam. Section « Cosmétiques » — la seule de l'appli qui touche aux fichiers du jeu, jamais pendant qu'il tourne. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -215,6 +216,19 @@ file. Le format n'étant pas documenté par Psyonix, il peut changer à un patch
 dans ce cas l'application ne casse pas, elle revient simplement à l'estimation
 seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
 
+**Et les cosmétiques, c'est sûr ?** C'est la seule section de l'appli qui
+modifie des fichiers de Rocket League, et elle ne fait rien tant que tu n'y
+touches pas. Elle ne télécharge rien : le paquet Alpha Boost est déjà chez toi
+(`Boost_AlphaReward_SF.upk`), comme chez tout le monde — c'est la possession qui
+est côté serveur. L'appli le copie par-dessus le paquet d'un boost que tu
+possèdes, après avoir sauvegardé l'original une fois pour toutes ; rien n'est
+écrit tant que le jeu tourne, et tout se restaure d'un clic. C'est la méthode
+de Shift, RLPeak ou Bakkboard, sans ban documenté depuis l'arrivée d'Easy
+Anti-Cheat — mais elle contrevient à la lettre aux conditions du jeu
+(« exposition de contenu non déverrouillé ») : c'est ton choix, et l'appli te
+le rappelle. Le son de l'Alpha Boost est une autre mécanique (un overlay audio,
+pas un fichier) et n'est pas inclus.
+
 ### 🧰 Pour les développeurs
 
 | Côté | Technologies |
@@ -336,6 +350,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
 | ⚖️ **Honest counting** | An opponent forfeit counts as a win, leaving a ranked match as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
 | ✏️ **Fix a result** | Misjudged an opponent forfeit? Fix any match in the dashboard history in one click (win ↔ loss) — stats and the MMR chart recalculate instantly, retroactively. |
+| 🎨 **Visual Alpha Boost (optional)** | The Gold Rush package is already in your install: the app copies it over the boost you equip (Bubbles recommended), backs up the original, restores in one click and **re-applies by itself** after a game update or a Steam integrity check. "Cosmetics" section — the only part of the app that touches game files, never while the game is running. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -468,6 +483,18 @@ resets every time you queue instead of piling up. Better still: it also
 compares the real MMR change to the tally of recorded matches over that
 span — if a misclassified forfeit explains the gap, it fixes the result
 automatically.
+
+**Are cosmetics safe?** It's the only section of the app that modifies
+Rocket League files, and it does nothing until you use it. Nothing is
+downloaded: the Alpha Boost package is already on your disk
+(`Boost_AlphaReward_SF.upk`), as it is for everyone — ownership lives
+server-side. The app copies it over the package of a boost you own, after
+backing up the original once and for all; nothing is written while the game
+runs, and everything restores in one click. It's the method used by Shift,
+RLPeak or Bakkboard, with no documented ban since Easy Anti-Cheat arrived — but
+it goes against the letter of the game's terms ("exposing unreleased
+content"): your call, and the app says so. The Alpha Boost sound is a
+different mechanism (an audio overlay, not a file) and isn't included.
 
 It's a plain file read, outside the game's process — no injection, no memory
 reading, nothing the anti-cheat could object to. Two accepted limits: nothing

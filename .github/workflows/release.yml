@@ -172,4 +172,11 @@ jobs:
           # electron-updater ne peut plus jamais observer la release à moitié
           # téléversée, contrairement à `releaseType: release` qui la rend
           # publique dès sa création, avant même le premier upload.
-          gh release edit "$TAG" --draft=false --repo "$GITHUB_REPOSITORY"
+          # Une version avec suffixe (3.14.0-beta.1) est publiée en PRÉ-VERSION :
+          # les applications installées ne la proposent pas en mise à jour
+          # (electron-updater ignore les pré-versions), mais l'installeur est
+          # téléchargeable sur GitHub pour tester une fonctionnalité sensible
+          # avant de l'envoyer à tout le monde.
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease" ;; esac
+          gh release edit "$TAG" --draft=false $PRE --repo "$GITHUB_REPOSITORY"
