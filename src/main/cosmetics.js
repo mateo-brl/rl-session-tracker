@@ -329,6 +329,31 @@ class Cosmetics {
     } catch (e) { return null; }
   }
 
+  // Cibles compatibles : celles dont tous les noms tiennent dans ceux de la
+  // source. Sert à proposer autre chose quand la cible choisie est trop longue.
+  _compatible(install, sourceRef, limit) {
+    const out = [];
+    try {
+      const keys = this._keys();
+      const src = fs.readFileSync(this._targetPath(install, sourceRef));
+      const sn = upk.namesOf(src, keys);
+      // Lecture directe du dossier : targets() plafonne sa liste, or on cherche
+      // ici parmi TOUS les boosts.
+      let all = [];
+      try { all = fs.readdirSync(path.join(install, SUB)); } catch (e) { return out; }
+      for (const t of all.sort()) {
+        if (!/^Boost_.*_SF\.upk$/i.test(t) || t.toLowerCase() === String(sourceRef).toLowerCase()) continue;
+        try {
+          const tn = upk.namesOf(fs.readFileSync(this._targetPath(install, t)), keys);
+          const pairs = upk.pairsFor(sourceRef, t).concat(upk.rolePairs(sn, tn));
+          if (!upk.fits(sn, pairs).length) out.push(t.replace(/\.upk$/i, '').replace(/^Boost_/i, '').replace(/_SF$/i, ''));
+        } catch (e) { /* paquet illisible : on ne le propose pas */ }
+        if (out.length >= (limit || 8)) break;
+      }
+    } catch (e) { /* pas de suggestion possible */ }
+    return out;
+  }
+
   _preparePatched(s, sourceFile, targetFile) {
     try {
       const keys = this._keys();
@@ -340,13 +365,37 @@ class Cosmetics {
       let outKey = null;
       try { outKey = fs.existsSync(targetFile) ? upk.keyOf(fs.readFileSync(targetFile), keys) : null; }
       catch (e) { outKey = null; }
-      const r = upk.patchPackage(buf, { pairs: s.patch.pairs, keys, outKey });
+      // Les paires sont recalculées ICI, sur les deux paquets tels qu'ils sont
+      // dans le jeu : une mise à jour peut renommer des objets.
+      let pairs = s.patch.pairs || [];
+      if (s.sourceRef && fs.existsSync(targetFile)) {
+        try {
+          const sn = upk.namesOf(buf, keys);
+          const tn = upk.namesOf(fs.readFileSync(targetFile), keys);
+          pairs = upk.pairsFor(s.sourceRef, s.target).concat(upk.rolePairs(sn, tn));
+          const bad = upk.fits(sn, pairs);
+          if (bad.length) {
+            const alt = this._compatible(s.install, s.sourceRef, 8);
+            throw new Error('ce boost ne convient pas : « ' + bad[0].to + ' » est plus long que « '
+              + bad[0].from + ' », et le nom se réécrit à longueur constante'
+              + (alt.length ? '. Boosts compatibles : ' + alt.join(', ') : ''));
+          }
+        } catch (e) {
+          if (/ne convient pas/.test(e.message)) throw e;
+          // Cible illisible : on retombe sur les paires déduites des noms de fichiers.
+        }
+      }
+      const r = upk.patchPackage(buf, { pairs, keys, outKey });
       const out = path.join(path.dirname(s.source), 'patched-' + s.target);
       fs.writeFileSync(out, r.buffer);
       this.log('cosmétiques : paquet patché pour « ' + s.label + ' » (' + r.changed.length
         + ' nom(s) renommé(s), clé n°' + r.keyIndex + ')');
       return { ok: true, file: out, changed: r.changed };
     } catch (e) {
+      if (/ne convient pas/.test(e.message)) {
+        this.log('cosmétiques : cible refusée pour « ' + s.label + ' » : ' + e.message);
+        return { ok: false, error: e.message };
+      }
       const rep = this._writeDiagnostic(s, sourceFile, targetFile, e.message);
       this.log('cosmétiques : patch impossible pour « ' + s.label + ' » : ' + e.message);
       return { ok: false, error: 'Patch du paquet impossible : ' + e.message
