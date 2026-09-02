@@ -33,11 +33,12 @@ function build(opts) {
   const nameTable = Buffer.concat(names.map((n) => nameEntry(n)));
   // Table des chunks juste après les noms : count=1, {i64 unc, i32 size, i64 comp, i32 csize}
   const chunk = Buffer.alloc(4 + 24);
-  const rawLen = nameTable.length + chunk.length;
-  const encLen = (rawLen + 15) & ~15;
-  const garbage = encLen - rawLen;
+  // La zone chiffrée tient un nombre entier de blocs de 16 ; `tail` ajoute des
+  // octets non alignés après elle (cas où TotalHeaderSize ne tombe pas juste).
+  const tail = o.tail || 0;
+  const pad = (16 - ((nameTable.length + chunk.length) % 16)) % 16;
+  const encLen = nameTable.length + chunk.length + pad;
 
-  // Préfixe (sans les champs dépendant des offsets, remplis après)
   const parts = [];
   const head = Buffer.alloc(8);
   head.writeUInt32LE(0x9E2A83C1, 0); head.writeUInt16LE(868, 4); head.writeUInt16LE(32, 6);
@@ -53,28 +54,28 @@ function build(opts) {
   parts.push(Buffer.alloc(4, 0x5a));                          // PackageSource
   parts.push(Buffer.alloc(4, 0));                             // AdditionalPackagesToCook = 0
   parts.push(Buffer.alloc(4, 0));                             // TextureAllocations = 0
+  if (o.extraPrefix) parts.push(Buffer.alloc(o.extraPrefix, 0x7f));  // champs inconnus du vrai format
   const psy = Buffer.alloc(12); parts.push(psy);              // Garbage, ChunkInfoOffset, LastBlockSize
   let prefix = Buffer.concat(parts);
 
   const nameOffset = prefix.length;
   const importOffset = nameOffset + nameTable.length;
-  const exportOffset = importOffset;
   const dependsOffset = nameOffset + encLen;
-  const totalHeaderSize = dependsOffset;
+  const totalHeaderSize = nameOffset + encLen + tail;
 
   totalHeaderSizeBuf.writeInt32LE(totalHeaderSize, 0);
   counts.writeInt32LE(names.length, 0);      // NameCount
   counts.writeInt32LE(nameOffset, 4);
   counts.writeInt32LE(0, 8);                 // ExportCount
-  counts.writeInt32LE(exportOffset, 12);
+  counts.writeInt32LE(importOffset, 12);     // ExportOffset
   counts.writeInt32LE(0, 16);                // ImportCount
   counts.writeInt32LE(importOffset, 20);
   counts.writeInt32LE(dependsOffset, 24);
   counts.writeInt32LE(dependsOffset, 28);    // ImportExportGuidsOffset
   counts.writeInt32LE(0, 32); counts.writeInt32LE(0, 36); counts.writeInt32LE(0, 40);
-  psy.writeInt32LE(garbage, 0);
+  psy.writeInt32LE(0, 0);                    // GarbageSize
   psy.writeInt32LE(nameTable.length, 4);     // ChunkInfoOffset (relatif à la zone déchiffrée)
-  psy.writeInt32LE(16, 8);
+  psy.writeInt32LE(16, 8);                   // LastBlockSize
   prefix = Buffer.concat(parts);
 
   chunk.writeInt32LE(1, 0);
@@ -83,10 +84,10 @@ function build(opts) {
   chunk.writeBigInt64LE(BigInt(dependsOffset), 16);
   chunk.writeInt32LE(body.length, 24);
 
-  const plain = Buffer.concat([nameTable, chunk, Buffer.alloc(garbage, 0)]);
-  const enc = ecb('enc', key, plain);
+  const plain = Buffer.concat([nameTable, chunk, Buffer.alloc(pad, 0)]);
+  const enc = Buffer.concat([ecb('enc', key, plain), Buffer.alloc(tail, 0x33)]);
   const buf = Buffer.concat([prefix, enc, body]);
-  return { buf, key, nameOffset, dependsOffset, encLen, body };
+  return { buf, key, nameOffset, dependsOffset, encLen, tail, body };
 }
 
 module.exports = { build };
