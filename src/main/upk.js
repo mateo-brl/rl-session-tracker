@@ -406,7 +406,46 @@ function pairsFor(sourceFile, targetFile) {
   ];
 }
 
+// Noms d'un paquet (liste simple), pour comparer source et cible.
+function namesOf(buf, keys) {
+  const h = parseHeader(buf);
+  const k = findKey(buf, h, keys || loadKeys());
+  if (!k) throw new Error('aucune clé connue ne déchiffre ce paquet');
+  const plain = ecb('dec', k.key, buf.subarray(h.nameOffset, h.nameOffset + h.encLen));
+  return readNames(plain, h).names.map((n) => n.name);
+}
+
+// Paires déduites du CONTENU des deux paquets, pas de leur nom de fichier.
+// Constaté en jeu : le visuel se résout autrement que le son. La fiche audio
+// (« Boost_<objet>_Loop », un AkSoundCue) est cherchée sous le nom de l'objet
+// équipé ; si elle garde le nom de la source, le jeu ne la trouve pas et joue
+// le son générique. On l'ajoute donc aux renommages.
+const CUE_RE = /^Boost_.+_Loop$/i;
+
+function rolePairs(sourceNames, targetNames) {
+  const out = [];
+  const cs = (sourceNames || []).filter((n) => CUE_RE.test(n));
+  const ct = (targetNames || []).filter((n) => CUE_RE.test(n));
+  if (cs.length === 1 && ct.length === 1 && cs[0].toLowerCase() !== ct[0].toLowerCase()) {
+    out.push([cs[0], ct[0]]);
+  }
+  return out;
+}
+
+// Un renommage ne tient que si le nouveau nom n'est pas plus long. Sert à
+// écarter une cible AVANT d'écrire quoi que ce soit dans le jeu.
+function fits(sourceNames, pairs) {
+  const bad = [];
+  const lower = (x) => String(x).toLowerCase();
+  for (const [from, to] of pairs) {
+    const hit = (sourceNames || []).find((n) => lower(n) === lower(from));
+    if (hit && to.length > hit.length) bad.push({ from: hit, to });
+  }
+  return bad;
+}
+
 module.exports = {
+  namesOf, rolePairs, fits, CUE_RE,
   parseHeader, findKey, probeKey, chunkTableAgrees, readNames, renameInPlace, inspect, patchPackage,
   keyOf, pairsFor, loadKeys, ecb, DEFAULT_KEYS, TAG,
 };

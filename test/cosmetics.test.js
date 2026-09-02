@@ -313,3 +313,57 @@ test('préréglage Alpha : clé inconnue = refus propre, jeu intact', () => {
   assert.equal(a.ok, false);
   assert.match(a.error, /clé/);
 });
+
+// ───────── Le SON suit un autre chemin que le visuel ─────────
+// Constaté en jeu (2 sept. 2026) : après le swap, le boost Alpha s'affiche mais
+// le son reste générique. Le paquet Alpha porte la fiche « Boost_Alpha_Loop »,
+// Bubbles la sienne « Boost_Bubbles_Loop » : le jeu cherche celle de l'objet
+// équipé. Il faut donc renommer aussi la fiche audio — et refuser les cibles
+// dont le nom est plus long, puisqu'on réécrit à longueur constante.
+
+function soundInstall() {
+  const install = fakeInstall();
+  const cooked = path.join(install, 'TAGame', 'CookedPCConsole');
+  const alpha = build({ names: ['None', 'Core', 'Boost_AlphaReward_SF', 'Boost_AlphaReward',
+    'Boost_Alpha_Loop', 'SFX_Boost_Alpha', 'AkSoundCue'], body: Buffer.from('ALPHA-BODY') });
+  const toon = build({ names: ['None', 'Core', 'Boost_Toon_SF', 'Boost_Toon',
+    'Boost_Toon_Loop', 'SFX_Boost_Toon'] });
+  const bubble = build({ names: ['None', 'Core', 'Boost_Bubble_SF', 'Boost_Bubble',
+    'Boost_Bubbles_Loop', 'SFX_Boost_Bubbles'] });
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'), alpha.buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Toon_SF.upk'), toon.buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'), bubble.buf);
+  return { install, cooked };
+}
+
+test('rolePairs apparie les fiches audio des deux paquets', () => {
+  const pairs = upk.rolePairs(['None', 'Boost_Alpha_Loop', 'SFX_Boost_Alpha'],
+    ['None', 'Boost_Toon_Loop', 'SFX_Boost_Toon']);
+  assert.deepEqual(pairs, [['Boost_Alpha_Loop', 'Boost_Toon_Loop']]);
+});
+
+test('préréglage Alpha : la fiche audio est renommée avec le reste', () => {
+  const { install, cooked } = soundInstall();
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const r = c.addPreset('alpha', { install, target: 'Boost_Toon_SF.upk' });
+  assert.equal(c.apply(r.swap.id).ok, true);
+  const names = upk.inspect(fs.readFileSync(path.join(cooked, 'Boost_Toon_SF.upk')), upk.loadKeys()).names;
+  assert.ok(names.includes('Boost_Toon_Loop'));      // le jeu trouvera la fiche
+  assert.ok(names.includes('SFX_Boost_Alpha'));      // mais elle joue le son Alpha
+  assert.ok(!names.includes('Boost_Alpha_Loop'));
+});
+
+test('préréglage Alpha : cible au nom trop long refusée, avec des suggestions', () => {
+  const { install, cooked } = soundInstall();
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const before = fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'));
+  const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
+  const a = c.apply(r.swap.id);
+  assert.equal(a.ok, false);
+  assert.match(a.error, /ne convient pas/);
+  assert.match(a.error, /Boost_Bubbles_Loop/);
+  assert.match(a.error, /Toon/);                     // suggestion d'un boost compatible
+  assert.ok(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')).equals(before));
+});
