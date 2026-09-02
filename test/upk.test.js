@@ -174,3 +174,51 @@ test('clé inconnue : refus net, aucun octet produit', () => {
   const { buf } = build({ names: ['None', 'Boost_AlphaReward_SF'], key: Buffer.alloc(32, 7) });
   assert.throws(() => upk.patchPackage(buf, { pairs: [['Boost_AlphaReward_SF', 'Boost_Bubble_SF']] }), /clé/);
 });
+
+test('patch : n’importe quel nom de boost, soit ça marche, soit ça refuse proprement', () => {
+  // Balayage exhaustif : on fabrique une cible pour chaque longueur de nom
+  // plausible et on vérifie qu'il n'existe pas de troisième issue — jamais de
+  // fichier produit à moitié, jamais d'octet déplacé hors de la table.
+  const keys = upk.loadKeys();
+  const src = build({ names: ['None', 'Core', 'Boost_AlphaReward_SF', 'Boost_AlphaReward',
+    'Boost_Alpha_Loop', 'SFX_Boost_Alpha', 'AkSoundCue'], body: Buffer.from('ALPHA-BODY-DATA') });
+  const h0 = upk.parseHeader(src.buf);
+  let okCount = 0, koCount = 0;
+
+  for (let len = 1; len <= 30; len++) {
+    for (const cueExtra of [0, 1, 3]) {
+      const name = 'B'.repeat(len);
+      const cue = 'Boost_' + name + 'x'.repeat(cueExtra) + '_Loop';
+      const file = 'Boost_' + name + '_SF.upk';
+      const tgt = build({ names: ['None', 'Core', 'Boost_' + name + '_SF', 'Boost_' + name,
+        cue, 'SFX_Boost_' + name] });
+      const pairs = upk.pairsFor('Boost_AlphaReward_SF.upk', file)
+        .concat(upk.rolePairs(upk.namesOf(src.buf, keys), upk.namesOf(tgt.buf, keys)));
+      let r = null;
+      try {
+        r = upk.patchPackage(src.buf, { pairs, keys });
+      } catch (e) {
+        assert.match(e.message, /il manque|collision/, 'échec inattendu pour ' + file + ' : ' + e.message);
+        koCount++;
+        continue;
+      }
+      okCount++;
+      // Succès : le paquet reste lisible, porte les noms de la cible, garde le
+      // corps de la source, et n'a bougé d'aucun octet en dehors de la table.
+      const back = upk.inspect(r.buffer, keys);
+      assert.equal(back.ok, true, 'illisible après patch pour ' + file);
+      assert.ok(back.names.includes('Boost_' + name + '_SF'));
+      assert.ok(back.names.includes(cue));
+      assert.ok(!back.names.some((n) => /alphareward/i.test(n)));
+      assert.ok(back.names.includes('SFX_Boost_Alpha'));       // l'événement reste celui d'Alpha
+      assert.equal(r.buffer.length, src.buf.length);
+      assert.equal(back.nameOffset, h0.nameOffset);
+      assert.equal(back.importOffset, h0.importOffset);
+      assert.equal(back.exportOffset, h0.exportOffset);
+      assert.equal(back.totalHeaderSize, h0.totalHeaderSize);
+      assert.ok(r.buffer.subarray(h0.totalHeaderSize).equals(src.buf.subarray(h0.totalHeaderSize)));
+    }
+  }
+  assert.ok(okCount > 20, 'trop peu de cas acceptés (' + okCount + ')');
+  assert.ok(koCount > 0, 'aucun cas refusé : le test ne prouve rien');
+});

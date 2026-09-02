@@ -393,3 +393,29 @@ test('préréglage Alpha : table trop juste = refus net, jeu intact, suggestions
   assert.match(a.error, /Toon/);
   assert.ok(fs.readFileSync(target).equals(before));
 });
+
+test('checkTargets : partage les boosts en compatibles et incompatibles', () => {
+  const install = fakeInstall();
+  const cooked = path.join(install, 'TAGame', 'CookedPCConsole');
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'),
+    build({ names: ['None', 'Core', 'Boost_AlphaReward_SF', 'Boost_AlphaReward',
+      'Boost_Alpha_Loop', 'SFX_Boost_Alpha'] }).buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'),
+    build({ names: ['None', 'Core', 'Boost_Bubble_SF', 'Boost_Bubble', 'Boost_Bubbles_Loop'] }).buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Toon_SF.upk'),
+    build({ names: ['None', 'Core', 'Boost_Toon_SF', 'Boost_Toon', 'Boost_Toon_Loop'] }).buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_UnNomVraimentTresTresLong_SF.upk'),
+    build({ names: ['None', 'Core', 'Boost_UnNomVraimentTresTresLong_SF',
+      'Boost_UnNomVraimentTresTresLong', 'Boost_UnNomVraimentTresTresLong_Loop'] }).buf);
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const r = c.checkTargets('alpha', install);
+  assert.equal(r.ok, true);
+  assert.ok(r.compatible.includes('Boost_Bubble_SF'));
+  assert.ok(r.compatible.includes('Boost_Toon_SF'));
+  assert.ok(r.incompatible.some((k) => /UnNomVraiment/.test(k.name)));
+  assert.equal(r.compatible.length + r.incompatible.length, 3);
+  // Aucune écriture : les paquets sont intacts.
+  assert.ok(upk.inspect(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')),
+    upk.loadKeys()).names.includes('Boost_Bubble_SF'));
+});

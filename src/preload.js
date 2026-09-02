@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('rl', {
   cosmeticsAdd: (opts) => ipcRenderer.invoke('cosmetics-add', opts),
   cosmeticsPresets: () => ipcRenderer.invoke('cosmetics-presets'),
   cosmeticsAddPreset: (id, opts) => ipcRenderer.invoke('cosmetics-add-preset', id, opts),
+  cosmeticsCheckTargets: (id, install) => ipcRenderer.invoke('cosmetics-check-targets', id, install),
   cosmeticsApply: (id) => ipcRenderer.invoke('cosmetics-apply', id),
   cosmeticsRestore: (id) => ipcRenderer.invoke('cosmetics-restore', id),
   cosmeticsRemove: (id) => ipcRenderer.invoke('cosmetics-remove', id),
