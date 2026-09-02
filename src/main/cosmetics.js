@@ -358,6 +358,41 @@ class Cosmetics {
     return out;
   }
 
+  // Passe en revue TOUTES les cibles possibles d'un préréglage et dit, pour
+  // chacune, si le patch tiendrait. Le seul juge fiable étant le patch
+  // lui-même, on le tente en mémoire ; rien n'est écrit.
+  checkTargets(id, install) {
+    const p = PRESETS[id];
+    if (!p) return { ok: false, error: 'Préréglage inconnu.' };
+    if (!this._checkInstall(install)) return { ok: false, error: 'Installation inconnue.' };
+    const keys = this._keys();
+    let src;
+    try { src = fs.readFileSync(this._targetPath(install, p.source)); }
+    catch (e) { return { ok: false, error: 'Paquet source introuvable : ' + p.source }; }
+    let sn;
+    try { sn = upk.namesOf(src, keys); }
+    catch (e) { return { ok: false, error: 'Paquet source illisible : ' + e.message }; }
+
+    let all = [];
+    try { all = fs.readdirSync(path.join(install, SUB)); } catch (e) { /* vide */ }
+    const good = [], bad = [];
+    for (const t of all.sort()) {
+      if (!p.targetPattern.test(t) || t.toLowerCase() === p.source.toLowerCase()) continue;
+      const short = t.replace(/\.upk$/i, '');
+      try {
+        const tn = upk.namesOf(fs.readFileSync(this._targetPath(install, t)), keys);
+        const pairs = upk.pairsFor(p.source, t).concat(upk.rolePairs(sn, tn));
+        upk.patchPackage(src, { pairs, keys });
+        good.push(short);
+      } catch (e) {
+        bad.push({ name: short, reason: e.message });
+      }
+    }
+    this.log('cosmétiques : vérification des cibles — ' + good.length + ' compatible(s), '
+      + bad.length + ' non');
+    return { ok: true, compatible: good, incompatible: bad };
+  }
+
   _preparePatched(s, sourceFile, targetFile) {
     try {
       const keys = this._keys();
