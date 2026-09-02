@@ -105,7 +105,9 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 
 L'application :
 - s'installe en **démarrage automatique** avec Windows (elle vit discrètement
-  dans la barre des tâches) ;
+  dans la zone de notification — **Ctrl+Alt+R** fait apparaître le panneau de
+  configuration de n'importe où, jeu compris, et un réglage permet de le
+  garder plutôt dans la barre des tâches) ;
 - **détecte ton pseudo toute seule** après quelques matchs (c'est le seul
   joueur présent dans toutes tes parties) ;
 - ouvre le **dashboard sur ton 2ᵉ écran** dès que le jeu démarre.
@@ -367,8 +369,10 @@ and it's the only "thank you" this app will ever ask for.**
 4. **Launch Rocket League and play.** That's it. 🎉
 
 The app:
-- installs itself to **start with Windows** (it lives quietly in the system
-  tray);
+- installs itself to **start with Windows** (it lives quietly in the
+  notification area — **Ctrl+Alt+R** brings up the settings panel from
+  anywhere, in-game included, and a setting keeps it in the taskbar
+  instead);
 - **detects your in-game name by itself** after a few matches (you're the
   only player present in all of them);
 - opens the **dashboard on your second screen** as soon as the game starts.

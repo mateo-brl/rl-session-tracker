@@ -21,6 +21,14 @@
     --blue:#2f9bff; --blue-deep:#1466b8;
     --orange:#ff8a1e; --orange-deep:#c45f00;
     --gold:#ffc233;
+    /* Dérivées (même convention que le dashboard) : voiles translucides et
+       arêtes recalculés tout seuls quand applyTheme() repeint --blue,
+       --orange ou --bg — aucune couleur nouvelle en dur, les 8 thèmes de
+       l'utilisateur restent intacts. */
+    --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
+    --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
+    --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
+    --edge:color-mix(in srgb, #000 30%, transparent);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
@@ -34,15 +42,29 @@
   /* ─── Barre de titre (fenêtre sans cadre) ─── */
   .titlebar {
     height:42px; display:flex; align-items:center; justify-content:space-between;
-    padding-left:16px; -webkit-app-region:drag;
-    border-bottom:1px solid var(--line); background:var(--panel);
+    padding-left:14px; -webkit-app-region:drag; position:relative;
+    background:linear-gradient(90deg, var(--panel2), var(--panel) 46%);
+  }
+  /* Filet bleu → orange sous le bandeau, comme l'en-tête du dashboard :
+     les deux couleurs d'équipe, l'identité de l'appli au premier regard. */
+  .titlebar::after {
+    content:''; position:absolute; left:0; right:0; bottom:0; height:2px;
+    background:linear-gradient(90deg, var(--blue) 0 34%, var(--orange) 66% 100%);
+    pointer-events:none;
   }
   .tb-title {
+    display:flex; align-items:center; gap:8px;
     font-family:'Barlow Condensed',sans-serif; font-style:italic;
     font-weight:800; font-size:16px; letter-spacing:.05em;
-    text-transform:uppercase;
+    text-transform:uppercase; white-space:nowrap;
   }
   .tb-title b { color:var(--blue); }
+  /* Sigle « RL » sur plaque inclinée pleine, repris du logo du dashboard. */
+  .tb-plate {
+    display:inline-block; transform:skewX(-14deg);
+    background:var(--blue); color:#fff; padding:0 8px; line-height:20px;
+  }
+  .tb-plate > span { display:inline-block; transform:skewX(14deg); }
   .tb-buttons { display:flex; -webkit-app-region:no-drag; }
   .tb-btn {
     width:44px; height:42px; border:0; background:transparent; cursor:pointer;
@@ -51,40 +73,116 @@
   .tb-btn:hover { background:var(--panel2); color:var(--text); }
   .tb-btn.close:hover { background:var(--orange-deep); color:#fff; }
 
-  .body { height:calc(100vh - 42px); padding:16px 20px 12px; overflow-y:auto; }
-  .body::-webkit-scrollbar { width:8px; }
-  .body::-webkit-scrollbar-thumb { background:var(--line); }
+  /* ─── Coque : barre latérale + volet de contenu ─── */
+  /* Tout ce qui est sous la barre de titre est explicitement no-drag :
+     la fenêtre est redimensionnable et la barre latérale doit rester
+     cliquable jusqu'au dernier pixel. */
+  .shell { display:flex; height:calc(100vh - 42px); -webkit-app-region:no-drag; }
 
-  /* ─── Statut ─── */
-  .status { display:flex; align-items:center; gap:10px; margin:2px 0 14px; }
-  .sq { width:10px; height:10px; background:var(--muted); flex:none; }
+  .side {
+    width:220px; flex:none; display:flex; flex-direction:column;
+    background:linear-gradient(180deg, var(--panel2), var(--panel) 28%);
+    border-right:1px solid var(--line);
+  }
+  /* Statut en un coup d'œil, visible quelle que soit la section ouverte :
+     c'est la première chose qu'on cherche en rouvrant la fenêtre. */
+  .side-status {
+    display:flex; align-items:center; gap:9px; padding:15px 18px 13px;
+    border-bottom:1px solid var(--line);
+  }
+  .sq { width:10px; height:10px; background:var(--muted); flex:none;
+    transform:skewX(-14deg); }
   .sq.ok { background:var(--blue); }
   .sq.warn { background:var(--orange); }
-  .status span {
+  .side-status span:last-child {
     font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:19px; letter-spacing:.06em;
+    font-weight:800; font-size:15px; letter-spacing:.06em; line-height:1.15;
     text-transform:uppercase;
   }
-
-  .rows {
-    background:var(--panel); border:1px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
-    padding:2px 16px; margin-bottom:13px;
+  .nav-list { flex:1; overflow-y:auto; padding:10px 0; }
+  .nav {
+    display:flex; align-items:center; gap:11px; width:100%;
+    padding:11px 16px 11px 15px; border:0; border-left:3px solid transparent;
+    background:transparent; color:var(--muted); text-align:left; cursor:pointer;
+    font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:15.5px;
+    letter-spacing:.08em; text-transform:uppercase; position:relative;
   }
-  .row { display:flex; justify-content:space-between; align-items:center;
-    padding:10px 0; font-size:13px; }
-  .row + .row { border-top:1px solid var(--line); }
-  .row span { color:var(--muted); }
-  .row b { font-weight:600; }
-  .row b.live { color:var(--blue); }
-  .row b .w { color:var(--blue); font-weight:700; }
-  .row b .l { color:var(--orange); font-weight:700; }
+  .nav svg { width:17px; height:17px; flex:none; stroke:currentColor; fill:none;
+    stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+  .nav:hover { color:var(--text); background:var(--text-ghost); }
+  /* Item actif : plaque bleue qui s'éteint vers la droite + liseré gauche,
+     le même langage que les cartouches du dashboard. Le texte passe en
+     blanc franc : --blue-deep est assez sombre quel que soit le thème. */
+  .nav.active {
+    color:#fff; border-left-color:var(--blue);
+    background:linear-gradient(90deg, var(--blue-deep),
+      color-mix(in srgb, var(--blue-deep) 30%, transparent) 65%, transparent);
+  }
+  /* Pastille d'alerte : quelque chose attend sur l'accueil (mise à jour,
+     Stats API en panne, pseudo à confirmer) alors qu'on est ailleurs. */
+  .nav .badge { display:none; width:8px; height:8px; margin-left:auto;
+    background:var(--orange); transform:skewX(-14deg); flex:none; }
+  .nav.alert .badge { display:block; }
+  .side-foot { padding:14px; border-top:1px solid var(--line); }
 
-  /* ─── Cartes ─── */
+  .content {
+    flex:1; min-width:0; overflow-y:auto; padding:22px 28px 30px;
+    /* Fond « arène » du dashboard : deux halos aux couleurs des équipes et
+       une fine trame diagonale — le volet n'est pas un aplat muet. */
+    background:
+      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
+      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
+      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
+      var(--bg);
+  }
+  .content::-webkit-scrollbar { width:8px; }
+  .content::-webkit-scrollbar-thumb { background:var(--line); }
+
+  /* Une seule section visible à la fois. Largeur plafonnée : maximisée sur
+     un 1920, un formulaire étiré sur 1 700 px devient illisible. */
+  .sec { display:none; max-width:900px; }
+  .sec.active { display:block; }
+  .sec-head { margin-bottom:18px; }
+  /* Le skew fait dépasser le coin bas-gauche du cartouche de quelques px :
+     un peu de marge pour ne pas le rogner, et overflow:hidden pour couper
+     le filet de 100vw qui prolonge la plaque vers la droite. */
+  .tag-row { overflow:hidden; padding:2px 0 2px 6px; }
+  .tag {
+    display:inline-block; transform:skewX(-14deg); position:relative;
+    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 135%);
+    border-left:4px solid var(--blue);
+    padding:6px 16px 6px 12px; width:max-content;
+  }
+  .tag::after {
+    content:''; position:absolute; left:calc(100% + 10px); top:50%; height:1px;
+    width:100vw; background:linear-gradient(90deg, var(--line), transparent 72%);
+    pointer-events:none;
+  }
+  .tag > span {
+    display:inline-block; transform:skewX(14deg);
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:17px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--text);
+  }
+  .sec-sub { margin-top:9px; font-size:13px; color:var(--muted); }
+
+  /* ─── Cartes : plaques à deux chanfreins, coin d'accent, arête basse ─── */
   .card {
-    background:var(--panel); border:1px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
-    padding:13px 16px 15px; margin-bottom:13px;
+    position:relative;
+    background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
+    border:1px solid var(--line);
+    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    box-shadow:inset 0 -3px 0 var(--edge);
+    padding:15px 18px 17px; margin-bottom:14px;
+  }
+  .card::before {
+    content:''; position:absolute; left:0; top:0; right:0; height:3px;
+    background:linear-gradient(90deg, var(--blue), var(--blue-soft) 55%, transparent 85%);
+    pointer-events:none;
+  }
+  .card::after {
+    content:''; position:absolute; top:0; right:0; width:16px; height:16px;
+    background:var(--blue); pointer-events:none;
   }
   .card h2 {
     font-family:'Barlow Condensed',sans-serif; font-style:italic;
@@ -92,9 +190,43 @@
     letter-spacing:.14em; color:var(--muted); margin-bottom:11px;
     border-left:3px solid var(--blue); padding-left:8px;
   }
+  /* Carte d'alerte : mêmes plaques, accent orange (couleur « défaite »). */
+  .card.warn::before {
+    background:linear-gradient(90deg, var(--orange), var(--orange-soft) 55%, transparent 85%);
+  }
+  .card.warn::after { background:var(--orange); }
+  .card.warn h2 { border-left-color:var(--orange); }
   .card p.txt { font-size:13px; color:var(--muted); line-height:1.55; }
   .card p.txt b { color:var(--text); }
+  /* Deux cartes côte à côte quand la place le permet ; en dessous de
+     1 000 px de large (fenêtre proche du minimum), une seule colonne. */
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px;
+    align-items:start; margin-bottom:14px; }
+  .grid2 > .card { margin-bottom:0; }
+  @media (max-width:999px) { .grid2 { grid-template-columns:1fr; } }
 
+  /* ─── Accueil : tuiles d'état ─── */
+  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @media (max-width:1199px) { .stat-grid { grid-template-columns:1fr 1fr; } }
+  .stat {
+    background:var(--panel2); border:1px solid var(--line);
+    border-left:3px solid var(--line); padding:10px 13px 11px; min-width:0;
+  }
+  /* Sélecteur enfant direct : le résumé de session contient lui-même des
+     <span class="w|l"> colorés qui ne doivent surtout pas devenir des
+     libellés en bloc. */
+  .stat > span { display:block; font-size:11px; font-weight:600;
+    letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  .stat b {
+    display:block; margin-top:5px; font-family:'Barlow Condensed',sans-serif;
+    font-style:italic; font-weight:800; font-size:20px; line-height:1.15;
+    overflow-wrap:anywhere;
+  }
+  .stat b.live { color:var(--blue); }
+  .stat b .w { color:var(--blue); }
+  .stat b .l { color:var(--orange); }
+
+  /* ─── Champs ─── */
   label.field { display:block; font-size:12.5px; color:var(--muted);
     margin-bottom:5px; }
   input[type=text], input[type=number] {
@@ -126,7 +258,7 @@
   .check { display:flex; align-items:center; gap:9px; padding:6px 0;
     font-size:13px; cursor:pointer; }
   .check input { accent-color:var(--blue); width:15px; height:15px;
-    cursor:pointer; }
+    cursor:pointer; flex:none; }
 
   .color-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
   .color-grid label { font-size:11.5px; color:var(--muted); display:flex;
@@ -144,6 +276,7 @@
   }
   select:focus { outline:none; border-color:var(--blue); }
   .duo { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:8px; }
+  .gap { height:12px; }
 
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip {
@@ -153,6 +286,20 @@
   }
   .chip > span { display:inline-block; transform:skewX(12deg); }
   .chip:hover { border-color:var(--blue); color:var(--blue); }
+
+  /* ─── Raccourci clavier ─── */
+  .keys { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    margin:6px 0 2px; }
+  .keys kbd {
+    display:inline-block; min-width:34px; text-align:center; padding:4px 10px;
+    background:var(--panel2); border:1px solid var(--line);
+    border-bottom-width:3px; color:var(--text);
+    font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:14px;
+    letter-spacing:.06em;
+  }
+  .keys i { color:var(--muted); font-style:normal; font-size:13px; }
+  .keys.bad kbd { border-color:var(--orange-deep); color:var(--muted);
+    text-decoration:line-through; }
 
   /* ─── Boutons ─── */
   button.primary {
@@ -170,6 +317,7 @@
     text-transform:uppercase; letter-spacing:.06em;
   }
   button.ghost:hover { border-color:var(--blue); }
+  button.ghost:disabled { opacity:.6; cursor:progress; }
   button.ghost.danger:hover { border-color:var(--orange); color:var(--orange); }
 
   /* ─── Mise à jour ─── */
@@ -184,6 +332,7 @@
     text-transform:uppercase; color:#fff; background:var(--blue-deep);
   }
   .upd-btn:hover { background:var(--blue); }
+  .upd-btn:disabled { opacity:.55; cursor:progress; }
   .upd-btn.ghosty { background:var(--panel2); color:var(--text);
     border:1px solid var(--line); }
   .progress { height:8px; background:var(--panel2);
@@ -192,246 +341,397 @@
     transition:width .3s; }
   .upd-err { color:var(--orange); font-size:12px; margin-top:8px; }
 
-  .foot { color:var(--muted); font-size:11px; text-align:center;
-    margin-top:4px; padding-bottom:6px; }
+  /* ─── Version ─── */
+  .ver-row { display:flex; align-items:center; justify-content:space-between;
+    gap:12px; flex-wrap:wrap; }
+  .ver-num {
+    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-weight:800; font-size:24px; letter-spacing:.04em;
+    font-variant-numeric:tabular-nums;
+  }
+  .ver-num small { font-size:13px; color:var(--muted); font-style:normal;
+    font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+    margin-right:8px; }
 </style>
 </head>
 <body>
 
   <div class="titlebar">
-    <div class="tb-title">RL <b>Session Tracker</b></div>
+    <div class="tb-title"><span class="tb-plate"><span>RL</span></span>Session <b>Tracker</b></div>
     <div class="tb-buttons">
-      <button class="tb-btn" id="min" title="Réduire">&#9472;</button>
-      <button class="tb-btn close" id="close" title="Fermer">&#10005;</button>
+      <button class="tb-btn" id="min" title="Réduire" data-i18n-title="tMin">&#9472;</button>
+      <button class="tb-btn" id="max" title="Agrandir / restaurer" data-i18n-title="tMax">&#9633;</button>
+      <button class="tb-btn close" id="close" title="Fermer" data-i18n-title="tClose">&#10005;</button>
     </div>
   </div>
 
-  <div class="body">
+  <div class="shell">
 
-    <div class="status">
-      <span class="sq" id="dot"></span>
-      <span id="statusText">Démarrage</span>
-    </div>
-
-    <div class="rows">
-      <div class="row"><span>Rocket League</span><b id="rGame">—</b></div>
-      <div class="row"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">—</b></div>
-      <div class="row"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
-      <div class="row"><span data-i18n="lSession">Session</span><b id="rSession">—</b></div>
-    </div>
-    <div class="hint warn" id="apiHint" style="display:none"></div>
-
-    <div class="card" id="welcomeCard" style="display:none">
-      <h2 data-i18n="hWelcome">Bienvenue</h2>
-      <p class="txt" data-i18n="pWelcome">Il n'y a rien à configurer : <b>lance Rocket League et joue un match</b>. L'application détecte tout — ton pseudo, tes victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
-    </div>
-
-    <div class="card" id="whoCard" style="display:none">
-      <h2 data-i18n="hWho">Qui es-tu ?</h2>
-      <p class="txt" style="margin-bottom:10px" data-i18n="pWho">Plusieurs joueurs reviennent dans tes matchs — clique sur ton pseudo :</p>
-      <div id="whoChips" class="chips"></div>
-    </div>
-
-    <div class="card" id="updCard" style="display:none">
-      <h2 data-i18n="hUpdate">Mise à jour</h2>
-      <div class="upd-row">
-        <div class="upd-txt" id="updTxt"></div>
-        <button class="upd-btn" id="updBtn" style="display:none"></button>
+    <!-- ─── Barre latérale ─── -->
+    <nav class="side">
+      <div class="side-status">
+        <span class="sq" id="dot"></span>
+        <span id="statusText">Démarrage</span>
       </div>
-      <div class="progress" id="updProg" style="display:none"><i id="updBar"></i></div>
-      <div class="upd-err" id="updErr" style="display:none"></div>
-    </div>
-
-    <div class="card">
-      <h2 data-i18n="hSettings">Réglages</h2>
-      <label class="field" data-i18n="lLang">Langue</label>
-      <select id="optLang">
-        <option value="auto" data-i18n="oAuto">Automatique (système)</option>
-        <option value="fr">Français</option>
-        <option value="en">English</option>
-      </select>
-      <div style="height:14px"></div>
-      <label class="field" for="pseudo" data-i18n="lPseudo">Ton pseudo en jeu</label>
-      <input type="text" id="pseudo" list="seen" placeholder="ex. MateoBRL"
-             autocomplete="off" spellcheck="false" />
-      <datalist id="seen"></datalist>
-      <div class="hint" data-i18n="hintPseudo">Sert à savoir quelle équipe est la tienne pour compter victoires et défaites. Joue un match : les pseudos détectés apparaissent en suggestion.</div>
-      <!-- Matchs non attribués : le pseudo réglé ne correspond à aucun
-           joueur sur un ou plusieurs matchs de la session (changement de
-           pseudo en jeu, espace insécable, variante unicode...). Sans ce
-           signal, la courbe MMR se fige en silence pendant que le vrai MMR
-           du joueur continue de bouger — voir buildPseudoChips() plus bas. -->
-      <div class="hint warn" id="unknownHint" style="display:none"></div>
-      <div class="chips" id="unknownChips" style="display:none;margin-top:8px"></div>
-      <div style="height:14px"></div>
-      <label class="field" data-i18n="lMmr">Mon MMR (optionnel)</label>
-      <div class="mmr-grid">
-        <div class="mmr-cell"><span>1v1</span>
-          <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" />
-          <small class="mmr-rank" id="mmrRank1v1" style="display:none"></small></div>
-        <div class="mmr-cell"><span>2v2</span>
-          <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" />
-          <small class="mmr-rank" id="mmrRank2v2" style="display:none"></small></div>
-        <div class="mmr-cell"><span>3v3</span>
-          <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" />
-          <small class="mmr-rank" id="mmrRank3v3" style="display:none"></small></div>
+      <div class="nav-list" id="navList">
+        <button class="nav" data-sec="home">
+          <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
+          <span data-i18n="navHome">Accueil</span><i class="badge"></i>
+        </button>
+        <button class="nav" data-sec="account">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <span data-i18n="navAccount">Compte &amp; MMR</span><i class="badge"></i>
+        </button>
+        <button class="nav" data-sec="display">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>
+          <span data-i18n="navDisplay">Dashboard &amp; overlay</span><i class="badge"></i>
+        </button>
+        <button class="nav" data-sec="stream">
+          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="1"/><path d="M16 10l5-3v10l-5-3z"/></svg>
+          <span data-i18n="navStream">Streaming</span><i class="badge"></i>
+        </button>
+        <button class="nav" data-sec="app">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+          <span data-i18n="navApp">Application</span><i class="badge"></i>
+        </button>
       </div>
-      <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
-      <div class="hint warn" data-i18n="hintPlacement">Attention aux matchs de placement (début de saison) : les gains y sont bien plus gros (souvent ±15 et dégressifs), l'estimation dérive forcément. Recopie ton MMR en jeu une fois tes placements terminés.</div>
-      <div class="hint warn" id="mmrDrift" style="display:none"></div>
-      <div style="height:10px"></div>
-      <label class="check"><input type="checkbox" id="optRanked" /><span data-i18n="cRanked">Par défaut mes matchs sont classés (modifiable à chaque match sur le dashboard)</span></label>
-      <!-- Filtre d'affichage pur : les parties casual restent dans le
-           journal (rien n'est jamais supprimé, comme "Vider les matchs
-           récents" plus bas). Seule la session affichée et ses totaux sont
-           recalculés sans elles. Il faut le dire explicitement dans l'aide
-           sinon l'utilisateur redoute de perdre ses données casual. -->
-      <label class="check"><input type="checkbox" id="optRankedOnly" /><span data-i18n="cRankedOnly">Ne compter que le classé dans la session</span></label>
-      <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs — elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
-      <label class="check"><input type="checkbox" id="optAuto" /><span data-i18n="cAuto">Ouvrir le dashboard quand Rocket League démarre</span></label>
-      <label class="check"><input type="checkbox" id="optFull" /><span data-i18n="cFull">Dashboard en plein écran (2ᵉ écran si présent)</span></label>
-      <label class="check"><input type="checkbox" id="optOverlay" /><span data-i18n="cOverlay">Mini-overlay au premier plan pendant le jeu</span></label>
-      <label class="check"><input type="checkbox" id="optSounds" /><span data-i18n="cSounds">Jingle de victoire / défaite</span></label>
-      <label class="check"><input type="checkbox" id="optDiscord" /><span data-i18n="cDiscord">Statut Discord pendant le jeu (Rich Presence)</span></label>
-      <label class="check"><input type="checkbox" id="optBoot" /><span data-i18n="cBoot">Lancer au démarrage de Windows</span></label>
-    </div>
-
-    <div class="card">
-      <h2 data-i18n="hLook">Apparence</h2>
-      <div class="chips" id="themePresets"></div>
-      <div style="height:12px"></div>
-      <div class="color-grid">
-        <label><span data-i18n="kWin">Victoire</span><input type="color" id="cWin" /></label>
-        <label><span data-i18n="kLoss">Défaite</span><input type="color" id="cLoss" /></label>
-        <label><span data-i18n="kBg">Fond</span><input type="color" id="cBg" /></label>
-        <label>MVP<input type="color" id="cGold" /></label>
+      <div class="side-foot">
+        <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
       </div>
-      <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
-    </div>
+    </nav>
 
-    <div class="card">
-      <h2 data-i18n="hAnim">Animations</h2>
-      <label class="field" data-i18n="lStyle">Style</label>
-      <select id="animPreset">
-        <option value="broadcast" data-i18n="oBroadcast">Broadcast — liserés TV + confettis</option>
-        <option value="minimal" data-i18n="oMinimal">Minimal — fondu sobre et court</option>
-        <option value="arcade" data-i18n="oArcade">Arcade — punch rétro + secousse</option>
-        <option value="neon" data-i18n="oNeon">Néon — enseigne qui s'allume</option>
-        <option value="cinema" data-i18n="oCinema">Cinéma — zoom lent + bandes noires</option>
-      </select>
-      <div style="height:10px"></div>
-      <label class="field" data-i18n="lJingle">Son de fin de match</label>
-      <select id="sndPreset">
-        <option value="broadcast" data-i18n="oSndBroadcast">Broadcast — arpège net</option>
-        <option value="arcade" data-i18n="oSndArcade">8-bit — arcade rétro</option>
-        <option value="soft" data-i18n="oSndSoft">Doux — nappes discrètes</option>
-        <option value="epic" data-i18n="oSndEpic">Épique — accord puissant</option>
-      </select>
-      <div style="height:10px"></div>
-      <label class="check"><input type="checkbox" id="animEnd" /><span data-i18n="cAnimEnd">Écran victoire / défaite en fin de match</span></label>
-      <label class="check"><input type="checkbox" id="animGoal" /><span data-i18n="cAnimGoal">Flash à chaque but</span></label>
-      <div class="duo">
-        <button class="ghost" style="margin-top:0" id="testWin" data-i18n="bTestWin">Tester victoire</button>
-        <button class="ghost" style="margin-top:0" id="testLoss" data-i18n="bTestLoss">Tester défaite</button>
-      </div>
-      <div class="hint" data-i18n="hintTest">Le test ouvre le dashboard et joue l'animation avec le style et le thème choisis.</div>
-    </div>
+    <!-- ─── Volet de contenu ─── -->
+    <main class="content" id="content">
 
-    <div class="card">
-      <h2>Mini-overlay</h2>
-      <label class="check"><input type="checkbox" id="ovStreak" /><span data-i18n="cOvStreak">Afficher la série / % de victoires</span></label>
-      <label class="check"><input type="checkbox" id="ovLive" /><span data-i18n="cOvLive">Afficher le score en direct / dernier match</span></label>
-      <div class="duo">
-        <label class="field"><span data-i18n="lSize">Taille</span>
-          <select id="ovScale">
-            <option value="0.85" data-i18n="oSmall">Petit</option>
-            <option value="1" data-i18n="oNormal">Normal</option>
-            <option value="1.25" data-i18n="oBig">Grand</option>
-          </select></label>
-        <label class="field"><span data-i18n="lOpacity">Opacité</span>
-          <select id="ovOpacity">
-            <option value="1">100 %</option>
-            <option value="0.85">85 %</option>
-            <option value="0.7">70 %</option>
-          </select></label>
-      </div>
-      <div class="hint" data-i18n="hintOverlay">Important : mets l'affichage
-        de Rocket League en « Fenêtré sans bordure » (Paramètres → Vidéo). En
-        « Plein écran » exclusif, Windows ne laisse aucune fenêtre passer
-        devant le jeu — c'est pareil pour tous les overlays.</div>
-    </div>
+      <!-- ── Accueil / État ── -->
+      <section class="sec" data-sec="home">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navHome">Accueil</span></div></div>
+          <div class="sec-sub" data-i18n="subHome">État du jeu et de la session en direct.</div>
+        </div>
 
-    <div class="card">
-      <h2 data-i18n="hObs">Mode streamer (OBS)</h2>
-      <label class="check"><input type="checkbox" id="obsOn" /><span data-i18n="cObs">Servir l'overlay de stream en local</span></label>
-      <div class="duo" id="obsUrlRow" style="display:none">
-        <input type="text" id="obsUrl" readonly />
-        <button class="ghost" style="margin-top:0" id="obsCopy" data-i18n="bCopy">Copier l'URL</button>
-      </div>
-      <div class="hint warn" id="obsErr" style="display:none"></div>
-      <div class="duo">
-        <label class="field"><span data-i18n="lObsStyle">Style</span>
-          <select id="obsStyle">
-            <option value="broadcast" data-i18n="oObsBroadcast">Broadcast — bandeau deux blocs</option>
-            <option value="compact" data-i18n="oObsCompact">Compact — une ligne fine</option>
-            <option value="vertical" data-i18n="oObsVertical">Vertical — carte empilée</option>
-          </select></label>
-        <label class="field"><span data-i18n="lSize">Taille</span>
-          <select id="obsScale">
-            <option value="0.8" data-i18n="oSmall">Petit</option>
-            <option value="1" data-i18n="oNormal">Normal</option>
-            <option value="1.25" data-i18n="oBig">Grand</option>
-            <option value="1.5" data-i18n="oXl">Très grand</option>
-          </select></label>
-      </div>
-      <label class="field"><span data-i18n="lObsBg">Fond du bandeau</span>
-        <select id="obsBg">
-          <option value="0.93" data-i18n="oBgSolid">Opaque</option>
-          <option value="0.7">70 %</option>
-          <option value="0.5">50 %</option>
-          <option value="0.3">30 %</option>
-        </select></label>
-      <label class="check"><input type="checkbox" id="obsStreak" /><span data-i18n="cObsStreak">Afficher la série en cours</span></label>
-      <label class="check"><input type="checkbox" id="obsLive" /><span data-i18n="cObsLive">Afficher le score du match en direct</span></label>
-      <label class="check"><input type="checkbox" id="obsH2h" /><span data-i18n="cObsH2h">Afficher « déjà croisé » (1v1)</span></label>
-      <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
-      <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
-      <div class="hint" data-i18n="hintObs">Dans OBS : Sources → + →
-        Navigateur, colle l'URL (taille conseillée 860 × 220, fond
-        transparent automatique). Le bandeau affiche ta session, la série, le
-        score en direct — avec flash de but et bannière de fin de match. Les
-        boutons « Tester victoire / défaite » ci-dessus l'animent aussi.
-        Local uniquement : rien n'est exposé à internet.</div>
+        <div class="card" id="updCard" style="display:none">
+          <h2 data-i18n="hUpdate">Mise à jour</h2>
+          <div class="upd-row">
+            <div class="upd-txt" id="updTxt"></div>
+            <button class="upd-btn" id="updBtn" style="display:none"></button>
+          </div>
+          <div class="progress" id="updProg" style="display:none"><i id="updBar"></i></div>
+          <div class="upd-err" id="updErr" style="display:none"></div>
+        </div>
 
-      <!-- Pont compatible SOS : fonctionnalité de niche pour streamers dont
-           l'overlay de diffusion a été écrit avant l'arrivée d'Easy
-           Anti-Cheat (avril 2026) pour le défunt plugin SOS. Le pont
-           tourne déjà côté processus principal (obs.sosBridge / obs.sosPort,
-           state.sos) mais restait invisible sans cette commande — y compris
-           un éventuel conflit de port, jusqu'ici totalement silencieux. -->
-      <label class="check"><input type="checkbox" id="obsSos" /><span data-i18n="cObsSos">Pont compatible SOS</span></label>
-      <label class="field"><span data-i18n="lObsSosPort">Port du pont</span>
-        <input type="number" id="obsSosPort" min="1024" max="65535" placeholder="49122" /></label>
-      <div class="duo" id="obsSosUrlRow" style="display:none">
-        <input type="text" id="obsSosUrl" readonly />
-        <button class="ghost" style="margin-top:0" id="obsSosCopy" data-i18n="bCopy">Copier l'URL</button>
-      </div>
-      <div class="hint" id="obsSosClients" style="display:none"></div>
-      <div class="hint warn" id="obsSosErr" style="display:none"></div>
-      <div class="hint" data-i18n="hintObsSos">Pour les overlays de diffusion
-        écrits avant l'arrivée d'Easy Anti-Cheat (avril 2026) pour le défunt
-        plugin SOS, muets en ligne depuis. Ce pont réémet le même flux, au
-        même format, en local sur le port choisi ci-dessus : colle l'URL
-        dans l'overlay et il refonctionne sans être modifié. Réservé aux
-        streamers utilisant ce type d'overlay — inutile sinon.</div>
-    </div>
+        <div class="card">
+          <h2 data-i18n="hStatus">État</h2>
+          <div class="stat-grid">
+            <div class="stat"><span>Rocket League</span><b id="rGame">—</b></div>
+            <div class="stat"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">—</b></div>
+            <div class="stat"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
+            <div class="stat"><span data-i18n="lSession">Session</span><b id="rSession">—</b></div>
+          </div>
+          <div class="hint warn" id="apiHint" style="display:none"></div>
+        </div>
 
-    <button class="primary" id="dashBtn" data-i18n="bDash">Ouvrir le dashboard</button>
-    <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
-    <button class="ghost" id="exportBtn" data-i18n="bExport">Exporter les matchs</button>
-    <button class="ghost" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
+        <div class="card" id="welcomeCard" style="display:none">
+          <h2 data-i18n="hWelcome">Bienvenue</h2>
+          <p class="txt" data-i18n="pWelcome">Il n'y a rien à configurer : <b>lance Rocket League et joue un match</b>. L'application détecte tout — ton pseudo, tes victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
+        </div>
 
-    <div class="foot">v<span id="ver">?</span><span data-i18n="foot"> — tu peux fermer cette fenêtre, l'application reste active dans la barre des tâches.</span></div>
+        <div class="card" id="whoCard" style="display:none">
+          <h2 data-i18n="hWho">Qui es-tu ?</h2>
+          <p class="txt" style="margin-bottom:10px" data-i18n="pWho">Plusieurs joueurs reviennent dans tes matchs — clique sur ton pseudo :</p>
+          <div id="whoChips" class="chips"></div>
+        </div>
+
+        <!-- Matchs non attribués : le pseudo réglé ne correspond à aucun
+             joueur sur un ou plusieurs matchs de la session (changement de
+             pseudo en jeu, espace insécable, variante unicode...). Sans ce
+             signal, la courbe MMR se fige en silence pendant que le vrai MMR
+             du joueur continue de bouger — voir buildPseudoChips() plus bas.
+             La carte entière suit la visibilité de l'avertissement. -->
+        <div class="card warn" id="unknownCard" style="display:none">
+          <h2 data-i18n="hUnknown">Matchs non attribués</h2>
+          <div class="hint warn" id="unknownHint" style="display:none;margin-top:0"></div>
+          <div class="chips" id="unknownChips" style="display:none;margin-top:8px"></div>
+        </div>
+      </section>
+
+      <!-- ── Compte & MMR ── -->
+      <section class="sec" data-sec="account">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navAccount">Compte &amp; MMR</span></div></div>
+          <div class="sec-sub" data-i18n="subAccount">Pseudo, MMR par mode et matchs classés.</div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h2 data-i18n="hPseudo">Pseudo</h2>
+            <label class="field" for="pseudo" data-i18n="lPseudo">Ton pseudo en jeu</label>
+            <input type="text" id="pseudo" list="seen" placeholder="ex. MateoBRL"
+                   autocomplete="off" spellcheck="false" />
+            <datalist id="seen"></datalist>
+            <div class="hint" data-i18n="hintPseudo">Sert à savoir quelle équipe est la tienne pour compter victoires et défaites. Joue un match : les pseudos détectés apparaissent en suggestion.</div>
+          </div>
+
+          <div class="card">
+            <h2 data-i18n="hRanked">Classé / occasionnel</h2>
+            <label class="check"><input type="checkbox" id="optRanked" /><span data-i18n="cRanked">Par défaut mes matchs sont classés (modifiable à chaque match sur le dashboard)</span></label>
+            <!-- Filtre d'affichage pur : les parties casual restent dans le
+                 journal (rien n'est jamais supprimé, comme "Vider les matchs
+                 récents" dans la section Application). Seule la session
+                 affichée et ses totaux sont recalculés sans elles. Il faut le
+                 dire explicitement dans l'aide sinon l'utilisateur redoute de
+                 perdre ses données casual. -->
+            <label class="check"><input type="checkbox" id="optRankedOnly" /><span data-i18n="cRankedOnly">Ne compter que le classé dans la session</span></label>
+            <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs — elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="lMmr">Mon MMR (optionnel)</h2>
+          <div class="mmr-grid">
+            <div class="mmr-cell"><span>1v1</span>
+              <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" />
+              <small class="mmr-rank" id="mmrRank1v1" style="display:none"></small></div>
+            <div class="mmr-cell"><span>2v2</span>
+              <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" />
+              <small class="mmr-rank" id="mmrRank2v2" style="display:none"></small></div>
+            <div class="mmr-cell"><span>3v3</span>
+              <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" />
+              <small class="mmr-rank" id="mmrRank3v3" style="display:none"></small></div>
+          </div>
+          <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
+          <div class="hint warn" data-i18n="hintPlacement">Attention aux matchs de placement (début de saison) : les gains y sont bien plus gros (souvent ±15 et dégressifs), l'estimation dérive forcément. Recopie ton MMR en jeu une fois tes placements terminés.</div>
+          <div class="hint warn" id="mmrDrift" style="display:none"></div>
+        </div>
+      </section>
+
+      <!-- ── Dashboard & overlay ── -->
+      <section class="sec" data-sec="display">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard &amp; overlay</span></div></div>
+          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations, mini-overlay et thème.</div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h2 data-i18n="hDash">Dashboard</h2>
+            <label class="check"><input type="checkbox" id="optAuto" /><span data-i18n="cAuto">Ouvrir le dashboard quand Rocket League démarre</span></label>
+            <label class="check"><input type="checkbox" id="optFull" /><span data-i18n="cFull">Dashboard en plein écran (2ᵉ écran si présent)</span></label>
+            <label class="check"><input type="checkbox" id="optSounds" /><span data-i18n="cSounds">Jingle de victoire / défaite</span></label>
+          </div>
+
+          <div class="card">
+            <h2>Mini-overlay</h2>
+            <label class="check"><input type="checkbox" id="optOverlay" /><span data-i18n="cOverlay">Mini-overlay au premier plan pendant le jeu</span></label>
+            <label class="check"><input type="checkbox" id="ovStreak" /><span data-i18n="cOvStreak">Afficher la série / % de victoires</span></label>
+            <label class="check"><input type="checkbox" id="ovLive" /><span data-i18n="cOvLive">Afficher le score en direct / dernier match</span></label>
+            <div class="duo">
+              <label class="field"><span data-i18n="lSize">Taille</span>
+                <select id="ovScale">
+                  <option value="0.85" data-i18n="oSmall">Petit</option>
+                  <option value="1" data-i18n="oNormal">Normal</option>
+                  <option value="1.25" data-i18n="oBig">Grand</option>
+                </select></label>
+              <label class="field"><span data-i18n="lOpacity">Opacité</span>
+                <select id="ovOpacity">
+                  <option value="1">100 %</option>
+                  <option value="0.85">85 %</option>
+                  <option value="0.7">70 %</option>
+                </select></label>
+            </div>
+            <div class="hint" data-i18n="hintOverlay">Important : mets l'affichage
+              de Rocket League en « Fenêtré sans bordure » (Paramètres → Vidéo). En
+              « Plein écran » exclusif, Windows ne laisse aucune fenêtre passer
+              devant le jeu — c'est pareil pour tous les overlays.</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h2 data-i18n="hAnim">Animations</h2>
+            <label class="field" data-i18n="lStyle">Style</label>
+            <select id="animPreset">
+              <option value="broadcast" data-i18n="oBroadcast">Broadcast — liserés TV + confettis</option>
+              <option value="minimal" data-i18n="oMinimal">Minimal — fondu sobre et court</option>
+              <option value="arcade" data-i18n="oArcade">Arcade — punch rétro + secousse</option>
+              <option value="neon" data-i18n="oNeon">Néon — enseigne qui s'allume</option>
+              <option value="cinema" data-i18n="oCinema">Cinéma — zoom lent + bandes noires</option>
+            </select>
+            <div class="gap"></div>
+            <label class="field" data-i18n="lJingle">Son de fin de match</label>
+            <select id="sndPreset">
+              <option value="broadcast" data-i18n="oSndBroadcast">Broadcast — arpège net</option>
+              <option value="arcade" data-i18n="oSndArcade">8-bit — arcade rétro</option>
+              <option value="soft" data-i18n="oSndSoft">Doux — nappes discrètes</option>
+              <option value="epic" data-i18n="oSndEpic">Épique — accord puissant</option>
+            </select>
+            <div class="gap"></div>
+            <label class="check"><input type="checkbox" id="animEnd" /><span data-i18n="cAnimEnd">Écran victoire / défaite en fin de match</span></label>
+            <label class="check"><input type="checkbox" id="animGoal" /><span data-i18n="cAnimGoal">Flash à chaque but</span></label>
+            <div class="duo">
+              <button class="ghost" style="margin-top:0" id="testWin" data-i18n="bTestWin">Tester victoire</button>
+              <button class="ghost" style="margin-top:0" id="testLoss" data-i18n="bTestLoss">Tester défaite</button>
+            </div>
+            <div class="hint" data-i18n="hintTest">Le test ouvre le dashboard et joue l'animation avec le style et le thème choisis.</div>
+          </div>
+
+          <div class="card">
+            <h2 data-i18n="hLook">Apparence</h2>
+            <div class="chips" id="themePresets"></div>
+            <div class="gap"></div>
+            <div class="color-grid">
+              <label><span data-i18n="kWin">Victoire</span><input type="color" id="cWin" /></label>
+              <label><span data-i18n="kLoss">Défaite</span><input type="color" id="cLoss" /></label>
+              <label><span data-i18n="kBg">Fond</span><input type="color" id="cBg" /></label>
+              <label>MVP<input type="color" id="cGold" /></label>
+            </div>
+            <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Streaming ── -->
+      <section class="sec" data-sec="stream">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navStream">Streaming</span></div></div>
+          <div class="sec-sub" data-i18n="subStream">Overlay OBS et pont compatible SOS.</div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="hObs">Mode streamer (OBS)</h2>
+          <label class="check"><input type="checkbox" id="obsOn" /><span data-i18n="cObs">Servir l'overlay de stream en local</span></label>
+          <div class="duo" id="obsUrlRow" style="display:none">
+            <input type="text" id="obsUrl" readonly />
+            <button class="ghost" style="margin-top:0" id="obsCopy" data-i18n="bCopy">Copier l'URL</button>
+          </div>
+          <div class="hint warn" id="obsErr" style="display:none"></div>
+          <div class="duo">
+            <label class="field"><span data-i18n="lObsStyle">Style</span>
+              <select id="obsStyle">
+                <option value="broadcast" data-i18n="oObsBroadcast">Broadcast — bandeau deux blocs</option>
+                <option value="compact" data-i18n="oObsCompact">Compact — une ligne fine</option>
+                <option value="vertical" data-i18n="oObsVertical">Vertical — carte empilée</option>
+              </select></label>
+            <label class="field"><span data-i18n="lSize">Taille</span>
+              <select id="obsScale">
+                <option value="0.8" data-i18n="oSmall">Petit</option>
+                <option value="1" data-i18n="oNormal">Normal</option>
+                <option value="1.25" data-i18n="oBig">Grand</option>
+                <option value="1.5" data-i18n="oXl">Très grand</option>
+              </select></label>
+          </div>
+          <label class="field"><span data-i18n="lObsBg">Fond du bandeau</span>
+            <select id="obsBg">
+              <option value="0.93" data-i18n="oBgSolid">Opaque</option>
+              <option value="0.7">70 %</option>
+              <option value="0.5">50 %</option>
+              <option value="0.3">30 %</option>
+            </select></label>
+          <label class="check"><input type="checkbox" id="obsStreak" /><span data-i18n="cObsStreak">Afficher la série en cours</span></label>
+          <label class="check"><input type="checkbox" id="obsLive" /><span data-i18n="cObsLive">Afficher le score du match en direct</span></label>
+          <label class="check"><input type="checkbox" id="obsH2h" /><span data-i18n="cObsH2h">Afficher « déjà croisé » (1v1)</span></label>
+          <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
+          <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
+          <div class="hint" data-i18n="hintObs">Dans OBS : Sources → + →
+            Navigateur, colle l'URL (taille conseillée 860 × 220, fond
+            transparent automatique). Le bandeau affiche ta session, la série, le
+            score en direct — avec flash de but et bannière de fin de match. Les
+            boutons « Tester victoire / défaite » (section Dashboard &amp; overlay)
+            l'animent aussi. Local uniquement : rien n'est exposé à internet.</div>
+        </div>
+
+        <!-- Pont compatible SOS : fonctionnalité de niche pour streamers dont
+             l'overlay de diffusion a été écrit avant l'arrivée d'Easy
+             Anti-Cheat (avril 2026) pour le défunt plugin SOS. Le pont
+             tourne déjà côté processus principal (obs.sosBridge / obs.sosPort,
+             state.sos) mais restait invisible sans cette commande — y compris
+             un éventuel conflit de port, jusqu'ici totalement silencieux. -->
+        <div class="card">
+          <h2 data-i18n="hSos">Pont compatible SOS</h2>
+          <label class="check"><input type="checkbox" id="obsSos" /><span data-i18n="cObsSos">Activer le pont compatible SOS</span></label>
+          <label class="field"><span data-i18n="lObsSosPort">Port du pont</span>
+            <input type="number" id="obsSosPort" min="1024" max="65535" placeholder="49122" /></label>
+          <div class="duo" id="obsSosUrlRow" style="display:none">
+            <input type="text" id="obsSosUrl" readonly />
+            <button class="ghost" style="margin-top:0" id="obsSosCopy" data-i18n="bCopy">Copier l'URL</button>
+          </div>
+          <div class="hint" id="obsSosClients" style="display:none"></div>
+          <div class="hint warn" id="obsSosErr" style="display:none"></div>
+          <div class="hint" data-i18n="hintObsSos">Pour les overlays de diffusion
+            écrits avant l'arrivée d'Easy Anti-Cheat (avril 2026) pour le défunt
+            plugin SOS, muets en ligne depuis. Ce pont réémet le même flux, au
+            même format, en local sur le port choisi ci-dessus : colle l'URL
+            dans l'overlay et il refonctionne sans être modifié. Réservé aux
+            streamers utilisant ce type d'overlay — inutile sinon.</div>
+        </div>
+      </section>
+
+      <!-- ── Application ── -->
+      <section class="sec" data-sec="app">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navApp">Application</span></div></div>
+          <div class="sec-sub" data-i18n="subApp">Démarrage, langue, fenêtre et données.</div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h2 data-i18n="hGeneral">Général</h2>
+            <label class="field" data-i18n="lLang">Langue</label>
+            <select id="optLang">
+              <option value="auto" data-i18n="oAuto">Automatique (système)</option>
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+            </select>
+            <div class="gap"></div>
+            <label class="check"><input type="checkbox" id="optBoot" /><span data-i18n="cBoot">Lancer au démarrage de Windows</span></label>
+            <label class="check"><input type="checkbox" id="optDiscord" /><span data-i18n="cDiscord">Statut Discord pendant le jeu (Rich Presence)</span></label>
+          </div>
+
+          <!-- Fenêtre : la case est l'INVERSE de config.trayOnly (cochée =
+               visible dans la barre des tâches = trayOnly:false). On formule
+               la case dans le sens « ce que je vois », pas dans celui de la
+               mécanique interne — voir le câblage plus bas. -->
+          <div class="card">
+            <h2 data-i18n="hWindow">Fenêtre</h2>
+            <label class="check"><input type="checkbox" id="optTray" /><span data-i18n="cTray">Garder la fenêtre dans la barre des tâches</span></label>
+            <div class="hint" data-i18n="hintTray">Sinon, fermer la fenêtre la range dans la zone de notification, près de l'horloge (sous la petite flèche ▲). L'application continue de tourner dans les deux cas.</div>
+            <div class="gap"></div>
+            <label class="field" data-i18n="lHotkey">Raccourci global</label>
+            <div class="keys" id="hotkeyKeys"><kbd>Ctrl</kbd><i>+</i><kbd>Alt</kbd><i>+</i><kbd>R</kbd></div>
+            <div class="hint" data-i18n="hintHotkey">Ouvre ou masque cette fenêtre depuis n'importe où, même en jeu.</div>
+            <div class="hint warn" id="hotkeyWarn" style="display:none" data-i18n="hotkeyBad">Raccourci indisponible, déjà pris par un autre logiciel.</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h2 data-i18n="hData">Données</h2>
+            <button class="ghost" style="margin-top:0" id="exportBtn" data-i18n="bExport">Exporter les matchs</button>
+            <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
+            <div class="hint" data-i18n="hintClear">Vider remet les compteurs de session à 0 ; le MMR, la courbe d'évolution et les records sont conservés.</div>
+          </div>
+
+          <div class="card">
+            <h2 data-i18n="lStats">Stats API du jeu</h2>
+            <button class="ghost" style="margin-top:0" id="statsApiBtn" data-i18n="bStatsApi">Réactiver la Stats API du jeu</button>
+            <div class="hint" data-i18n="hintStatsApi">À utiliser si le jeu tourne mais que rien ne s'affiche : réécrit le fichier DefaultStatsAPI.ini (fenêtre admin), puis redémarre Rocket League.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="hAbout">Version &amp; mise à jour</h2>
+          <div class="ver-row">
+            <div class="ver-num"><small>RL Session Tracker</small>v<span id="ver">?</span></div>
+            <button class="upd-btn ghosty" id="updCheckBtn" data-i18n="bUpdCheck">Vérifier les mises à jour</button>
+          </div>
+          <div class="hint" id="updStatus"></div>
+          <div class="gap"></div>
+          <button class="ghost danger" id="quitBtn" data-i18n="bQuit">Quitter l'application</button>
+          <div class="hint" data-i18n="hintQuit">Arrête complètement le suivi. Fermer la fenêtre ne quitte pas l'application.</div>
+        </div>
+      </section>
+
+    </main>
   </div>
 
 <script>
@@ -446,10 +746,39 @@
   var I18N = {
     fr: {
       lStats: 'Stats API du jeu', lSession: 'Session',
+      // Panneau de configuration : barre de titre, navigation, sections.
+      tMin: 'R\u00e9duire', tMax: 'Agrandir / restaurer', tClose: 'Fermer',
+      navHome: 'Accueil', navAccount: 'Compte & MMR',
+      navDisplay: 'Dashboard & overlay', navStream: 'Streaming',
+      navApp: 'Application',
+      subHome: '\u00c9tat du jeu et de la session en direct.',
+      subAccount: 'Pseudo, MMR par mode et matchs class\u00e9s.',
+      subDisplay: 'Dashboard, animations, mini-overlay et th\u00e8me.',
+      subStream: 'Overlay OBS et pont compatible SOS.',
+      subApp: 'D\u00e9marrage, langue, fen\u00eatre et donn\u00e9es.',
+      hStatus: '\u00c9tat', hUnknown: 'Matchs non attribu\u00e9s',
+      hPseudo: 'Pseudo', hRanked: 'Class\u00e9 / occasionnel',
+      hDash: 'Dashboard', hSos: 'Pont compatible SOS',
+      hGeneral: 'G\u00e9n\u00e9ral', hWindow: 'Fen\u00eatre', hData: 'Donn\u00e9es',
+      hAbout: 'Version & mise \u00e0 jour',
+      // Fenêtre : la case est l'inverse de config.trayOnly (voir render()).
+      cTray: 'Garder la fen\u00eatre dans la barre des t\u00e2ches',
+      hintTray: 'Sinon, fermer la fen\u00eatre la range dans la zone de notification, pr\u00e8s de l\u2019horloge (sous la petite fl\u00e8che \u25b2). L\u2019application continue de tourner dans les deux cas.',
+      lHotkey: 'Raccourci global',
+      hintHotkey: 'Ouvre ou masque cette fen\u00eatre depuis n\u2019importe o\u00f9, m\u00eame en jeu.',
+      hotkeyBad: 'Raccourci indisponible, d\u00e9j\u00e0 pris par un autre logiciel.',
+      hintClear: 'Vider remet les compteurs de session \u00e0 0 ; le MMR, la courbe d\u2019\u00e9volution et les records sont conserv\u00e9s.',
+      hintStatsApi: '\u00c0 utiliser si le jeu tourne mais que rien ne s\u2019affiche : r\u00e9\u00e9crit le fichier DefaultStatsAPI.ini (fen\u00eatre admin), puis red\u00e9marre Rocket League.',
+      bUpdCheck: 'V\u00e9rifier les mises \u00e0 jour',
+      updChecking: 'V\u00e9rification\u2026', updIdle: 'Aucune mise \u00e0 jour en attente.',
+      updDisabled: 'Mises \u00e0 jour d\u00e9sactiv\u00e9es (version non empaquet\u00e9e).',
+      updSee: 'Voir l\u2019accueil.',
+      bQuit: 'Quitter l\u2019application',
+      hintQuit: 'Arr\u00eate compl\u00e8tement le suivi. Fermer la fen\u00eatre ne quitte pas l\u2019application.',
       hWelcome: 'Bienvenue',
       pWelcome: 'Il n\u2019y a rien \u00e0 configurer : <b>lance Rocket League et joue un match</b>. L\u2019application d\u00e9tecte tout \u2014 ton pseudo, tes victoires, ta s\u00e9rie \u2014 et ouvre le tracker sur ton 2\u1d49 \u00e9cran.',
       hWho: 'Qui es-tu ?', pWho: 'Plusieurs joueurs reviennent dans tes matchs \u2014 clique sur ton pseudo :',
-      hUpdate: 'Mise \u00e0 jour', hSettings: 'R\u00e9glages', lLang: 'Langue',
+      hUpdate: 'Mise \u00e0 jour', lLang: 'Langue',
       oAuto: 'Automatique (syst\u00e8me)',
       lPseudo: 'Ton pseudo en jeu',
       hintPseudo: 'Sert \u00e0 savoir quelle \u00e9quipe est la tienne pour compter victoires et d\u00e9faites. Joue un match : les pseudos d\u00e9tect\u00e9s apparaissent en suggestion.',
@@ -506,19 +835,18 @@
       cObsBanner: 'Banni\u00e8re victoire / d\u00e9faite en fin de match',
       cObsGoal: 'Flash \u00e0 chaque but',
       obsErr: function (port) { return 'Port ' + port + ' indisponible \u2014 un autre logiciel l\u2019utilise. Modifie \u00ab obs.port \u00bb dans config.json ou ferme l\u2019autre application.'; },
-      hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb ci-dessus l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
-      cObsSos: 'Pont compatible SOS',
+      hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb (section Dashboard & overlay) l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
+      cObsSos: 'Activer le pont compatible SOS',
       lObsSosPort: 'Port du pont',
       obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connect\u00e9s.' : ' overlay connect\u00e9.')) : 'Aucun overlay connect\u00e9 pour l\u2019instant \u2014 colle l\u2019URL ci-dessus dans ton overlay.'; },
       obsSosErr: function (port) { return 'Port ' + port + ' indisponible \u2014 le pont SOS ne tourne pas. Un autre logiciel utilise sans doute ce port : change-le ci-dessus ou ferme l\u2019autre application.'; },
       hintObsSos: 'Pour les overlays de diffusion \u00e9crits avant l\u2019arriv\u00e9e d\u2019Easy Anti-Cheat (avril 2026) pour le d\u00e9funt plugin SOS, muets en ligne depuis. Ce pont r\u00e9\u00e9met le m\u00eame flux, au m\u00eame format, en local sur le port choisi ci-dessus : colle l\u2019URL dans l\u2019overlay et il refonctionne sans \u00eatre modifi\u00e9. R\u00e9serv\u00e9 aux streamers utilisant ce type d\u2019overlay \u2014 inutile sinon.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
       bStatsApi: 'R\u00e9activer la Stats API du jeu',
-      // Export du journal des matchs (bouton \u00ab R\u00e9glages \u00bb du bas).
+      // Export du journal des matchs (section Application).
       bExport: 'Exporter les matchs', exportBusy: 'Export en cours\u2026',
       exportDone: function (n) { return n + (n > 1 ? ' matchs export\u00e9s' : ' match export\u00e9'); },
       exportFail: '\u00c9chec de l\u2019export.',
-      foot: ' \u2014 tu peux fermer cette fen\u00eatre, l\u2019application reste active dans la barre des t\u00e2ches.',
       stInMatch: 'Match en cours', stGame: 'Rocket League d\u00e9tect\u00e9',
       stWait: 'En attente de Rocket League',
       detected: 'd\u00e9tect\u00e9', waiting: 'en attente',
@@ -539,15 +867,44 @@
       apiBusy: 'Activation\u2026 (autorise la fen\u00eatre Windows)',
       apiDone: 'Fait \u2014 red\u00e9marre Rocket League',
       apiFail: '\u00c9chec \u2014 aucune installation configur\u00e9e',
-      apiStuck: 'Le jeu tourne mais la Stats API ne s\u2019est jamais connect\u00e9e. Si tu es en match et que rien ne s\u2019affiche : clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb tout en bas, accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League. Toujours rien ? V\u00e9rifie que TAGame\\Config\\DefaultStatsAPI.ini existe dans le dossier du jeu (Steam : clic droit \u2192 G\u00e9rer \u2192 Parcourir les fichiers locaux).',
-      apiBroken: 'La Stats API du jeu a \u00e9t\u00e9 d\u00e9sactiv\u00e9e \u2014 probablement par une mise \u00e0 jour du jeu ou une \u00ab\u00a0v\u00e9rification de l\u2019int\u00e9grit\u00e9 des fichiers\u00a0\u00bb Steam/Epic. Clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb tout en bas, accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League.',
+      apiStuck: 'Le jeu tourne mais la Stats API ne s\u2019est jamais connect\u00e9e. Si tu es en match et que rien ne s\u2019affiche : clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League. Toujours rien ? V\u00e9rifie que TAGame\\Config\\DefaultStatsAPI.ini existe dans le dossier du jeu (Steam : clic droit \u2192 G\u00e9rer \u2192 Parcourir les fichiers locaux).',
+      apiBroken: 'La Stats API du jeu a \u00e9t\u00e9 d\u00e9sactiv\u00e9e \u2014 probablement par une mise \u00e0 jour du jeu ou une \u00ab\u00a0v\u00e9rification de l\u2019int\u00e9grit\u00e9 des fichiers\u00a0\u00bb Steam/Epic. Clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League.',
     },
     en: {
       lStats: 'Game Stats API', lSession: 'Session',
+      // Settings panel: title bar, navigation, sections.
+      tMin: 'Minimize', tMax: 'Maximize / restore', tClose: 'Close',
+      navHome: 'Home', navAccount: 'Account & MMR',
+      navDisplay: 'Dashboard & overlay', navStream: 'Streaming',
+      navApp: 'Application',
+      subHome: 'Live game and session status.',
+      subAccount: 'Name, per-mode MMR and ranked matches.',
+      subDisplay: 'Dashboard, animations, mini-overlay and theme.',
+      subStream: 'OBS overlay and SOS-compatible bridge.',
+      subApp: 'Startup, language, window and data.',
+      hStatus: 'Status', hUnknown: 'Unattributed matches',
+      hPseudo: 'Name', hRanked: 'Ranked / casual',
+      hDash: 'Dashboard', hSos: 'SOS-compatible bridge',
+      hGeneral: 'General', hWindow: 'Window', hData: 'Data',
+      hAbout: 'Version & updates',
+      // Window: the checkbox is the inverse of config.trayOnly (see render()).
+      cTray: 'Keep the window in the taskbar',
+      hintTray: 'Otherwise, closing the window tucks it into the notification area next to the clock (under the small \u25b2 arrow). The app keeps running either way.',
+      lHotkey: 'Global shortcut',
+      hintHotkey: 'Shows or hides this window from anywhere, even in-game.',
+      hotkeyBad: 'Shortcut unavailable, already taken by another program.',
+      hintClear: 'Clearing resets the session counters to 0; MMR, the evolution curve and records are kept.',
+      hintStatsApi: 'Use it when the game is running but nothing shows up: rewrites DefaultStatsAPI.ini (admin prompt), then restart Rocket League.',
+      bUpdCheck: 'Check for updates',
+      updChecking: 'Checking\u2026', updIdle: 'No update pending.',
+      updDisabled: 'Updates disabled (unpackaged build).',
+      updSee: 'See Home.',
+      bQuit: 'Quit the app',
+      hintQuit: 'Stops tracking entirely. Closing the window does not quit the app.',
       hWelcome: 'Welcome',
       pWelcome: 'There is nothing to set up: <b>launch Rocket League and play a match</b>. The app detects everything \u2014 your name, your wins, your streak \u2014 and opens the tracker on your second screen.',
       hWho: 'Who are you?', pWho: 'Several players keep showing up in your matches \u2014 click your name:',
-      hUpdate: 'Update', hSettings: 'Settings', lLang: 'Language',
+      hUpdate: 'Update', lLang: 'Language',
       oAuto: 'Automatic (system)',
       lPseudo: 'Your in-game name',
       hintPseudo: 'Used to know which team is yours when counting wins and losses. Play a match: detected names show up as suggestions.',
@@ -604,19 +961,18 @@
       cObsBanner: 'Victory / defeat banner at match end',
       cObsGoal: 'Flash on every goal',
       obsErr: function (port) { return 'Port ' + port + ' unavailable — another program is using it. Change “obs.port” in config.json or close the other app.'; },
-      hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons above animate it too. Local only: nothing is exposed to the internet.',
-      cObsSos: 'SOS-compatible bridge',
+      hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons (Dashboard & overlay section) animate it too. Local only: nothing is exposed to the internet.',
+      cObsSos: 'Enable the SOS-compatible bridge',
       lObsSosPort: 'Bridge port',
       obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connected.' : ' overlay connected.')) : 'No overlay connected yet — paste the URL above into your overlay.'; },
       obsSosErr: function (port) { return 'Port ' + port + ' unavailable — the SOS bridge isn’t running. Another program is probably using this port: change it above or close the other app.'; },
       hintObsSos: 'For streaming overlays written before Easy Anti-Cheat arrived (April 2026) for the now-defunct SOS plugin — they’ve been silent online ever since. This bridge re-emits the same feed, in the same format, locally on the port chosen above: paste the URL into the overlay and it works again unmodified. For streamers using that kind of overlay only — skip it otherwise.',
       bDash: 'Open the dashboard', bClear: 'Clear recent matches',
       bStatsApi: 'Re-enable the game Stats API',
-      // Match log export (button in the settings section below).
+      // Match log export (Application section).
       bExport: 'Export matches', exportBusy: 'Exporting\u2026',
       exportDone: function (n) { return n + (n > 1 ? ' matches exported' : ' match exported'); },
       exportFail: 'Export failed.',
-      foot: ' \u2014 you can close this window, the app stays active in the system tray.',
       stInMatch: 'Match in progress', stGame: 'Rocket League detected',
       stWait: 'Waiting for Rocket League',
       detected: 'detected', waiting: 'waiting',
@@ -637,8 +993,8 @@
       apiBusy: 'Enabling\u2026 (accept the Windows prompt)',
       apiDone: 'Done \u2014 restart Rocket League',
       apiFail: 'Failed \u2014 no install configured',
-      apiStuck: 'The game is running but the Stats API never connected. If you are in a match and nothing shows up: click \u201cRe-enable the game Stats API\u201d at the bottom, accept the admin prompt, then restart Rocket League. Still nothing? Check that TAGame\\Config\\DefaultStatsAPI.ini exists in the game folder (Steam: right-click \u2192 Manage \u2192 Browse local files).',
-      apiBroken: 'The game\u2019s Stats API has been disabled \u2014 most likely by a game update or a Steam/Epic \u201cVerify integrity of game files\u201d. Click \u201cRe-enable the game Stats API\u201d at the bottom, accept the admin prompt, then restart Rocket League.',
+      apiStuck: 'The game is running but the Stats API never connected. If you are in a match and nothing shows up: click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League. Still nothing? Check that TAGame\\Config\\DefaultStatsAPI.ini exists in the game folder (Steam: right-click \u2192 Manage \u2192 Browse local files).',
+      apiBroken: 'The game\u2019s Stats API has been disabled \u2014 most likely by a game update or a Steam/Epic \u201cVerify integrity of game files\u201d. Click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League.',
     },
   };
   var T = I18N.fr;
@@ -651,6 +1007,12 @@
     document.querySelectorAll('[data-i18n]').forEach(function (el) {
       var v = T[el.dataset.i18n];
       if (typeof v === 'string') el.innerHTML = v;
+    });
+    // Info-bulles (boutons de la barre de titre) : même mécanisme, mais sur
+    // l'attribut title — innerHTML écraserait le glyphe du bouton.
+    document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+      var v = T[el.dataset.i18nTitle];
+      if (typeof v === 'string') el.title = v;
     });
   }
 
@@ -797,6 +1159,11 @@
     $('optSounds').checked = cfg.sounds !== false;
     $('optDiscord').checked = !!cfg.discordRpc;
     $('optBoot').checked = !!s.autostart;
+    // Fenêtre : la case « garder dans la barre des tâches » est l'INVERSE de
+    // trayOnly (défaut true = zone de notification). Réglage absent (vieille
+    // config, premier rendu) → comportement historique, case décochée.
+    $('optTray').checked = cfg.trayOnly === false;
+    renderHotkey(s.hotkey);
 
     // Apparence + mini-overlay (sans écraser une saisie en cours).
     applyTheme(cfg.theme);
@@ -931,12 +1298,64 @@
     // ce soit.
     var unknown = (ses && ses.unmatched) || 0;
     $('unknownHint').style.display = unknown > 0 ? 'block' : 'none';
+    $('unknownCard').style.display = unknown > 0 ? 'block' : 'none';
     if (unknown > 0) $('unknownHint').textContent = T.unknownWarn(unknown);
     var showFix = unknown > 0 && cand.length > 0;
     $('unknownChips').style.display = showFix ? 'flex' : 'none';
     if (showFix) buildPseudoChips($('unknownChips'), cand);
 
     renderUpdate(s.update || {});
+    renderUpdStatus(s.update || {});
+
+    // Pastille sur « Accueil » : quelque chose y attend (mise à jour, Stats
+    // API en panne, pseudo à confirmer, matchs non attribués) pendant qu'on
+    // règle autre chose — sinon l'alerte reste invisible jusqu'au prochain
+    // passage par l'accueil.
+    var vis = function (id) { return $(id).style.display !== 'none'; };
+    setNavAlert('home', vis('updCard') || vis('apiHint') || vis('whoCard') || vis('unknownCard'));
+  }
+
+  // Raccourci global : touches séparées à partir de l'accélérateur fourni par
+  // le processus principal. Sans état (premier rendu, ancienne version du
+  // main) on montre la valeur par défaut, sans avertissement — on ne sait
+  // pas, on n'alarme pas. `ok: false` = le système a refusé l'enregistrement
+  // (déjà pris par un autre logiciel) : touches barrées + explication.
+  var hotkeyShown = '';
+  function renderHotkey(hk) {
+    var accel = (hk && hk.accel) || 'Ctrl+Alt+R';
+    var bad = !!hk && hk.ok === false;
+    var key = accel + '|' + bad;
+    if (key === hotkeyShown) return;
+    hotkeyShown = key;
+    var box = $('hotkeyKeys');
+    box.innerHTML = '';
+    accel.split('+').forEach(function (k, i) {
+      if (i > 0) {
+        var plus = document.createElement('i');
+        plus.textContent = '+';
+        box.appendChild(plus);
+      }
+      var kbd = document.createElement('kbd');
+      kbd.textContent = k.trim();
+      box.appendChild(kbd);
+    });
+    box.className = 'keys' + (bad ? ' bad' : '');
+    $('hotkeyWarn').style.display = bad ? 'block' : 'none';
+  }
+
+  // Ligne d'état sous « Vérifier les mises à jour » (section Application) :
+  // le bandeau détaillé (bouton télécharger / installer, progression) reste
+  // sur l'accueil, ici on résume et on y renvoie.
+  function renderUpdStatus(u) {
+    var el = $('updStatus'), st = u.status;
+    if (st === 'checking') el.textContent = T.updChecking;
+    else if (st === 'disabled') el.textContent = T.updDisabled;
+    else if (st === 'available') el.innerHTML = T.updAvail(u.next) + ' ' + T.updSee;
+    else if (st === 'downloading') el.innerHTML = T.updDl(u.next, u.percent || 0);
+    else if (st === 'downloaded') el.innerHTML = T.updReady(u.next) + ' ' + T.updSee;
+    else if (st === 'error' && u.next) el.innerHTML = T.updFail(u.next) + ' ' + T.updSee;
+    else el.textContent = T.updIdle;
+    $('updCheckBtn').disabled = st === 'checking' || st === 'downloading' || st === 'disabled';
   }
 
   function renderUpdate(u) {
@@ -982,6 +1401,41 @@
   // ─── Barre de titre ───
   $('min').onclick = function () { api.minimize && api.minimize(); };
   $('close').onclick = function () { api.close && api.close(); };
+  $('max').onclick = function () { api.maximize && api.maximize(); };
+  // Double-clic sur la barre = agrandir / restaurer, comme n'importe quelle
+  // fenêtre Windows : la barre est personnalisée (fenêtre sans cadre), le
+  // système ne le fait pas pour nous. Les boutons de la barre sont exclus.
+  document.querySelector('.titlebar').addEventListener('dblclick', function (e) {
+    if (e.target.closest('.tb-buttons')) return;
+    api.maximize && api.maximize();
+  });
+
+  // ─── Navigation entre sections ───
+  // Une seule section visible à la fois ; la dernière ouverte est mémorisée
+  // pour rouvrir la fenêtre au même endroit. localStorage peut être
+  // indisponible ou en lecture seule : on s'en passe sans bruit.
+  var SECTION_KEY = 'rlst.control.section';
+  var navBtns = Array.prototype.slice.call(document.querySelectorAll('.nav[data-sec]'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.sec[data-sec]'));
+  function showSection(id) {
+    var known = sections.some(function (sec) { return sec.dataset.sec === id; });
+    if (!known) id = 'home';
+    sections.forEach(function (sec) { sec.classList.toggle('active', sec.dataset.sec === id); });
+    navBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.sec === id); });
+    $('content').scrollTop = 0;
+    try { localStorage.setItem(SECTION_KEY, id); } catch (e) { /* stockage indisponible */ }
+  }
+  function setNavAlert(id, on) {
+    navBtns.forEach(function (b) {
+      if (b.dataset.sec === id) b.classList.toggle('alert', !!on);
+    });
+  }
+  navBtns.forEach(function (b) {
+    b.onclick = function () { showSection(b.dataset.sec); };
+  });
+  var savedSection = 'home';
+  try { savedSection = localStorage.getItem(SECTION_KEY) || 'home'; } catch (e) { /* idem */ }
+  showSection(savedSection);
 
   // ─── Réglages ───
   $('pseudo').addEventListener('input', function () { editingPseudo = true; });
@@ -1071,6 +1525,10 @@
   };
   $('optBoot').onchange = function () {
     api.setAutostart && api.setAutostart($('optBoot').checked);
+  };
+  $('optTray').onchange = function () {
+    // Case cochée = visible dans la barre des tâches = trayOnly:false.
+    api.setConfig && api.setConfig({ trayOnly: !$('optTray').checked });
   };
 
   $('optLang').addEventListener('change', function () {
@@ -1187,6 +1645,12 @@
 
   // ─── Actions ───
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
+  $('updCheckBtn').onclick = function () {
+    // Retour immédiat : l'état « checking » n'arrive qu'au prochain push.
+    $('updStatus').textContent = T.updChecking;
+    api.updateCheck && api.updateCheck();
+  };
+  $('quitBtn').onclick = function () { api.quit && api.quit(); };
   $('resetBtn').onclick = function () {
     if (confirm(T.confirmClear)) {
       api.resetSession && api.resetSession();

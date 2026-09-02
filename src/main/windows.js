@@ -35,13 +35,51 @@ function hardenWindow(win) {
 }
 
 // ───────── Fenêtre de contrôle ─────────
-function createControl(show, onReady) {
+// Un vrai panneau de configuration : redimensionnable, maximisable, taille et
+// position mémorisées. La version 460×640 figée était « toute petite » et, une
+// fois cachée dans la zone de notification (souvent repliée par Windows),
+// difficile à retrouver.
+const CONTROL_W = 1080;
+const CONTROL_H = 720;
+const CONTROL_MIN_W = 880;
+const CONTROL_MIN_H = 600;
+
+// Fermer la fenêtre : la cacher (vie dans la zone de notification, défaut)
+// ou la réduire dans la barre des tâches, où elle reste visible d'un clic.
+let trayOnly = true;
+function setTrayOnly(on) { trayOnly = on !== false; }
+
+let onControlBounds = null;
+let boundsTimer = null;
+
+// Une position mémorisée n'a de sens que si elle tombe encore sur un écran
+// branché — sinon la fenêtre renaîtrait hors champ.
+function boundsOnScreen(b) {
+  if (!b || !Number.isFinite(b.x) || !Number.isFinite(b.y)
+    || !Number.isFinite(b.width) || !Number.isFinite(b.height)) return false;
+  try {
+    return screen.getAllDisplays().some((d) => {
+      const a = d.workArea;
+      return b.x + b.width > a.x + 60 && b.x < a.x + a.width - 60
+        && b.y + 40 > a.y && b.y < a.y + a.height - 40;
+    });
+  } catch (e) { return false; }
+}
+
+function createControl(show, onReady, opts) {
   if (control && !control.isDestroyed()) { if (show) showControl(); return control; }
+  const o = opts || {};
+  const saved = boundsOnScreen(o.bounds) ? o.bounds : null;
+  onControlBounds = o.onBounds || onControlBounds;
   control = new BrowserWindow({
-    width: 460,
-    height: 640,
-    resizable: false,
-    maximizable: false,
+    width: saved ? saved.width : CONTROL_W,
+    height: saved ? saved.height : CONTROL_H,
+    x: saved ? saved.x : undefined,
+    y: saved ? saved.y : undefined,
+    minWidth: CONTROL_MIN_W,
+    minHeight: CONTROL_MIN_H,
+    resizable: true,
+    maximizable: true,
     fullscreenable: false,
     frame: false,
     backgroundColor: '#0c0e11',
@@ -56,14 +94,53 @@ function createControl(show, onReady) {
   });
   hardenWindow(control);
   control.loadFile(path.join(RENDERER, 'control.html'));
-  control.once('ready-to-show', () => { if (show) control.show(); });
+  control.once('ready-to-show', () => {
+    if (saved && saved.maximized) control.maximize();
+    if (show) control.show();
+  });
   control.webContents.on('did-finish-load', () => { if (onReady) onReady(); });
-  // Fermer = masquer ; l'application vit dans la barre des tâches.
+  // Mémorisation de la géométrie, sans écrire la config à chaque pixel.
+  const remember = () => {
+    if (boundsTimer) clearTimeout(boundsTimer);
+    boundsTimer = setTimeout(() => {
+      boundsTimer = null;
+      if (!control || control.isDestroyed() || !onControlBounds) return;
+      const max = control.isMaximized();
+      const b = max ? control.getNormalBounds() : control.getBounds();
+      onControlBounds({ x: b.x, y: b.y, width: b.width, height: b.height, maximized: max });
+    }, 400);
+  };
+  control.on('resize', remember);
+  control.on('move', remember);
+  control.on('maximize', remember);
+  control.on('unmaximize', remember);
   control.on('close', (e) => {
     const app = require('electron').app;
-    if (!app.isQuitting) { e.preventDefault(); control.hide(); }
+    if (app.isQuitting) return;
+    e.preventDefault();
+    if (trayOnly) control.hide();
+    else control.minimize();
   });
   return control;
+}
+
+// Bascule maximisé / restauré (bouton de la barre de titre personnalisée).
+function toggleMaximizeControl() {
+  if (!control || control.isDestroyed()) return;
+  if (control.isMaximized()) control.unmaximize();
+  else control.maximize();
+}
+
+// Raccourci global : la fenêtre apparaît si elle est cachée/réduite/derrière,
+// et se range si elle est déjà au premier plan.
+function toggleControl() {
+  if (!control || control.isDestroyed()) { createControl(true); return; }
+  if (control.isVisible() && !control.isMinimized() && control.isFocused()) {
+    if (trayOnly) control.hide();
+    else control.minimize();
+    return;
+  }
+  showControl();
 }
 
 function showControl() {
@@ -250,7 +327,8 @@ function broadcast(channel, payload) {
 }
 
 module.exports = {
-  createControl, showControl, getControl,
+  createControl, showControl, getControl, toggleControl, toggleMaximizeControl,
+  setTrayOnly,
   openDashboard, closeDashboard, getDashboard,
   setDashboardFullscreen,
   openOverlay, closeOverlay, getOverlay, applyOverlayCfg,

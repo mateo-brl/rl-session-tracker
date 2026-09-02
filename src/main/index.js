@@ -8,7 +8,7 @@
 //  • enregistre chaque match (victoires/défaites, série, stats par mode) ;
 //  • se met à jour toute seule depuis les releases GitHub (sur accord).
 
-const { app, Tray, Menu, ipcMain, shell, dialog } = require('electron');
+const { app, Tray, Menu, ipcMain, shell, dialog, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -68,6 +68,7 @@ const state = {
   h2h: null,             // « déjà croisé » : bilan contre les adversaires du match en cours
   obs: { running: false, port: 0, error: null },   // serveur overlay OBS
   sos: { running: false, port: 0, clients: 0 },    // pont compatible SOS
+  hotkey: { accel: 'Ctrl+Alt+R', ok: false },      // raccourci global de la fenêtre
   update: updater.getState(),
 };
 
@@ -639,6 +640,7 @@ ipcMain.handle('set-config', (_e, partial) => {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
   if (partial && partial.lang) buildTrayMenu();
+  if (partial && typeof partial.trayOnly === 'boolean') windows.setTrayOnly(partial.trayOnly);
   if (partial && typeof partial.discordRpc === 'boolean') {
     discord.setEnabled(partial.discordRpc, log);
   }
@@ -794,6 +796,7 @@ ipcMain.on('update-check', () => updater.check());
 ipcMain.on('update-download', () => updater.download());
 ipcMain.on('update-install', () => updater.install());
 ipcMain.on('win-minimize', () => { const w = windows.getControl(); if (w) w.minimize(); });
+ipcMain.on('win-maximize', () => windows.toggleMaximizeControl());
 ipcMain.on('win-close', () => { const w = windows.getControl(); if (w) w.hide(); });
 ipcMain.on('quit-app', () => { app.isQuitting = true; app.quit(); });
 
@@ -811,6 +814,7 @@ if (!gotLock) {
   });
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
   app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); sos.stop(); });
+  app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (e) {} });
 
   app.whenReady().then(async () => {
     try { app.setAppUserModelId('com.rlsessiontracker.app'); } catch (e) {}
@@ -826,7 +830,21 @@ if (!gotLock) {
     refreshSession();
 
     createTray();
-    windows.createControl(!SILENT, () => pushState());
+    windows.setTrayOnly(config.get().trayOnly !== false);
+    windows.createControl(!SILENT, () => pushState(), {
+      bounds: config.get().controlBounds,
+      onBounds: (b) => config.update({ controlBounds: b }),
+    });
+
+    // Raccourci global : la fenêtre se cache dans la zone de notification,
+    // que Windows replie souvent derrière une flèche — d'où l'impression de
+    // ne jamais la retrouver. Ctrl+Alt+R la fait apparaître de n'importe où,
+    // jeu compris. Un refus (combinaison déjà prise) est signalé à l'écran.
+    try {
+      state.hotkey.ok = globalShortcut.register('CommandOrControl+Alt+R',
+        () => windows.toggleControl());
+    } catch (e) { state.hotkey.ok = false; }
+    if (!state.hotkey.ok) log('raccourci Ctrl+Alt+R indisponible (déjà utilisé ailleurs)');
 
     updater.init((u) => { state.update = u; pushState(); }, log);
     discord.setEnabled(config.get().discordRpc, log);
