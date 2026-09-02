@@ -51,6 +51,7 @@ jobs:
               "src/renderer/control.html",
               "src/renderer/dashboard.html",
               "src/renderer/overlay.html",
+              "src/renderer/alphaboost.html",
               "src/renderer/obs.html",
             ];
             // Global (drapeau g) et attributs optionnels dans <script ...> :

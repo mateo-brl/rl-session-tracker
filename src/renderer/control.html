@@ -588,7 +588,7 @@
       <section class="sec" data-sec="display">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard &amp; overlay</span></div></div>
-          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations, mini-overlay et thème.</div>
+          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations, mini-overlay, thème et son Alpha Boost.</div>
         </div>
 
         <div class="grid2">
@@ -666,6 +666,39 @@
             </div>
             <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
           </div>
+        </div>
+
+        <!-- Son Alpha Boost : le son est joué par l'application (fenêtre
+             audio dédiée), pilotée par la télémétrie de la Stats API —
+             aucun fichier du jeu n'est touché. Le visuel de l'Alpha Boost,
+             lui, relève de la section Cosmétiques. Pleine largeur, comme
+             « Mon MMR » ou « Version & mise à jour ». -->
+        <div class="card">
+          <h2 data-i18n="hAlpha">Son Alpha Boost</h2>
+          <label class="check"><input type="checkbox" id="abOn" /><span data-i18n="cAlpha">Jouer le son Alpha Boost quand je booste</span></label>
+          <div class="duo">
+            <label class="field"><span data-i18n="lAbSound">Sonorité</span>
+              <select id="abProfile">
+                <option value="quality" data-i18n="oAbQuality">Dynamique — suit la vitesse</option>
+                <option value="classic" data-i18n="oAbClassic">Classique — son fixe</option>
+              </select></label>
+            <label class="field"><span data-i18n="lAbVolume">Volume</span>
+              <select id="abVolume">
+                <option value="0.1" data-i18n="oVol1">Très doux</option>
+                <option value="0.25" data-i18n="oVol2">Doux</option>
+                <option value="0.45" data-i18n="oVol3">Normal</option>
+                <option value="0.7" data-i18n="oVol4">Fort</option>
+                <option value="1" data-i18n="oVol5">Maximum</option>
+              </select></label>
+          </div>
+          <button class="ghost" id="abTest" data-i18n="bAbTest">Écouter un essai</button>
+          <div class="hint" data-i18n="hintAlpha">Le son est joué par l'application
+            elle-même, à partir de la Stats API : aucun fichier du jeu n'est touché,
+            rien d'injecté — compatible anti-triche. Adapté du projet communautaire
+            trznx/Rocket_League-Alpha_Boost (MIT).</div>
+          <div class="hint" data-i18n="hintAlphaApi">Nécessite 120 paquets/s de la
+            Stats API : l'appli règle ça toute seule, mais il faut redémarrer
+            Rocket League après la première activation.</div>
         </div>
       </section>
 
@@ -848,7 +881,11 @@
                l'applique dans la foulée si le jeu est fermé. Une fois actif,
                c'est un swap comme un autre : il apparaît aussi dans la liste.
                Carte masquée si le processus principal n'expose pas de
-               préréglage (ancienne version). -->
+               préréglage (ancienne version) — ou n'en propose aucun : c'est
+               le cas depuis que le préréglage par copie brute du paquet a été
+               retiré (le boost devient transparent en jeu). Aucun message
+               « indisponible » dans ce cas, la carte n'existe simplement
+               pas ; le code reste prêt pour un futur préréglage. -->
           <div class="card" id="cosPresetCard" style="display:none">
             <h2 data-i18n="hCosAlpha">Préréglage : Alpha Boost</h2>
             <p class="txt" style="margin-bottom:12px" data-i18n="pCosAlpha">Le paquet Alpha Boost (<b>Boost_AlphaReward_SF.upk</b>) est déjà dans les fichiers du jeu. Ce préréglage le copie par-dessus le boost que tu choisis : en jeu, ce boost prend l’apparence de l’Alpha Boost. Visuel uniquement — le son d’un boost est une autre mécanique, il ne change pas.</p>
@@ -908,7 +945,7 @@
             <div class="gap"></div>
             <button class="primary" id="cosAddBtn" data-i18n="bCosPick">Choisir le fichier de remplacement…</button>
             <div class="hint warn" id="cosAddErr" style="display:none"></div>
-            <div class="hint" data-i18n="hintCosAdd">Le fichier de remplacement doit avoir la même extension que la cible : .upk, ou .bnk pour le son d’un boost. Il est copié à la place de l’original, sauvegardé une fois pour toutes au premier remplacement.</div>
+            <div class="hint" data-i18n="hintCosAdd">Le fichier de remplacement doit avoir la même extension que la cible : .upk, ou .bnk pour le son d’un boost. Il est copié à la place de l’original, sauvegardé une fois pour toutes au premier remplacement. Pour l’Alpha Boost, utilise un fichier .upk déjà préparé par la communauté (par exemple les presets partagés sur le Discord de Shift / Vibin’s Hub) : copier tel quel le paquet du jeu ne fonctionne pas, le boost devient transparent.</div>
           </div>
         </div>
       </section>
@@ -935,7 +972,7 @@
       navApp: 'Application',
       subHome: '\u00c9tat du jeu et de la session en direct.',
       subAccount: 'Pseudo, MMR par mode et matchs class\u00e9s.',
-      subDisplay: 'Dashboard, animations, mini-overlay et th\u00e8me.',
+      subDisplay: 'Dashboard, animations, mini-overlay, th\u00e8me et son Alpha Boost.',
       subStream: 'Overlay OBS et pont compatible SOS.',
       subApp: 'D\u00e9marrage, langue, fen\u00eatre et donn\u00e9es.',
       hStatus: '\u00c9tat', hUnknown: 'Matchs non attribu\u00e9s',
@@ -1002,6 +1039,15 @@
       lSize: 'Taille', oSmall: 'Petit', oNormal: 'Normal', oBig: 'Grand',
       lOpacity: 'Opacit\u00e9',
       hintOverlay: 'Important : mets l\u2019affichage de Rocket League en \u00ab\u00a0Fen\u00eatr\u00e9 sans bordure\u00a0\u00bb (Param\u00e8tres \u2192 Vid\u00e9o). En \u00ab\u00a0Plein \u00e9cran\u00a0\u00bb exclusif, Windows ne laisse aucune fen\u00eatre passer devant le jeu \u2014 c\u2019est pareil pour tous les overlays.',
+      hAlpha: 'Son Alpha Boost',
+      cAlpha: 'Jouer le son Alpha Boost quand je booste',
+      lAbSound: 'Sonorit\u00e9', lAbVolume: 'Volume',
+      oAbQuality: 'Dynamique \u2014 suit la vitesse',
+      oAbClassic: 'Classique \u2014 son fixe',
+      oVol1: 'Tr\u00e8s doux', oVol2: 'Doux', oVol3: 'Normal', oVol4: 'Fort', oVol5: 'Maximum',
+      bAbTest: '\u00c9couter un essai',
+      hintAlpha: 'Le son est jou\u00e9 par l\u2019application elle-m\u00eame, \u00e0 partir de la Stats API : aucun fichier du jeu n\u2019est touch\u00e9, rien d\u2019inject\u00e9 \u2014 compatible anti-triche. Adapt\u00e9 du projet communautaire trznx/Rocket_League-Alpha_Boost (MIT).',
+      hintAlphaApi: 'N\u00e9cessite 120 paquets/s de la Stats API : l\u2019appli r\u00e8gle \u00e7a toute seule, mais il faut red\u00e9marrer Rocket League apr\u00e8s la premi\u00e8re activation.',
       hObs: 'Mode streamer (OBS)',
       cObs: 'Servir l\u2019overlay de stream en local',
       bCopy: 'Copier l\u2019URL', bCopied: 'Copi\u00e9e !',
@@ -1065,7 +1111,7 @@
       hCosAdd: 'Ajouter un swap', lCosInstall: 'Installation',
       lCosTarget: 'Fichier du jeu \u00e0 remplacer', lCosLabel: 'Libell\u00e9',
       bCosPick: 'Choisir le fichier de remplacement\u2026', cosPicking: 'Choix du fichier\u2026',
-      hintCosAdd: 'Le fichier de remplacement doit avoir la m\u00eame extension que la cible : .upk, ou .bnk pour le son d\u2019un boost. Il est copi\u00e9 \u00e0 la place de l\u2019original, sauvegard\u00e9 une fois pour toutes au premier remplacement.',
+      hintCosAdd: 'Le fichier de remplacement doit avoir la m\u00eame extension que la cible : .upk, ou .bnk pour le son d\u2019un boost. Il est copi\u00e9 \u00e0 la place de l\u2019original, sauvegard\u00e9 une fois pour toutes au premier remplacement. Pour l\u2019Alpha Boost, utilise un fichier .upk d\u00e9j\u00e0 pr\u00e9par\u00e9 par la communaut\u00e9 (par exemple les presets partag\u00e9s sur le Discord de Shift / Vibin\u2019s Hub) : copier tel quel le paquet du jeu ne fonctionne pas, le boost devient transparent.',
       cosExt: function (ext) { return 'Fichier de remplacement attendu : ' + ext; },
       cosExtNone: 'Choisis un fichier dans la liste \u2014 l\u2019extension attendue s\u2019affichera ici.',
       cosNoTarget: 'Indique d\u2019abord le fichier du jeu \u00e0 remplacer.',
@@ -1104,7 +1150,7 @@
       navApp: 'Application',
       subHome: 'Live game and session status.',
       subAccount: 'Name, per-mode MMR and ranked matches.',
-      subDisplay: 'Dashboard, animations, mini-overlay and theme.',
+      subDisplay: 'Dashboard, animations, mini-overlay, theme and Alpha Boost sound.',
       subStream: 'OBS overlay and SOS-compatible bridge.',
       subApp: 'Startup, language, window and data.',
       hStatus: 'Status', hUnknown: 'Unattributed matches',
@@ -1171,6 +1217,15 @@
       lSize: 'Size', oSmall: 'Small', oNormal: 'Normal', oBig: 'Large',
       lOpacity: 'Opacity',
       hintOverlay: 'Important: set Rocket League\u2019s display mode to \u201cBorderless Windowed\u201d (Settings \u2192 Video). In exclusive \u201cFullscreen\u201d, Windows lets no window appear above the game \u2014 the same goes for every overlay.',
+      hAlpha: 'Alpha Boost sound',
+      cAlpha: 'Play the Alpha Boost sound when I boost',
+      lAbSound: 'Sound', lAbVolume: 'Volume',
+      oAbQuality: 'Dynamic \u2014 follows your speed',
+      oAbClassic: 'Classic \u2014 static sound',
+      oVol1: 'Very soft', oVol2: 'Soft', oVol3: 'Normal', oVol4: 'Loud', oVol5: 'Maximum',
+      bAbTest: 'Play a sample',
+      hintAlpha: 'The sound is played by the app itself, from the Stats API: no game file is touched, nothing is injected \u2014 anti-cheat safe. Adapted from the community project trznx/Rocket_League-Alpha_Boost (MIT).',
+      hintAlphaApi: 'Needs 120 packets/s from the Stats API: the app sets that up on its own, but Rocket League must be restarted after the first activation.',
       hObs: 'Streamer mode (OBS)',
       cObs: 'Serve the stream overlay locally',
       bCopy: 'Copy URL', bCopied: 'Copied!',
@@ -1234,7 +1289,7 @@
       hCosAdd: 'Add a swap', lCosInstall: 'Install',
       lCosTarget: 'Game file to replace', lCosLabel: 'Label',
       bCosPick: 'Choose the replacement file\u2026', cosPicking: 'Choosing file\u2026',
-      hintCosAdd: 'The replacement file must have the same extension as the target: .upk, or .bnk for a boost sound. It is copied over the original, which is backed up once and for all at the first replacement.',
+      hintCosAdd: 'The replacement file must have the same extension as the target: .upk, or .bnk for a boost sound. It is copied over the original, which is backed up once and for all at the first replacement. For the Alpha Boost, use a .upk file already prepared by the community (for example the presets shared on the Shift / Vibin\u2019s Hub Discord): copying the game\u2019s package as is does not work, the boost turns transparent.',
       cosExt: function (ext) { return 'Expected replacement file: ' + ext; },
       cosExtNone: 'Pick a file from the list \u2014 the expected extension will show up here.',
       cosNoTarget: 'Enter the game file to replace first.',
@@ -1456,6 +1511,28 @@
     }
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
+
+    // Son Alpha Boost. Réglage absent (config d'avant la réinstallation du
+    // moteur, ancien processus principal) → mêmes valeurs par défaut que
+    // config.js : désactivé, sonorité dynamique, volume 0.45.
+    var ab = cfg.alphaBoost || {};
+    $('abOn').checked = !!ab.enabled;
+    if (document.activeElement !== $('abProfile')) {
+      $('abProfile').value = ab.profile === 'classic' ? 'classic' : 'quality';
+    }
+    var abVol = $('abVolume');
+    if (document.activeElement !== abVol) {
+      // Volume hors des cinq paliers du menu (valeur retouchée à la main
+      // dans le JSON) : on retient le palier le plus proche — un <select>
+      // sans option correspondante renverrait '' et donc un volume 0 à la
+      // prochaine sauvegarde.
+      var vol = ab.volume != null && isFinite(Number(ab.volume)) ? Number(ab.volume) : 0.45;
+      var nearest = '0.45';
+      Array.prototype.forEach.call(abVol.options, function (o) {
+        if (Math.abs(Number(o.value) - vol) < Math.abs(Number(nearest) - vol)) nearest = o.value;
+      });
+      abVol.value = nearest;
+    }
 
     // Mode streamer : URL à copier quand le serveur tourne, erreur sinon.
     var oc2 = cfg.obs || {};
@@ -2336,6 +2413,27 @@
   };
   $('testLoss').onclick = function () {
     api.previewAnimation && api.previewAnimation('L');
+  };
+
+  // ─── Son Alpha Boost ───
+  // Le processus principal relaie la config à la fenêtre audio (alpha-cfg)
+  // et règle lui-même la cadence de la Stats API : rien d'autre à appeler.
+  function saveAlpha() {
+    return api.setConfig && api.setConfig({ alphaBoost: {
+      enabled: $('abOn').checked,
+      volume: Number($('abVolume').value),
+      profile: $('abProfile').value,
+    } });
+  }
+  ['abOn', 'abProfile', 'abVolume'].forEach(function (id) {
+    $(id).addEventListener('change', saveAlpha);
+  });
+  // L'essai joue avec les réglages affichés, même pas encore sauvegardés :
+  // on sauvegarde d'abord, l'essai part une fois la config relayée.
+  $('abTest').onclick = function () {
+    Promise.resolve(saveAlpha()).then(function () {
+      if (api.alphaTest) api.alphaTest();
+    });
   };
 
   // ─── Mode streamer (OBS) ───

@@ -89,10 +89,29 @@ function isRLInstall(p) {
   } catch (e) { return false; }
 }
 
+// Forme canonique d'un chemin Windows : le registre livre le dossier Steam
+// tantôt « c:/program files (x86)/steam » (HKCU), tantôt « C:\Program Files
+// (x86)\Steam » (HKLM). Comparés tels quels, la MÊME installation apparaissait
+// deux fois — et la section Cosmétiques sauvegardait alors comme « original »
+// un fichier déjà remplacé via l'autre entrée. Constaté en jeu.
+function canonicalPath(p) {
+  let out = path.resolve(String(p));
+  if (process.platform === 'win32') out = out.replace(/\//g, '\\');
+  return out;
+}
+function pathKey(p) {
+  return process.platform === 'win32' ? canonicalPath(p).toLowerCase() : canonicalPath(p);
+}
+
 function detectInstalls() {
   const found = [];
+  const keys = new Set();
   const add = (p) => {
-    if (p && typeof p === 'string' && !found.includes(p)) found.push(p);
+    if (!p || typeof p !== 'string') return;
+    const k = pathKey(p);
+    if (keys.has(k)) return;
+    keys.add(k);
+    found.push(canonicalPath(p));
   };
 
   // Epic Games : manifestes du launcher (ProgramData, lisible sans élévation).
@@ -169,6 +188,16 @@ function iniConfigured(install, port) {
   } catch (e) { return false; }   // absent ou illisible : à refaire
 }
 
+// Débit actuellement configuré dans l'ini d'une installation (0 si absent).
+function iniRate(install) {
+  try {
+    const txt = fs.readFileSync(
+      path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'), 'utf8');
+    const r = /^\s*PacketSendRate\s*=\s*(\d+)/im.exec(txt);
+    return r ? Number(r[1]) : 0;
+  } catch (e) { return 0; }
+}
+
 // Retourne { installs, broken } — broken : installations détectées dont
 // l'ini n'active pas (ou plus) la Stats API sur le port attendu.
 function checkStatsApi(port) {
@@ -188,8 +217,8 @@ const PS_LINES = [
   // vérification, elle, comparait au port configuré — un port personnalisé
   // provoquait donc une invite UAC à CHAQUE lancement, sans jamais converger.
   '$Port=__PORT__',
-  // 30 paquets/s : large marge pour le score en direct et le pont SOS.
-  '$Rate=30',
+  // 120 paquets/s : nécessaire à la réactivité du son Alpha Boost.
+  '$Rate=120',
   "$Result='__RESULT__'",
   "$GrantUser='__USER__'",
   // ── Élévation automatique : sans droits admin, on se relance élevé et on
@@ -261,10 +290,12 @@ function psQuote(s) {
   return "'" + String(s).replace(/'/g, "''") + "'";
 }
 
-// 30 paquets/s : large marge pour le score en direct et le pont SOS (l'état
-// diffusé aux fenêtres est de toute façon limité à 1/s). Un ini déjà écrit à
-// une autre cadence reste valide — la vérification n'exige qu'une valeur > 0.
-const PACKET_RATE = 30;
+// 120 paquets/s : nécessaire à la réactivité du son Alpha Boost (le tracker
+// seul se contenterait de 10). Un ini déjà écrit à une autre cadence reste
+// valide pour la vérification (débit > 0) ; l'activation du son, elle,
+// réécrit à 120 si besoin.
+const PACKET_RATE = 120;
+const ALPHA_RATE = 120;
 const DEFAULT_PORT = 49123;
 
 function numOrPort(v) {
@@ -409,4 +440,4 @@ async function enableStatsApi(port, opts) {
 }
 
 module.exports = { enableStatsApi, checkStatsApi, iniConfigured, detectInstalls,
-  parseLibraryFolders, isRLInstall };
+  parseLibraryFolders, isRLInstall, iniRate, ALPHA_RATE, canonicalPath, pathKey };

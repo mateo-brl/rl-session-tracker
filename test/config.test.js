@@ -172,3 +172,15 @@ test('controlBounds : validé, arrondi, jamais absurde', () => {
   c.update({ controlBounds: { x: 'a', y: 0, width: 900, height: 700 } }); // NaN
   assert.equal(c.get().controlBounds.width, 1080);
 });
+
+test('alpha boost : volume et profil validés', () => {
+  const c = freshConfig();
+  assert.equal(c.get().alphaBoost.enabled, false);   // désactivé par défaut
+  c.update({ alphaBoost: { enabled: true, volume: 0.7, profile: 'classic' } });
+  assert.deepEqual(c.get().alphaBoost,
+    { enabled: true, volume: 0.7, profile: 'classic' });
+  c.update({ alphaBoost: { volume: 5, profile: '<script>' } });  // rejetés
+  assert.equal(c.get().alphaBoost.volume, 0.7);
+  assert.equal(c.get().alphaBoost.profile, 'classic');
+  assert.equal(c.get().alphaBoost.enabled, true);    // intact
+});

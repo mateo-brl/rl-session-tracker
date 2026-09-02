@@ -44,6 +44,15 @@ const MAX_EVENTS = 40;
 // Diffusion de l'état limitée à 1/s (la Stats API peut envoyer jusqu'à 120/s).
 const STATE_INTERVAL = 1000;
 
+// ── Télémétrie boost (son Alpha Boost) ──
+// La Stats API expose par joueur `Speed` (km/h), `Boost` (0-100) et
+// `bBoosting`. Subtilité découverte par la communauté : le jeu OMET du JSON
+// tout champ valant 0 ou false — un champ absent n'est pas une inconnue,
+// c'est un zéro.
+const SPEED_UU_PER_KMH = 2300 / 83;  // supersonique ≈ 2300 uu/s ≈ 83 km/h
+const BOOST_HOLD_MS = 60;            // bBoosting peut retomber une frame : on lisse
+const REPLAY_MUTE_MS = 6500;         // ralenti + célébration après un but : silence
+
 class RLStatsAPI extends EventEmitter {
   // `opts.port` / `opts.host` : lus À LA CONSTRUCTION, pas au chargement du
   // module. Avant, le port était figé dans une constante évaluée au `require`,
@@ -68,6 +77,11 @@ class RLStatsAPI extends EventEmitter {
     this._depth = 0;          // profondeur d'accolades
     this._inStr = false;      // dans une chaîne JSON ?
     this._esc = false;        // caractère d'échappement en cours ?
+    // ── Télémétrie boost ──
+    this._boostPrev = null;       // jauge au paquet précédent (détecte la consommation)
+    this._boostHeldUntil = 0;     // lissage des micro-coupures de bBoosting
+    this._replayMuteUntil = 0;    // silence pendant le ralenti d'un but
+    this._trackedId = null;       // PrimaryId du joueur local mémorisé
   }
 
   // Effectif cumulé du match : un joueur qui QUITTE disparaît des updatestate
@@ -167,6 +181,7 @@ class RLStatsAPI extends EventEmitter {
       this._afterEnd = false;
       if (this.connected) {
         this.connected = false;
+        this._emitTelemetryStop();
         this.emit('connection', { connected: false });
       }
       this.socket = null;
@@ -266,6 +281,7 @@ class RLStatsAPI extends EventEmitter {
       case 'matchcreated':
       case 'matchinitialized':
         this._afterEnd = false;
+        this._resetTelemetry();
         this._onMatchStart();
         // MatchGuid n'est renseigné qu'en ligne, et il arrive vide sur
         // matchcreated : c'est matchinitialized qui porte le vrai identifiant.
@@ -293,11 +309,17 @@ class RLStatsAPI extends EventEmitter {
           if (!this._looksLikeFreshMatch(data)) break;
           if (DEBUG) console.log('[statsapi] nouveau match détecté sans matchcreated');
           this._afterEnd = false;
+          this._resetTelemetry();
           this._onMatchStart();
         }
         this._onUpdateState(data);
         break;
       case 'goalscored':
+        // Le ralenti rejoue le boost du buteur : on coupe le son le temps du
+        // replay et de l'engagement (pendant le compte à rebours, personne ne
+        // peut boucler de toute façon).
+        this._replayMuteUntil = Date.now() + REPLAY_MUTE_MS;
+        this._emitTelemetryStop();
         this._trace(name, this._goal(data));
         this.emit('goal', this._goal(data));
         break;
@@ -310,6 +332,7 @@ class RLStatsAPI extends EventEmitter {
         break;
       case 'matchdestroyed':
         this._clearStateTimer();
+        this._emitTelemetryStop();
         // Destruction SANS matchended préalable = abandon (forfait, départ en
         // cours de match, déconnexion). On émet le dernier état connu pour
         // que l'application puisse en tenir compte.
@@ -420,7 +443,79 @@ class RLStatsAPI extends EventEmitter {
       return;
     }
 
+    this._emitTelemetry(data, game);
     this._scheduleStateEmit();
+  }
+
+  // ───────── Télémétrie boost (son Alpha Boost) ─────────
+  _resetTelemetry() {
+    this._boostPrev = null;
+    this._boostHeldUntil = 0;
+    this._replayMuteUntil = 0;
+    this._trackedId = null;
+  }
+
+  // Émis quand le son doit s'arrêter quoi qu'il arrive (but, fin de match…).
+  _emitTelemetryStop() {
+    this._boostPrev = null;
+    this._boostHeldUntil = 0;
+    this.emit('telemetry', { boosting: false, boost: 0, speed: 0 });
+  }
+
+  // Retrouve le joueur du client local dans la liste brute. Stratégie reprise
+  // du projet communautaire trznx/Rocket_League-Alpha_Boost : la cible de la
+  // caméra (Game.Target) d'abord, puis le PrimaryId mémorisé, puis Shortcut=1
+  // (convention du client local), et au pire le premier joueur.
+  _localPlayerRaw(data, game) {
+    const raw = data.Players || data.players || game.Players || game.players;
+    if (!raw) return null;
+    const list = Array.isArray(raw) ? raw : Object.values(raw);
+    if (!list.length) return null;
+
+    const target = (game.bHasTarget && game.Target && typeof game.Target === 'object')
+      ? game.Target : null;
+    if (target) {
+      const hit = list.find((p) => p && p.Name === target.Name
+        && numOr(p.TeamNum ?? p.Team, -1) === numOr(target.TeamNum ?? target.Team, -2));
+      if (hit) {
+        if (hit.PrimaryId) this._trackedId = hit.PrimaryId;
+        return hit;
+      }
+    }
+    if (this._trackedId) {
+      const hit = list.find((p) => p && p.PrimaryId === this._trackedId);
+      if (hit) return hit;
+    }
+    const local = list.find((p) => p && numOr(p.Shortcut, 0) === 1);
+    if (local) {
+      if (local.PrimaryId) this._trackedId = local.PrimaryId;
+      return local;
+    }
+    return list[0];
+  }
+
+  _emitTelemetry(data, game) {
+    const p = this._localPlayerRaw(data, game);
+    if (!p) return;
+    // Champs omis = 0 / false (le jeu n'envoie jamais les valeurs par défaut).
+    const boost = Math.max(0, Math.min(100, numOr(p.Boost ?? p.boost, 0)));
+    const speed = Math.max(0, numOr(p.Speed ?? p.speed, 0) * SPEED_UU_PER_KMH);
+    const flag = !!(p.bBoosting ?? p.BBoosting);
+    const draining = this._boostPrev !== null && boost < this._boostPrev;
+    this._boostPrev = boost;
+
+    const now = Date.now();
+    let boosting = false;
+    if (flag || draining) {
+      boosting = true;
+      this._boostHeldUntil = now + BOOST_HOLD_MS;
+    } else if (now < this._boostHeldUntil) {
+      boosting = true;
+    }
+    if (boost <= 0) boosting = false;            // bouton tenu mais jauge vide
+    if (now < this._replayMuteUntil) boosting = false;  // ralenti d'un but
+
+    this.emit('telemetry', { boosting, boost, speed: Math.round(speed) });
   }
 
   // Diffuse `state` à ~1/s, AVEC trailing edge : le dernier état d'une rafale
@@ -502,6 +597,7 @@ class RLStatsAPI extends EventEmitter {
     snap.podium = !!(this.match && this.match.podium);
     snap.events = (this.match && this.match.events) || [];
     this._afterEnd = true;
+    this._emitTelemetryStop();
     this.emit('ended', snap);
     this.match = null;
   }
