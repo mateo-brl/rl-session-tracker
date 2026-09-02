@@ -774,6 +774,22 @@ function cosmeticsResult(r) {
   pushState();
   return r;
 }
+// Les paquets vivent sous Program Files : la première écriture échoue tant
+// que l'utilisateur n'a pas de droits sur CookedPCConsole. Plutôt que de lui
+// demander d'aller cliquer ailleurs, on lance l'élévation (qui pose l'ACL)
+// et on rejoue l'opération une fois. Une seule invite UAC, puis plus jamais.
+async function withGameRights(op) {
+  let r = op();
+  if (r && r.ok === false && (r.code === 'EACCES' || r.code === 'EPERM')
+      && process.platform === 'win32') {
+    log('cosmétiques : accès refusé, élévation pour poser les droits…');
+    try { await enableStatsApi(config.get().statsApiPort, { forceElevate: true }); }
+    catch (e) { log('cosmétiques : élévation échouée : ' + e.message); }
+    refreshStatsApiFlag();
+    r = op();
+  }
+  return cosmeticsResult(r);
+}
 ipcMain.handle('cosmetics-list', () => (cosmetics ? cosmetics.list()
   : { installs: [], swaps: [], gameRunning: false }));
 ipcMain.handle('cosmetics-targets', (_e, install, query) =>
@@ -800,17 +816,17 @@ ipcMain.handle('cosmetics-add-preset', (_e, id, opts) =>
   cosmeticsResult(cosmetics ? cosmetics.addPreset(String(id || ''), opts || {})
     : { ok: false, error: 'Module indisponible.' }));
 ipcMain.handle('cosmetics-apply', (_e, id) =>
-  cosmeticsResult(cosmetics ? cosmetics.apply(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
+  withGameRights(() => (cosmetics ? cosmetics.apply(String(id || '')) : { ok: false, error: 'Module indisponible.' })));
 ipcMain.handle('cosmetics-restore', (_e, id) =>
-  cosmeticsResult(cosmetics ? cosmetics.restore(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
+  withGameRights(() => (cosmetics ? cosmetics.restore(String(id || '')) : { ok: false, error: 'Module indisponible.' })));
 ipcMain.handle('cosmetics-remove', (_e, id) =>
   cosmeticsResult(cosmetics ? cosmetics.remove(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
 ipcMain.handle('cosmetics-toggle', (_e, id, enabled) =>
   cosmeticsResult(cosmetics ? cosmetics.toggle(String(id || ''), !!enabled) : { ok: false, error: 'Module indisponible.' }));
 ipcMain.handle('cosmetics-apply-all', () =>
-  cosmeticsResult(cosmetics ? cosmetics.applyAll() : { ok: false, error: 'Module indisponible.' }));
+  withGameRights(() => (cosmetics ? cosmetics.applyAll() : { ok: false, error: 'Module indisponible.' })));
 ipcMain.handle('cosmetics-restore-all', () =>
-  cosmeticsResult(cosmetics ? cosmetics.restoreAll() : { ok: false, error: 'Module indisponible.' }));
+  withGameRights(() => (cosmetics ? cosmetics.restoreAll() : { ok: false, error: 'Module indisponible.' })));
 
 ipcMain.handle('export-matches', async () => {
   try {
