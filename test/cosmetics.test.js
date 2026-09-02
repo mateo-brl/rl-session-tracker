@@ -354,16 +354,42 @@ test('préréglage Alpha : la fiche audio est renommée avec le reste', () => {
   assert.ok(!names.includes('Boost_Alpha_Loop'));
 });
 
-test('préréglage Alpha : cible au nom trop long refusée, avec des suggestions', () => {
+test('préréglage Alpha : Bubbles marche, sa fiche plus longue est financée ailleurs', () => {
+  // « Boost_Bubbles_Loop » (18) est plus long que « Boost_Alpha_Loop » (16),
+  // mais « Boost_AlphaReward_SF » → « Boost_Bubble_SF » libère 5 octets.
   const { install, cooked } = soundInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
     { detectInstalls: () => [install] });
-  const before = fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'));
   const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
+  const a = c.apply(r.swap.id);
+  assert.equal(a.ok, true, a.error);
+  const names = upk.inspect(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')), upk.loadKeys()).names;
+  assert.ok(names.includes('Boost_Bubbles_Loop'));
+  assert.ok(names.includes('Boost_Bubble_SF'));
+  assert.ok(names.includes('SFX_Boost_Alpha'));
+  assert.equal(c.restore(r.swap.id).ok, true);
+});
+
+test('préréglage Alpha : table trop juste = refus net, jeu intact, suggestions', () => {
+  const install = fakeInstall();
+  const cooked = path.join(install, 'TAGame', 'CookedPCConsole');
+  // Source sans aucun mou : rien à raccourcir pour financer une fiche plus longue.
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'),
+    build({ names: ['None', 'Boost_AlphaReward_SF', 'Boost_AlphaReward', 'Boost_Alpha_Loop'] }).buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_TresTresLongNom_SF.upk'),
+    build({ names: ['None', 'Boost_TresTresLongNom_SF', 'Boost_TresTresLongNom',
+      'Boost_TresTresLongNom_Loop'] }).buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Toon_SF.upk'),
+    build({ names: ['None', 'Boost_Toon_SF', 'Boost_Toon', 'Boost_Toon_Loop'] }).buf);
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const target = path.join(cooked, 'Boost_TresTresLongNom_SF.upk');
+  const before = fs.readFileSync(target);
+  const r = c.addPreset('alpha', { install, target: 'Boost_TresTresLongNom_SF.upk' });
   const a = c.apply(r.swap.id);
   assert.equal(a.ok, false);
   assert.match(a.error, /ne convient pas/);
-  assert.match(a.error, /Boost_Bubbles_Loop/);
-  assert.match(a.error, /Toon/);                     // suggestion d'un boost compatible
-  assert.ok(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')).equals(before));
+  assert.match(a.error, /il manque/);
+  assert.match(a.error, /Toon/);
+  assert.ok(fs.readFileSync(target).equals(before));
 });

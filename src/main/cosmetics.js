@@ -340,14 +340,18 @@ class Cosmetics {
       // Lecture directe du dossier : targets() plafonne sa liste, or on cherche
       // ici parmi TOUS les boosts.
       let all = [];
+      let tried = 0;
       try { all = fs.readdirSync(path.join(install, SUB)); } catch (e) { return out; }
       for (const t of all.sort()) {
         if (!/^Boost_.*_SF\.upk$/i.test(t) || t.toLowerCase() === String(sourceRef).toLowerCase()) continue;
+        if (++tried > 200) break;
         try {
           const tn = upk.namesOf(fs.readFileSync(this._targetPath(install, t)), keys);
           const pairs = upk.pairsFor(sourceRef, t).concat(upk.rolePairs(sn, tn));
-          if (!upk.fits(sn, pairs).length) out.push(t.replace(/\.upk$/i, '').replace(/^Boost_/i, '').replace(/_SF$/i, ''));
-        } catch (e) { /* paquet illisible : on ne le propose pas */ }
+          // Seul juge fiable : tenter le patch pour de vrai, en mémoire.
+          upk.patchPackage(src, { pairs, keys });
+          out.push(t.replace(/\.upk$/i, '').replace(/^Boost_/i, '').replace(/_SF$/i, ''));
+        } catch (e) { /* ne convient pas ou paquet illisible */ }
         if (out.length >= (limit || 8)) break;
       }
     } catch (e) { /* pas de suggestion possible */ }
@@ -373,19 +377,22 @@ class Cosmetics {
           const sn = upk.namesOf(buf, keys);
           const tn = upk.namesOf(fs.readFileSync(targetFile), keys);
           pairs = upk.pairsFor(s.sourceRef, s.target).concat(upk.rolePairs(sn, tn));
-          const bad = upk.fits(sn, pairs);
-          if (bad.length) {
-            const alt = this._compatible(s.install, s.sourceRef, 8);
-            throw new Error('ce boost ne convient pas : « ' + bad[0].to + ' » est plus long que « '
-              + bad[0].from + ' », et le nom se réécrit à longueur constante'
-              + (alt.length ? '. Boosts compatibles : ' + alt.join(', ') : ''));
-          }
         } catch (e) {
           if (/ne convient pas/.test(e.message)) throw e;
           // Cible illisible : on retombe sur les paires déduites des noms de fichiers.
         }
       }
-      const r = upk.patchPackage(buf, { pairs, keys, outKey });
+      let r;
+      try {
+        r = upk.patchPackage(buf, { pairs, keys, outKey });
+      } catch (e) {
+        if (/il manque/.test(e.message)) {
+          const alt = this._compatible(s.install, s.sourceRef, 8);
+          throw new Error('ce boost ne convient pas : ' + e.message
+            + (alt.length ? '. Boosts compatibles : ' + alt.join(', ') : ''));
+        }
+        throw e;
+      }
       const out = path.join(path.dirname(s.source), 'patched-' + s.target);
       fs.writeFileSync(out, r.buffer);
       this.log('cosmétiques : paquet patché pour « ' + s.label + ' » (' + r.changed.length

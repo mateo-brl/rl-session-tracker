@@ -189,10 +189,14 @@ function firstNameLooksSane(plain) {
   const len = plain.readInt32LE(0);
   if (len < 2 || len > MAX_NAME_LEN || 4 + len > plain.length) return false;
   const data = plain.subarray(4, 4 + len);
-  if (data[len - 1] !== 0) return false;
-  for (let i = 0; i < len - 1; i++) {
+  const z = data.indexOf(0);
+  if (z < 1) return false;                       // au moins un caractère, puis le NUL
+  for (let i = 0; i < z; i++) {
     if (data[i] < 0x20 || data[i] > 0x7e) return false;
   }
+  // Le reste doit être du remplissage : c'est ce que laisse un renommage vers
+  // un nom plus court, y compris celui de cette application.
+  for (let i = z; i < len; i++) if (data[i] !== 0) return false;
   return true;
 }
 
@@ -299,6 +303,70 @@ function renameInPlace(plain, names, pairs, opts) {
   return changed;
 }
 
+// Réécrit la table des noms ENTIÈRE à taille constante. Un nom peut alors
+// s'allonger, tant que d'autres raccourcissent d'autant : c'est le cas ici,
+// « Boost_AlphaReward_SF » → « Boost_Bubble_SF » libère 5 octets et
+// « Boost_AlphaReward » → « Boost_Bubble » 5 autres, alors que la fiche audio
+// « Boost_Alpha_Loop » → « Boost_Bubbles_Loop » n'en réclame que 2. Le surplus
+// devient du remplissage NUL sur la première entrée. Rien ne bouge en dehors
+// de la table : ni les tables d'imports et d'exports, ni le corps du paquet,
+// ni le moindre champ de l'en-tête.
+function rebuildNames(plain, names, pairs, end) {
+  const lower = (x) => String(x).toLowerCase();
+  const changed = [];
+  const wanted = names.map((n) => n.name);
+  const taken = new Set(names.map((n) => lower(n.name)));
+
+  for (const [from, to] of pairs || []) {
+    if (lower(from) === lower(to)) continue;
+    // Plusieurs entrées peuvent porter le même nom (casse différente) : on les
+    // traite ensemble, sinon la première déclencherait la garde de collision
+    // contre le nom que la seconde s'apprête à prendre.
+    const hits = [];
+    for (let i = 0; i < names.length; i++) if (lower(wanted[i]) === lower(from)) hits.push(i);
+    if (!hits.length) continue;
+    if (hits.some((i) => names[i].utf16)) {
+      throw new Error('« ' + from + ' » est en UTF-16 : renommage impossible');
+    }
+    const clash = wanted.some((n, j) => !hits.includes(j) && lower(n) === lower(to));
+    if (clash) throw new Error('collision : « ' + to + ' » existe déjà dans le paquet');
+    for (const i of hits) {
+      taken.delete(lower(wanted[i]));
+      changed.push({ index: i, from: wanted[i], to });
+      wanted[i] = to;
+    }
+    taken.add(lower(to));
+  }
+  if (!changed.length) return { changed };
+
+  // Longueur minimale de chaque entrée, puis répartition du surplus.
+  const lens = names.map((n, i) => (n.utf16 ? n.len : Buffer.byteLength(wanted[i], 'latin1') + 1));
+  const size = (L) => L.reduce((a, v, i) => a + 4 + (names[i].utf16 ? -v * 2 : v) + 8, 0);
+  const need = size(lens);
+  if (need > end) {
+    throw new Error('il manque ' + (need - end) + ' octet(s) dans la table des noms pour ces renommages');
+  }
+  lens[0] += end - need;                 // le surplus part en NUL sur la 1re entrée
+
+  const out = Buffer.alloc(end);
+  let q = 0;
+  for (let i = 0; i < names.length; i++) {
+    const bytes = names[i].utf16 ? -lens[i] * 2 : lens[i];
+    out.writeInt32LE(names[i].utf16 ? -lens[i] : lens[i], q);
+    if (names[i].utf16) {
+      plain.copy(out, q + 4, names[i].offset + 4, names[i].offset + 4 + bytes);
+    } else {
+      out.write(wanted[i], q + 4, 'latin1');   // le reste de la zone est déjà à zéro
+    }
+    plain.copy(out, q + 4 + bytes, names[i].offset + 4 + (names[i].utf16 ? -names[i].len * 2 : names[i].len), 0
+      + names[i].offset + 4 + (names[i].utf16 ? -names[i].len * 2 : names[i].len) + 8);  // drapeaux
+    q += 4 + bytes + 8;
+  }
+  if (q !== end) throw new Error('table des noms reconstruite de travers (' + q + ' ≠ ' + end + ')');
+  out.copy(plain, 0);
+  return { changed };
+}
+
 // ───────── Opérations de haut niveau ─────────
 
 // Rapport de diagnostic sur un paquet : ce qu'on comprend de l'en-tête, si une
@@ -363,7 +431,13 @@ function patchPackage(buf, opts) {
     throw new Error('région chiffrée non alignée (' + h.tailLen + ' octets) et clés différentes');
   }
   const pairs = o.pairs || [];
-  let changed = renameInPlace(plain, names, pairs);
+  let changed;
+  if (fits(names.map((n) => n.name), pairs).length) {
+    // Un nom s'allonge : on réécrit la table entière à taille constante.
+    changed = rebuildNames(plain, names, pairs, end).changed;
+  } else {
+    changed = renameInPlace(plain, names, pairs);
+  }
   if (!changed.length) {
     // Les noms exacts n'y sont pas : on remplace le motif à l'intérieur des
     // entrées (Boost_AlphaReward_Body, …), ce que fait aussi VelocityRL.
@@ -445,7 +519,7 @@ function fits(sourceNames, pairs) {
 }
 
 module.exports = {
-  namesOf, rolePairs, fits, CUE_RE,
+  namesOf, rolePairs, fits, rebuildNames, CUE_RE,
   parseHeader, findKey, probeKey, chunkTableAgrees, readNames, renameInPlace, inspect, patchPackage,
   keyOf, pairsFor, loadKeys, ecb, DEFAULT_KEYS, TAG,
 };
