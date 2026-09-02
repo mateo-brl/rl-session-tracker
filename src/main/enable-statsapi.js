@@ -241,6 +241,11 @@ const PS_LINES = [
   // les réparations suivantes se font en silence, sans élévation.
   '      if($GrantUser){',
   "        icacls \"$cfg\" /grant (\"${GrantUser}:(OI)(CI)M\") /T /C 2>$null | Out-Null",
+  // Même droit sur CookedPCConsole : c'est là que vivent les paquets que la
+  // section Cosmétiques remplace. Sans ça, sur une installation Steam sous
+  // Program Files (x86), chaque swap échouerait sur « accès refusé ».
+  "        $cooked=Join-Path $c 'TAGame\\CookedPCConsole'",
+  "        if(Test-Path $cooked){ icacls \"$cooked\" /grant (\"${GrantUser}:(OI)(CI)M\") /C 2>$null | Out-Null }",
   '      }',
   '    }catch{}',
   '  }',
@@ -330,17 +335,22 @@ function writeIniDirect(installs, port) {
   return done;
 }
 
-async function enableStatsApi(port) {
+// `opts.forceElevate` : passer directement par l'élévation même si l'ini
+// est déjà accessible — c'est l'élévation qui pose les droits sur
+// CookedPCConsole, dont la section Cosmétiques a besoin. Sans ça, une machine
+// où l'ini était déjà accessible n'obtenait jamais ces droits.
+async function enableStatsApi(port, opts) {
   if (process.platform !== 'win32') {
     return { skipped: true, reason: 'Stats API disponible uniquement sur Windows' };
   }
   const want = numOrPort(port);
   const installs = detectInstalls();
+  const force = !!(opts && opts.forceElevate);
 
   // 1) Tentative silencieuse. Si toutes les installations sont écrites, on
   //    s'arrête là : aucune invite UAC, donc aucune occasion de la rater.
-  const direct = writeIniDirect(installs, want);
-  if (installs.length && direct.length === installs.length) {
+  const direct = force ? [] : writeIniDirect(installs, want);
+  if (!force && installs.length && direct.length === installs.length) {
     return { ok: true, installs, configured: direct, elevated: false };
   }
 
