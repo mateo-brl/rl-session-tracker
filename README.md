@@ -231,9 +231,10 @@ de diagnostic est produit.
 
 Le son suit un chemin différent du visuel : chaque boost a sa banque Wwise
 (`SFX_Boost_*.bnk`) et sa fiche audio nommée d'après l'objet. L'appli renomme
-donc aussi cette fiche, en gardant l'événement Alpha. Comme le renommage se
-fait à longueur constante, un boost dont le nom interne est plus long que
-celui d'Alpha est refusé, et l'appli propose ceux qui conviennent. L'appli sauvegarde l'original une
+donc aussi cette fiche, en gardant l'événement Alpha. La contrainte porte sur la taille
+TOTALE de la table des noms, pas sur chaque nom : raccourcir le nom du paquet
+finance l'allongement de la fiche. Si la place manque quand même, la cible est
+refusée avant toute écriture et l'appli propose des boosts qui conviennent. L'appli sauvegarde l'original une
 fois pour toutes, n'écrit jamais tant que le jeu tourne, et tout se restaure
 d'un clic — en cas de doute, « Vérifier l'intégrité des fichiers » dans Steam
 remet le jeu d'origine. Sans ban documenté depuis Easy Anti-Cheat, mais à la
@@ -512,9 +513,10 @@ and a diagnostic report is produced.
 
 Sound follows a different path from visuals: each boost has its own Wwise
 bank (`SFX_Boost_*.bnk`) and an audio cue named after the item. The app also
-renames that cue while keeping the Alpha event. Since renaming is
-length-constrained, a boost whose internal name is longer than Alpha's is
-refused, and the app suggests ones that fit. The app backs up the original once and
+renames that cue while keeping the Alpha event. The constraint is on the TOTAL size of the name
+table, not on each name: shortening the package name pays for a longer cue. If
+room is still missing, the target is refused before anything is written and the
+app suggests boosts that fit. The app backs up the original once and
 for all, never writes while the game runs, and everything restores in one
 click — when in doubt, "Verify integrity of game files" in Steam brings the
 stock game back. No documented ban since Easy Anti-Cheat, but against the
