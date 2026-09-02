@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('rl', {
 
   // Contrôles de la fenêtre (barre de titre personnalisée).
   minimize: () => ipcRenderer.send('win-minimize'),
+  maximize: () => ipcRenderer.send('win-maximize'),
   close: () => ipcRenderer.send('win-close'),
   quit: () => ipcRenderer.send('quit-app'),
 });
