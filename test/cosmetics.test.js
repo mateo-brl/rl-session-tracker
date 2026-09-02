@@ -11,6 +11,22 @@ const path = require('path');
 
 const Cosmetics = require('../src/main/cosmetics.js');
 
+const upk = require('../src/main/upk.js');
+const { build } = require('./helpers/upk-fixture.js');
+
+function patchedInstall() {
+  const install = fakeInstall();
+  const cooked = path.join(install, 'TAGame', 'CookedPCConsole');
+  const alpha = build({ names: ['None', 'Core', 'Boost_AlphaReward_SF', 'Boost_AlphaReward',
+    'Boost_AlphaReward_Painted', 'FX_Alpha'], body: Buffer.from('ALPHA-BODY-DATA-XXXXXXXX') });
+  const bubble = build({ names: ['None', 'Core', 'Boost_Bubble_SF', 'Boost_Bubble',
+    'FX_Bubble'], body: Buffer.from('BUBBLE-BODY-DATA-YYYYYY') });
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'), alpha.buf);
+  fs.writeFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'), bubble.buf);
+  return { install, alpha, bubble, cooked };
+}
+
+
 // Fausse installation : un CookedPCConsole avec deux paquets.
 function fakeInstall() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cos-'));
@@ -166,30 +182,34 @@ test('préréglage Alpha : disponible, cibles = boosts, Bubbles recommandé', ()
   assert.equal(p.active, null);
 });
 
-test('préréglage Alpha : un clic, copie du paquet du jeu, restauration propre', () => {
-  const install = alphaInstall();
+test('préréglage Alpha : un clic = paquet patché en place, restauration propre', () => {
+  const { install, cooked, bubble } = patchedInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install], presets: true });
+    { detectInstalls: () => [install] });
   const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
   assert.equal(r.ok, true);
   assert.equal(c.presets()[0].active, r.swap.id);
   assert.equal(c.apply(r.swap.id).ok, true);
-  const bubble = path.join(install, 'TAGame', 'CookedPCConsole', 'Boost_Bubble_SF.upk');
-  assert.equal(read(bubble), 'ALPHA-REWARD');
+  const target = path.join(cooked, 'Boost_Bubble_SF.upk');
+  assert.ok(upk.inspect(fs.readFileSync(target), upk.loadKeys()).names.includes('Boost_Bubble'));
   assert.equal(c.restore(r.swap.id).ok, true);
-  assert.equal(read(bubble), 'BUBBLES');
+  assert.ok(fs.readFileSync(target).equals(bubble.buf));   // l'original, octet pour octet
 });
 
 test('préréglage Alpha : la source suit les mises à jour du jeu', () => {
-  const install = alphaInstall();
+  const { install, cooked } = patchedInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install], presets: true });
+    { detectInstalls: () => [install] });
   const id = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' }).swap.id;
-  const alpha = path.join(install, 'TAGame', 'CookedPCConsole', 'Boost_AlphaReward_SF.upk');
-  fs.writeFileSync(alpha, 'ALPHA-REWARD-V2');           // patch du jeu
-  c.apply(id);
-  assert.equal(read(path.join(install, 'TAGame', 'CookedPCConsole', 'Boost_Bubble_SF.upk')),
-    'ALPHA-REWARD-V2');
+  assert.equal(c.apply(id).ok, true);
+  // Patch du jeu : nouveau paquet Alpha (autre corps). La réapplication doit
+  // repartir de CE paquet-là, pas de la copie interne d'avant.
+  const v2 = build({ names: ['None', 'Core', 'Boost_AlphaReward_SF', 'Boost_AlphaReward'],
+    body: Buffer.from('ALPHA-BODY-V2-ZZZZZZZZZZZZ') });
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'), v2.buf);
+  assert.equal(c.apply(id).ok, true);
+  const written = fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'));
+  assert.ok(written.subarray(written.length - v2.body.length).equals(v2.body));
 });
 
 test('préréglage Alpha : refus d’une cible qui n’est pas un boost, ou de lui-même', () => {
@@ -228,11 +248,68 @@ test('la même installation sous deux orthographes partage sa sauvegarde', () =>
   assert.equal(c.status(c.swaps[0]), 'applied');
 });
 
-test('préréglage retiré par défaut : aucune entrée, ajout refusé', () => {
+test('préréglage actif par défaut (patcheur en place)', () => {
   const install = alphaInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
     { detectInstalls: () => [install] });
-  assert.equal(Cosmetics.PRESETS_ENABLED, false);
-  assert.deepEqual(c.presets(), []);
-  assert.equal(c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' }).ok, false);
+  assert.equal(Cosmetics.PRESETS_ENABLED, true);
+  assert.equal(c.presets().length, 1);
+});
+
+// ───────── Préréglage Alpha : le paquet est PATCHÉ, pas copié tel quel ─────────
+// Constaté en jeu : la copie brute donne un boost transparent. Avec de vrais
+// paquets synthétiques, on vérifie que le fichier écrit dans le jeu porte les
+// noms de la cible, avec le corps de la source.
+
+test('préréglage Alpha : le fichier écrit porte les noms de Bubble et le corps d’Alpha', () => {
+  const { install, alpha, cooked } = patchedInstall();
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
+  assert.equal(r.ok, true);
+  const a = c.apply(r.swap.id);
+  assert.equal(a.ok, true, a.error);
+  const written = fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'));
+  const rep = upk.inspect(written, upk.loadKeys());
+  assert.equal(rep.ok, true);
+  assert.ok(rep.names.includes('Boost_Bubble_SF'));
+  assert.ok(rep.names.includes('Boost_Bubble'));
+  assert.ok(!rep.names.some((n) => /alphareward/i.test(n)));
+  assert.ok(written.subarray(written.length - alpha.body.length).equals(alpha.body));
+  // Restauration : Bubbles d'origine revient à l'identique.
+  assert.equal(c.restore(r.swap.id).ok, true);
+  assert.ok(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')).equals(
+    upk.inspect(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')), upk.loadKeys()).ok
+      ? fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')) : Buffer.alloc(0)));
+});
+
+test('préréglage Alpha : source illisible = rien d’écrit + rapport de diagnostic', () => {
+  const { install, cooked } = patchedInstall();
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'), Buffer.alloc(300, 0x41)); // pas un paquet
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-'));
+  const c = new Cosmetics(ud, { detectInstalls: () => [install] });
+  const before = fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk'));
+  const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
+  const a = c.apply(r.swap.id);
+  assert.equal(a.ok, false);
+  assert.match(a.error, /Patch du paquet impossible/);
+  assert.match(a.error, /rapport/);
+  assert.ok(fs.readFileSync(path.join(cooked, 'Boost_Bubble_SF.upk')).equals(before)); // intact
+  const diag = fs.readdirSync(path.join(ud, 'cosmetics', 'diagnostics'));
+  assert.equal(diag.length, 1);
+  const rep = JSON.parse(fs.readFileSync(path.join(ud, 'cosmetics', 'diagnostics', diag[0]), 'utf8'));
+  assert.equal(rep.source.ok, false);
+  assert.equal(rep.destination.ok, true);
+});
+
+test('préréglage Alpha : clé inconnue = refus propre, jeu intact', () => {
+  const { install, cooked } = patchedInstall();
+  const odd = build({ names: ['None', 'Boost_AlphaReward_SF', 'Boost_AlphaReward'], key: Buffer.alloc(32, 9) });
+  fs.writeFileSync(path.join(cooked, 'Boost_AlphaReward_SF.upk'), odd.buf);
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
+  const a = c.apply(r.swap.id);
+  assert.equal(a.ok, false);
+  assert.match(a.error, /clé/);
 });

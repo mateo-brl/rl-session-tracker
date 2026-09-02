@@ -27,6 +27,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const upk = require('./upk');
 
 const SUB = path.join('TAGame', 'CookedPCConsole');
 const EXTS = ['.upk', '.bnk'];
@@ -80,20 +81,21 @@ function short(p) {
 // qu'on possède (Bubbles par convention communautaire : jamais peint, donc
 // aucun conflit) suffit — pour les boosts, la copie brute fonctionne sans
 // réécrire la table des noms, contrairement aux carrosseries ou explosions.
-// RETIRÉ DE L'INTERFACE (2 septembre 2026) : testé en jeu, la copie brute du
-// paquet Alpha par-dessus Bubbles donne un boost TRANSPARENT — le moteur ne
-// retrouve pas l'effet sous le nouveau nom de paquet. Les outils qui « font
-// marcher » l'Alpha Boost distribuent des fichiers déjà patchés (table des
-// noms réécrite dans un en-tête chiffré). Le mécanisme générique reste : un
-// fichier préparé passé par « Ajouter un swap » fonctionne. Le préréglage
-// reviendra avec un vrai patch de paquet, pas avant.
-const PRESETS_ENABLED = false;
+// Testé en jeu (2 septembre 2026) : la copie brute du paquet Alpha par-dessus
+// Bubbles donne un boost TRANSPARENT — le moteur cherche des objets nommés
+// « Boost_Bubble… » dans le fichier et n'y trouve que des « Boost_AlphaReward… ».
+// Le préréglage passe donc par le patcheur (upk.js) : les entrées de la table
+// des noms sont renommées à longueur constante dans l'en-tête chiffré, le
+// corps du paquet reste intact. C'est exactement ce que contiennent les
+// fichiers « préparés » que la communauté partage.
+const PRESETS_ENABLED = true;
 const PRESETS = {
   alpha: {
     label: 'Alpha Boost',
     source: 'Boost_AlphaReward_SF.upk',
     recommended: 'Boost_Bubble_SF.upk',
     targetPattern: /^Boost_.*_SF\.upk$/i,
+    patch: true,
   },
 };
 
@@ -249,6 +251,8 @@ class Cosmetics {
       id, label: String(o.label || target).slice(0, 80),
       install, target, kind: ext.slice(1),
       source: kept, sourceRef: sourceRef, enabled: true, appliedFp: null, addedAt: Date.now(),
+      // Paires de renommage à appliquer au paquet avant la copie (préréglages).
+      patch: (o.patch && Array.isArray(o.patch.pairs)) ? { pairs: o.patch.pairs } : null,
     };
     this.swaps.push(swap);
     this._persist();
@@ -294,7 +298,60 @@ class Cosmetics {
     const o = opts || {};
     const target = String(o.target || '');
     if (!p.targetPattern.test(target)) return { ok: false, error: 'Cette cible n’est pas un boost.' };
-    return this.add({ install: o.install, target, label: p.label, sourceRef: p.source });
+    return this.add({
+      install: o.install, target, label: p.label, sourceRef: p.source,
+      patch: p.patch ? { pairs: upk.pairsFor(p.source, target) } : null,
+    });
+  }
+
+  _keys() {
+    return upk.loadKeys(path.join(this.dir, 'keys.txt'));
+  }
+
+  // Écrit un rapport lisible sur la source et la cible : en-tête compris ou
+  // non, clé trouvée, premiers noms. C'est ce qu'il faut envoyer quand un
+  // patch échoue.
+  _writeDiagnostic(s, sourceFile, targetFile, error) {
+    try {
+      const dir = path.join(this.dir, 'diagnostics');
+      fs.mkdirSync(dir, { recursive: true });
+      const keys = this._keys();
+      const rep = {
+        at: new Date().toISOString(), swap: s.label, target: s.target,
+        pairs: s.patch && s.patch.pairs, error: String(error),
+        source: upk.inspect(fs.readFileSync(sourceFile), keys),
+        destination: fs.existsSync(targetFile)
+          ? upk.inspect(fs.readFileSync(targetFile), keys) : { error: 'absent' },
+      };
+      const file = path.join(dir, s.id + '.json');
+      fs.writeFileSync(file, JSON.stringify(rep, null, 2) + '\n');
+      return file;
+    } catch (e) { return null; }
+  }
+
+  _preparePatched(s, sourceFile, targetFile) {
+    try {
+      const keys = this._keys();
+      const buf = fs.readFileSync(sourceFile);
+      // Rechiffrer avec la clé du paquet DESTINATION : c'est le nom du fichier
+      // qui décide de la clé côté jeu. Si la cible n'est pas déchiffrable
+      // (clé inconnue), on garde celle de la source — Alpha et Bubble
+      // partagent la même.
+      let outKey = null;
+      try { outKey = fs.existsSync(targetFile) ? upk.keyOf(fs.readFileSync(targetFile), keys) : null; }
+      catch (e) { outKey = null; }
+      const r = upk.patchPackage(buf, { pairs: s.patch.pairs, keys, outKey });
+      const out = path.join(path.dirname(s.source), 'patched-' + s.target);
+      fs.writeFileSync(out, r.buffer);
+      this.log('cosmétiques : paquet patché pour « ' + s.label + ' » (' + r.changed.length
+        + ' nom(s) renommé(s), clé n°' + r.keyIndex + ')');
+      return { ok: true, file: out, changed: r.changed };
+    } catch (e) {
+      const rep = this._writeDiagnostic(s, sourceFile, targetFile, e.message);
+      this.log('cosmétiques : patch impossible pour « ' + s.label + ' » : ' + e.message);
+      return { ok: false, error: 'Patch du paquet impossible : ' + e.message
+        + (rep ? ' — rapport : ' + rep : '') };
+    }
   }
 
   _find(id) {
@@ -318,6 +375,14 @@ class Cosmetics {
       if (fs.existsSync(live)) source = live;
     }
     if (!fs.existsSync(source)) return { ok: false, error: 'Fichier de remplacement perdu.' };
+    // Préréglage : le paquet est PATCHÉ (noms renommés) avant d'être copié.
+    // Un échec ici n'écrit rien dans le jeu et laisse un rapport de
+    // diagnostic — c'est sur des données réelles qu'on corrige, pas à l'aveugle.
+    if (s.patch && s.patch.pairs) {
+      const prepared = this._preparePatched(s, source, target);
+      if (!prepared.ok) return prepared;
+      source = prepared.file;
+    }
     try {
       // Sauvegarde UNE seule fois : si elle existe, c'est l'original — même
       // si Steam vient de remettre le fichier d'origine, on ne la touche pas.
