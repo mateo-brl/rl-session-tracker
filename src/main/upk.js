@@ -114,49 +114,110 @@ function parseHeader(buf) {
   h.exportCount = i32(); h.exportOffset = i32();
   h.importCount = i32(); h.importOffset = i32();
   h.dependsOffset = i32();
-  h.importExportGuidsOffset = i32(); h.importGuidsCount = i32(); h.exportGuidsCount = i32();
-  h.thumbnailTableOffset = i32();
-  h.guid = buf.subarray(p, p + 16).toString('hex'); p += 16;
-  h.generationCount = i32();
-  if (h.generationCount < 0 || h.generationCount > 64) throw new Error('GenerationCount aberrant');
-  p += 12 * h.generationCount;
-  h.engineVersion = u32(); h.cookerVersion = u32();
-  h.compressionFlags = u32();
-  const chunkEntry = h.licenseeVersion >= 22 ? 24 : 16;
-  h.summaryChunks = i32();
-  if (h.summaryChunks < 0 || h.summaryChunks > 4096) throw new Error('CompressedChunks aberrant');
-  p += chunkEntry * h.summaryChunks;
-  h.packageSource = u32();
-  const nAdd = i32();
-  if (nAdd < 0 || nAdd > 1024) throw new Error('AdditionalPackagesToCook aberrant');
-  for (let i = 0; i < nAdd; i++) fstr();
-  const nTex = i32();
-  if (nTex < 0 || nTex > 4096) throw new Error('TextureAllocations aberrant');
-  for (let i = 0; i < nTex; i++) { p += 20; const n = i32(); if (n < 0) throw new Error('TextureAllocations'); p += 4 * n; }
-  h.garbageSize = i32();
-  h.chunkInfoOffset = i32();
-  h.lastBlockSize = i32();
-  h.prefixEnd = p;
-  h.prefixMatches = (p === h.nameOffset);
+  h.fixedEnd = p;
+
+  // Jusqu'ici les champs sont à position fixe : sûrs. Ce qui suit contient des
+  // tableaux de longueur variable et, sur les paquets réels, des champs que la
+  // rétro-ingénierie publique ne décrit pas complètement (constaté : la marche
+  // avant finit 12 octets avant NameOffset). On la fait quand même — elle
+  // renseigne le diagnostic — mais elle ne décide de RIEN.
+  try {
+    h.importExportGuidsOffset = i32(); h.importGuidsCount = i32(); h.exportGuidsCount = i32();
+    h.thumbnailTableOffset = i32();
+    h.guid = buf.subarray(p, p + 16).toString('hex'); p += 16;
+    h.generationCount = i32();
+    if (h.generationCount < 0 || h.generationCount > 64) throw new Error('generations');
+    p += 12 * h.generationCount;
+    h.engineVersion = u32(); h.cookerVersion = u32();
+    h.compressionFlags = u32();
+    const chunkEntry = h.licenseeVersion >= 22 ? 24 : 16;
+    h.summaryChunks = i32();
+    if (h.summaryChunks < 0 || h.summaryChunks > 4096) throw new Error('chunks');
+    p += chunkEntry * h.summaryChunks;
+    h.packageSource = u32();
+    const nAdd = i32();
+    if (nAdd < 0 || nAdd > 1024) throw new Error('additional packages');
+    for (let i = 0; i < nAdd; i++) fstr();
+    const nTex = i32();
+    if (nTex < 0 || nTex > 4096) throw new Error('texture allocations');
+    for (let i = 0; i < nTex; i++) { p += 20; const n = i32(); if (n < 0) throw new Error('tex'); p += 4 * n; }
+    h.walkEnd = p + 12;                      // + GarbageSize, ChunkInfoOffset, LastBlockSize
+    h.walkError = null;
+  } catch (e) {
+    h.walkEnd = null;
+    h.walkError = e.message;
+  }
+
+  // Vérifications qui, elles, décident.
+  if (h.nameOffset < 32 || h.nameOffset > buf.length) throw new Error('NameOffset hors du fichier (' + h.nameOffset + ')');
+  if (h.totalHeaderSize <= h.nameOffset || h.totalHeaderSize > buf.length) {
+    throw new Error('TotalHeaderSize incohérent (' + h.totalHeaderSize + ')');
+  }
+  if (h.nameCount < 1 || h.nameCount > 1000000) throw new Error('NameCount aberrant (' + h.nameCount + ')');
+
+  // GarbageSize, CompressedChunkInfoOffset et LastBlockSize sont les trois
+  // derniers entiers EN CLAIR avant la table des noms. On les lit à reculons
+  // depuis NameOffset : c'est vrai quels que soient les champs inconnus placés
+  // avant, là où la marche avant, elle, se décale.
+  const trio = h.nameOffset - 12;
+  h.garbageSize = buf.readInt32LE(trio);
+  h.chunkInfoOffset = buf.readInt32LE(trio + 4);
+  h.lastBlockSize = buf.readInt32LE(trio + 8);
+  h.prefixEnd = h.nameOffset;
+  h.prefixGap = h.walkEnd === null ? null : h.nameOffset - h.walkEnd;
+
+  if (h.garbageSize < 0 || h.garbageSize > h.totalHeaderSize - h.nameOffset) {
+    throw new Error('GarbageSize aberrant (' + h.garbageSize + ')');
+  }
   h.zlib = !!(h.compressionFlags & COMPRESS_ZLIB);
+  // Seuls les blocs COMPLETS de 16 octets sont chiffrés ; un éventuel reste
+  // est laissé tel quel — on ne le réécrit donc jamais.
   const raw = h.totalHeaderSize - h.garbageSize - h.nameOffset;
-  h.encLen = (raw + 15) & ~15;
-  if (!h.prefixMatches) throw new Error('préfixe (' + p + ') ≠ NameOffset (' + h.nameOffset + ')');
-  if (raw <= 0 || h.nameOffset + h.encLen > buf.length) throw new Error('région chiffrée hors du fichier');
+  h.rawLen = raw;
+  h.encLen = raw - (raw % 16);
+  h.tailLen = raw - h.encLen;
+  if (h.encLen < 16 || h.nameOffset + h.encLen > buf.length) throw new Error('région chiffrée hors du fichier');
   return h;
 }
 
 // ───────── Choix de la clé (validé par la table des chunks) ─────────
+// Une entrée de nom valide : longueur plausible, ASCII, terminée par NUL.
+// Le premier nom d'un paquet UE3 est « None » — signal net, et il ne dépend
+// d'aucun champ dont l'interprétation est incertaine.
+function firstNameLooksSane(plain) {
+  if (plain.length < 8) return false;
+  const len = plain.readInt32LE(0);
+  if (len < 2 || len > MAX_NAME_LEN || 4 + len > plain.length) return false;
+  const data = plain.subarray(4, 4 + len);
+  if (data[len - 1] !== 0) return false;
+  for (let i = 0; i < len - 1; i++) {
+    if (data[i] < 0x20 || data[i] > 0x7e) return false;
+  }
+  return true;
+}
+
 function probeKey(buf, h, key) {
-  const region = buf.subarray(h.nameOffset, h.nameOffset + h.encLen);
-  const bs = h.chunkInfoOffset & ~15;
-  const inner = h.chunkInfoOffset & 15;
-  if (bs + 32 > region.length) return false;
-  let d;
-  try { d = ecb('dec', key, region.subarray(bs, bs + 32)); } catch (e) { return false; }
-  const count = d.readInt32LE(inner);
-  if (count < 1 || count > 65536) return false;
-  return d.readBigInt64LE(inner + 4) === BigInt(h.dependsOffset);
+  const n = Math.min(64, h.encLen) & ~15;
+  if (n < 16) return false;
+  try {
+    return firstNameLooksSane(ecb('dec', key, buf.subarray(h.nameOffset, h.nameOffset + n)));
+  } catch (e) { return false; }
+}
+
+// Contrôle secondaire : la table des chunks pointe sur DependsOffset. Vrai sur
+// les paquets de test ; sur les paquets réels l'origine de ChunkInfoOffset
+// n'est pas certaine, donc c'est un indice de diagnostic, pas un verdict.
+function chunkTableAgrees(buf, h, key) {
+  try {
+    for (const base of [h.chunkInfoOffset, h.chunkInfoOffset - h.nameOffset]) {
+      if (base < 0 || base + 32 > h.encLen) continue;
+      const bs = base & ~15, inner = base & 15;
+      const d = ecb('dec', key, buf.subarray(h.nameOffset + bs, h.nameOffset + bs + 32));
+      const count = d.readInt32LE(inner);
+      if (count >= 1 && count <= 65536 && d.readBigInt64LE(inner + 4) === BigInt(h.dependsOffset)) return true;
+    }
+  } catch (e) { /* indice absent */ }
+  return false;
 }
 
 function findKey(buf, h, keys) {
@@ -198,31 +259,42 @@ function printable(s) {
 // Renomme sur place. `pairs` : [[ancien, nouveau], …], comparés à l'entrée
 // ENTIÈRE, sans tenir compte de la casse. Le nouveau nom doit tenir dans la
 // longueur sérialisée existante (NUL compris) : il est complété par des NUL.
-function renameInPlace(plain, names, pairs) {
+function renameInPlace(plain, names, pairs, opts) {
+  const loose = !!(opts && opts.loose);
   const changed = [];
   const lower = (s) => String(s).toLowerCase();
   const existing = new Set(names.map((n) => lower(n.name)));
   for (const [oldName, newName] of pairs) {
     if (lower(oldName) === lower(newName)) continue;
-    const hits = names.filter((n) => lower(n.name) === lower(oldName));
+    // Strict : l'entrée entière vaut l'ancien nom. Souple : l'ancien nom est un
+    // motif remplacé À L'INTÉRIEUR de l'entrée (Boost_AlphaReward_Body → …).
+    const hits = loose
+      ? names.filter((n) => lower(n.name).includes(lower(oldName)))
+      : names.filter((n) => lower(n.name) === lower(oldName));
     if (!hits.length) continue;
-    if (existing.has(lower(newName))) {
+    if (!loose && existing.has(lower(newName))) {
       throw new Error('collision : « ' + newName + ' » existe déjà dans le paquet');
     }
     for (const n of hits) {
+      const target = loose
+        ? n.name.replace(new RegExp(oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), newName)
+        : newName;
+      if (loose && (target === n.name || existing.has(lower(target)))) continue;
       if (n.utf16) throw new Error('« ' + n.name + ' » est en UTF-16 : renommage en place impossible');
-      const nb = Buffer.from(newName, 'latin1');
+      const nb = Buffer.from(target, 'latin1');
       if (nb.length + 1 > n.len) {
-        throw new Error('« ' + newName + ' » (' + nb.length + ') ne tient pas dans « '
+        if (loose) continue;
+        throw new Error('« ' + target + ' » (' + nb.length + ') ne tient pas dans « '
           + n.name + ' » (' + (n.len - 1) + ')');
       }
       const data = plain.subarray(n.offset + 4, n.offset + 4 + n.len);
       data.fill(0);
       nb.copy(data, 0);
-      changed.push({ index: n.index, from: n.name, to: newName });
-      n.name = newName;
+      changed.push({ index: n.index, from: n.name, to: target });
+      n.name = target;
+      existing.add(lower(target));
     }
-    existing.add(lower(newName));
+    if (!loose) existing.add(lower(newName));
   }
   return changed;
 }
@@ -245,11 +317,14 @@ function inspect(buf, keys) {
       dependsOffset: h.dependsOffset, garbageSize: h.garbageSize,
       chunkInfoOffset: h.chunkInfoOffset, lastBlockSize: h.lastBlockSize,
       compressionFlags: h.compressionFlags, zlib: h.zlib,
-      summaryChunks: h.summaryChunks, prefixEnd: h.prefixEnd, encLen: h.encLen,
+      summaryChunks: h.summaryChunks, fixedEnd: h.fixedEnd, walkEnd: h.walkEnd,
+      walkError: h.walkError, prefixGap: h.prefixGap,
+      rawLen: h.rawLen, encLen: h.encLen, tailLen: h.tailLen,
     });
     const k = findKey(buf, h, keys);
     out.keyFound = !!k;
     out.keyIndex = k ? k.index : -1;
+    out.chunkTableAgrees = k ? chunkTableAgrees(buf, h, k.key) : false;
     if (!k) { out.error = 'aucune clé connue ne déchiffre ce paquet'; return out; }
     const plain = ecb('dec', k.key, buf.subarray(h.nameOffset, h.nameOffset + h.encLen));
     const { names, end } = readNames(plain, h);
@@ -277,19 +352,33 @@ function patchPackage(buf, opts) {
   const region = buf.subarray(h.nameOffset, h.nameOffset + h.encLen);
   const plain = ecb('dec', k.key, region);
   const { names, end } = readNames(plain, h);
-  if (h.nameOffset + end !== h.importOffset) {
-    throw new Error('table des noms incohérente (fin ' + (h.nameOffset + end)
-      + ' ≠ ImportOffset ' + h.importOffset + ')');
-  }
   if (!names.every((n) => n.utf16 || printable(n.name))) {
     throw new Error('table des noms illisible : clé douteuse');
   }
-  const changed = renameInPlace(plain, names, o.pairs || []);
-  if (!changed.length) throw new Error('aucune entrée à renommer : le paquet ne contient pas les noms attendus');
   const outKey = o.outKey || k.key;
+  // Un reste non aligné garde le chiffrement de la SOURCE : inoffensif tant
+  // que la destination utilise la même clé, faux sinon. On refuse ce cas
+  // plutôt que d'écrire un fichier à moitié déchiffrable.
+  if (h.tailLen > 0 && !outKey.equals(k.key)) {
+    throw new Error('région chiffrée non alignée (' + h.tailLen + ' octets) et clés différentes');
+  }
+  const pairs = o.pairs || [];
+  let changed = renameInPlace(plain, names, pairs);
+  if (!changed.length) {
+    // Les noms exacts n'y sont pas : on remplace le motif à l'intérieur des
+    // entrées (Boost_AlphaReward_Body, …), ce que fait aussi VelocityRL.
+    changed = renameInPlace(plain, names, pairs, { loose: true });
+  }
+  if (!changed.length) {
+    throw new Error('aucune entrée à renommer : noms attendus absents (table : '
+      + names.slice(0, 12).map((n) => n.name).join(', ') + '…)');
+  }
   const out = Buffer.from(buf);
   ecb('enc', outKey, plain).copy(out, h.nameOffset);
-  return { buffer: out, changed, keyIndex: k.index, header: h };
+  return {
+    buffer: out, changed, keyIndex: k.index, header: h,
+    namesMatchImports: (h.nameOffset + end === h.importOffset),
+  };
 }
 
 // Clé qui déchiffre un paquet donné (pour rechiffrer à la clé de destination).
@@ -318,6 +407,6 @@ function pairsFor(sourceFile, targetFile) {
 }
 
 module.exports = {
-  parseHeader, findKey, readNames, renameInPlace, inspect, patchPackage,
+  parseHeader, findKey, probeKey, chunkTableAgrees, readNames, renameInPlace, inspect, patchPackage,
   keyOf, pairsFor, loadKeys, ecb, DEFAULT_KEYS, TAG,
 };
