@@ -351,23 +351,25 @@ class Cosmetics {
     const g = this._guard();
     if (g) return { ok: false, error: g };
     const errors = [];
+    let code = null;
     for (const s of this.swaps) {
       if (s.enabled === false) continue;
       const r = this.apply(s.id);
-      if (!r.ok) errors.push(s.label + ' : ' + r.error);
+      if (!r.ok) { errors.push(s.label + ' : ' + r.error); code = code || r.code || null; }
     }
-    return errors.length ? { ok: false, error: errors.join(' · ') } : { ok: true };
+    return errors.length ? { ok: false, error: errors.join(' · '), code } : { ok: true };
   }
 
   restoreAll() {
     const g = this._guard();
     if (g) return { ok: false, error: g };
     const errors = [];
+    let code = null;
     for (const s of this.swaps) {
       const r = this.restore(s.id);
-      if (!r.ok) errors.push(s.label + ' : ' + r.error);
+      if (!r.ok) { errors.push(s.label + ' : ' + r.error); code = code || r.code || null; }
     }
-    return errors.length ? { ok: false, error: errors.join(' · ') } : { ok: true };
+    return errors.length ? { ok: false, error: errors.join(' · '), code } : { ok: true };
   }
 
   // Après une mise à jour du jeu ou une vérification Steam : les swaps
@@ -386,7 +388,8 @@ class Cosmetics {
 
   _explain(e) {
     if (e && (e.code === 'EACCES' || e.code === 'EPERM')) {
-      return 'Accès refusé au dossier du jeu — droits insuffisants sur CookedPCConsole.';
+      return 'Accès refusé au dossier du jeu — droits insuffisants sur CookedPCConsole '
+        + '(l’élévation a été refusée ou a échoué).';
     }
     if (e && e.code === 'EBUSY') return 'Fichier verrouillé : le jeu ou Steam l’utilise encore.';
     return (e && e.message) || 'Erreur inconnue.';
