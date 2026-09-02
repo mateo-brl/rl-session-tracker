@@ -135,7 +135,7 @@ test('le swap survit à la disparition du fichier source de l’utilisateur', ()
 test('persistance : relecture depuis swaps.json', () => {
   const { c, install, src, userData } = setup();
   c.add({ install, target: 'Boost_Standard.upk', label: 'Alpha', sourcePath: src });
-  const c2 = new Cosmetics(userData, { detectInstalls: () => [install] });
+  const c2 = new Cosmetics(userData, { detectInstalls: () => [install], presets: true });
   assert.equal(c2.list().swaps.length, 1);
   assert.equal(c2.list().swaps[0].label, 'Alpha');
 });
@@ -154,7 +154,7 @@ function alphaInstall() {
 test('préréglage Alpha : disponible, cibles = boosts, Bubbles recommandé', () => {
   const install = alphaInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install] });
+    { detectInstalls: () => [install], presets: true });
   const [p] = c.presets();
   assert.equal(p.id, 'alpha');
   assert.equal(p.available, true);
@@ -169,7 +169,7 @@ test('préréglage Alpha : disponible, cibles = boosts, Bubbles recommandé', ()
 test('préréglage Alpha : un clic, copie du paquet du jeu, restauration propre', () => {
   const install = alphaInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install] });
+    { detectInstalls: () => [install], presets: true });
   const r = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' });
   assert.equal(r.ok, true);
   assert.equal(c.presets()[0].active, r.swap.id);
@@ -183,7 +183,7 @@ test('préréglage Alpha : un clic, copie du paquet du jeu, restauration propre'
 test('préréglage Alpha : la source suit les mises à jour du jeu', () => {
   const install = alphaInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install] });
+    { detectInstalls: () => [install], presets: true });
   const id = c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' }).swap.id;
   const alpha = path.join(install, 'TAGame', 'CookedPCConsole', 'Boost_AlphaReward_SF.upk');
   fs.writeFileSync(alpha, 'ALPHA-REWARD-V2');           // patch du jeu
@@ -195,7 +195,7 @@ test('préréglage Alpha : la source suit les mises à jour du jeu', () => {
 test('préréglage Alpha : refus d’une cible qui n’est pas un boost, ou de lui-même', () => {
   const install = alphaInstall();
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install] });
+    { detectInstalls: () => [install], presets: true });
   assert.equal(c.addPreset('alpha', { install, target: 'Body_Octane_SF.upk' }).ok, false);
   assert.equal(c.addPreset('alpha', { install, target: 'Boost_AlphaReward_SF.upk' }).ok, false);
   assert.equal(c.addPreset('inconnu', { install, target: 'Boost_Bubble_SF.upk' }).ok, false);
@@ -204,7 +204,35 @@ test('préréglage Alpha : refus d’une cible qui n’est pas un boost, ou de l
 test('préréglage Alpha : indisponible si le paquet manque chez le joueur', () => {
   const install = fakeInstall();              // sans Boost_AlphaReward_SF.upk
   const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
-    { detectInstalls: () => [install] });
+    { detectInstalls: () => [install], presets: true });
   assert.equal(c.presets()[0].available, false);
   assert.equal(c.addPreset('alpha', { install, target: 'Boost_Standard.upk' }).ok, false);
+});
+
+
+// ───────── Deux orthographes du même dossier = UNE installation ─────────
+// Constaté en jeu : « deux Steam » dans la liste, et la seconde sauvegarde
+// capturait le fichier déjà remplacé par la première.
+
+test('la même installation sous deux orthographes partage sa sauvegarde', () => {
+  const { c, install, src, target } = setup();
+  const alias = install.replace(/\//g, '//');      // même dossier, autre écriture
+  c.detectInstalls = () => [install, alias];
+  const a = c.add({ install, target: 'Boost_Standard.upk', sourcePath: src });
+  assert.equal(a.ok, true);
+  // Un second swap sur la MÊME cible via l'alias est refusé : un seul par fichier physique.
+  const b = c.add({ install: alias, target: 'Boost_Standard.upk', sourcePath: src });
+  assert.equal(b.ok, false);
+  c.apply(a.swap.id);
+  assert.equal(Cosmetics.pathKey(install), Cosmetics.pathKey(alias));
+  assert.equal(c.status(c.swaps[0]), 'applied');
+});
+
+test('préréglage retiré par défaut : aucune entrée, ajout refusé', () => {
+  const install = alphaInstall();
+  const c = new Cosmetics(fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cosud-')),
+    { detectInstalls: () => [install] });
+  assert.equal(Cosmetics.PRESETS_ENABLED, false);
+  assert.deepEqual(c.presets(), []);
+  assert.equal(c.addPreset('alpha', { install, target: 'Boost_Bubble_SF.upk' }).ok, false);
 });

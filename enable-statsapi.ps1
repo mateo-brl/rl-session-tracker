@@ -78,7 +78,7 @@ $Port = $parsedPort   # port d'écoute du socket local, désormais validé
 # src/main/enable-statsapi.js). La vérification côté application n'exige
 # qu'un rate "> 0" : une valeur plus basse écrite ici serait donc toujours
 # jugée valide et ne serait jamais corrigée automatiquement par l'app.
-$Rate = 30   # 30 paquets/s : score en direct + pont SOS (l'app n'exige que > 0)
+$Rate = 120  # 120 paquets/s : nécessaire à la réactivité du son Alpha Boost
 
 # ───────── Validation d'un dossier d'installation Rocket League ─────────
 # Les chemins viennent de sources non fiables (manifestes Epic,

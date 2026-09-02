@@ -53,6 +53,11 @@ const DEFAULTS = {
     goal: true,          // flash à chaque but
   },
   soundPreset: 'broadcast',  // style du jingle : broadcast | arcade | soft | epic
+  alphaBoost: {          // son Alpha Boost (100 % externe, via la Stats API)
+    enabled: false,
+    volume: 0.45,        // 0 → 1
+    profile: 'quality',  // quality (paliers de vitesse) | classic (statique)
+  },
   discordRpc: false,     // statut Discord (Rich Presence) pendant le jeu
   obs: {                 // mode streamer : overlay local à capturer dans OBS
     enabled: false,
@@ -76,6 +81,7 @@ const DEFAULTS = {
 
 const ANIM_PRESETS = ['broadcast', 'minimal', 'arcade', 'neon', 'cinema'];
 const SOUND_PRESETS = ['broadcast', 'arcade', 'soft', 'epic'];
+const ALPHA_PROFILES = ['quality', 'classic'];
 const OBS_STYLES = ['broadcast', 'compact', 'vertical'];
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -108,9 +114,6 @@ function init(userDataDir) {
         écrasé au prochain save() */ }
     }
   }
-  // Migration : le son Alpha Boost a été retiré de l'application — on purge
-  // sa configuration résiduelle pour ne pas traîner une clé morte à vie.
-  delete config.alphaBoost;
   // Migration : l'ancienne disposition unique devient le profil 1.
   if (config.layout && typeof config.layout === 'object') {
     if (!config.layouts || typeof config.layouts !== 'object') config.layouts = {};
@@ -252,6 +255,14 @@ function update(partial) {
       }
       const sp = Number(partial.obs.sosPort);
       if (Number.isInteger(sp) && sp >= 1024 && sp <= 65535) o.sosPort = sp;
+    }
+    // Son Alpha Boost : activation, volume, profil sonore.
+    if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
+      const ab = config.alphaBoost = { ...DEFAULTS.alphaBoost, ...(config.alphaBoost || {}) };
+      if (typeof partial.alphaBoost.enabled === 'boolean') ab.enabled = partial.alphaBoost.enabled;
+      const vol = Number(partial.alphaBoost.volume);
+      if (Number.isFinite(vol) && vol >= 0 && vol <= 1) ab.volume = vol;
+      if (ALPHA_PROFILES.includes(partial.alphaBoost.profile)) ab.profile = partial.alphaBoost.profile;
     }
     // Mini-overlay : contenu, échelle, opacité.
     if (partial.overlayCfg && typeof partial.overlayCfg === 'object') {
