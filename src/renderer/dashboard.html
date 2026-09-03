@@ -60,6 +60,16 @@
     display:flex; flex-direction:column;
   }
   .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
+  /* Bouton discret logé dans l'étiquette de la carte : remet les compteurs de
+     session à zéro sans quitter le dashboard, là où on lit justement ces
+     compteurs — c'est le moment où on veut repartir de zéro. */
+  .tag-btn {
+    margin-left:10px; padding:2px 10px; font:inherit; font-size:.78em;
+    letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
+    color:var(--muted); background:transparent;
+    border:1px solid var(--line); border-radius:3px;
+  }
+  .tag-btn:hover { color:var(--text); border-color:var(--blue); }
 
   /* Carte : plaque à deux chanfreins opposés (haut-droit + bas-gauche),
      léger dégradé de panneau, coin d'accent REMPLI en haut à droite et
@@ -847,7 +857,8 @@
   <main><div id="canvas">
     <!-- Bilan de session -->
     <section class="card hero">
-      <div class="tag"><span><span data-i18n="tagSession">Session</span> <span id="sessionSince"></span></span></div>
+      <div class="tag"><span><span data-i18n="tagSession">Session</span> <span id="sessionSince"></span></span>
+        <button id="sessReset" class="tag-btn" data-i18n="bSessReset">Nouvelle session</button></div>
       <div class="hero-main">
         <div>
           <div class="wl">
@@ -1062,6 +1073,7 @@
   // ─── Langue (FR / EN) ───
   var I18N = {
     fr: {
+      bSessReset: 'Nouvelle session', confirmSessReset: 'Remettre les compteurs de session à zéro ? Les matchs restent au journal.',
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
@@ -1133,6 +1145,7 @@
       locale: 'fr-FR',
     },
     en: {
+      bSessReset: 'New session', confirmSessReset: 'Reset the session counters? Matches stay in the log.',
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
@@ -1212,6 +1225,12 @@
       return Math.round(va + (vb - va) * f);
     });
     return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
+  }
+  var sessResetBtn = document.getElementById('sessReset');
+  if (sessResetBtn) {
+    sessResetBtn.onclick = function () {
+      if (window.confirm(T.confirmSessReset)) api.resetSession && api.resetSession();
+    };
   }
   var themeApplied = '';
   function applyTheme(t) {

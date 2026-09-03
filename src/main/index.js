@@ -59,6 +59,8 @@ const state = {
   currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
   currentRankedAuto: null,  // déduit de la playlist du journal ? (null = préférence)
   queue: null,           // dernière mise en file relevée dans le journal
+  currentMatchmade: null,// match en cours issu d'une file ? null = indéterminable
+  queueUsed: null,       // identité de la file déjà consommée par un match
   session: null,         // agrégats de session
   history: [],
   playersSeen: [],
@@ -364,6 +366,10 @@ function startStatsApi() {
       const r = resolveRanked();
       state.currentRanked = r.ranked;
       state.currentRankedAuto = r.auto;
+      state.currentMatchmade = resolveMatchmade();
+      if (state.currentMatchmade === false) {
+        log('match hors file (privé ou exhibition) — il ne sera pas compté');
+      }
     }
     pushState();
   });
@@ -374,6 +380,7 @@ function startStatsApi() {
       state.live = null;
       state.currentRanked = null;
       state.currentRankedAuto = null;
+      state.currentMatchmade = null;
       pushState();
     }
   });
@@ -391,9 +398,10 @@ function startStatsApi() {
     // d'écran de fin. Un vrai résultat, à compter même en casual — alors que
     // quitter une partie en cours ne se compte qu'en classé.
     const realEnd = !!snap.podium || snap.winnerTeam === 0 || snap.winnerTeam === 1;
-    if (isTraining(snap) || (!ranked && !realEnd)) {
+    if (isTraining(snap) || (!ranked && !realEnd) || !countsAsMatch('abandon')) {
+      state.currentMatchmade = null;
       pushState();
-      log('abandon casual / entraînement — non compté');
+      if (isTraining(snap) || !ranked) log('abandon casual / entraînement — non compté');
       return;
     }
     // Un match vient d'être enregistré et AUCUN nouveau match n'a commencé
@@ -408,6 +416,7 @@ function startStatsApi() {
     }
     lastRecordedAt = Date.now();
     matchSinceRecord = false;
+    state.currentMatchmade = null;
     snap.ranked = ranked;
     // Doublon écarté (même MatchGuid) : history[0] serait le match PRÉCÉDENT,
     // et on rejouerait sa bannière et son jingle.
@@ -438,17 +447,19 @@ function startStatsApi() {
   });
   api.on('ended', (snap) => {
     state.live = null;
-    if (isTraining(snap)) {
+    if (isTraining(snap) || !countsAsMatch('fin de match')) {
       state.currentRanked = null;
       state.currentRankedAuto = null;
+      state.currentMatchmade = null;
       pushState();
-      log('entraînement terminé — non compté');
+      if (isTraining(snap)) log('entraînement terminé — non compté');
       return;
     }
     snap.ranked = state.currentRanked !== null
       ? state.currentRanked : resolveRanked().ranked;
     state.currentRanked = null;
     state.currentRankedAuto = null;
+    state.currentMatchmade = null;
     lastRecordedAt = Date.now();
     matchSinceRecord = false;
     const added = store.addMatch(snap);
@@ -491,6 +502,33 @@ let logReader = null;
 // en file fait autorité ; à défaut (pas chef de groupe, journal illisible,
 // playlist inconnue), on retombe sur la préférence de l'utilisateur.
 const QUEUE_FRESH_MS = 30 * 60 * 1000;
+
+// Un match privé (ou une exhibition) ne passe par aucune file : le journal ne
+// contient pas de ligne StartMatchmaking pour lui. Une mise en file ne vaut
+// donc que pour UN match — sinon le match privé joué juste après une partie
+// classée héritait de sa file, était compté, et son effectif de deux joueurs
+// le faisait passer pour un 1v1.
+// Renvoie null quand on ne peut pas savoir (journal désactivé, hors Windows,
+// aucune file jamais vue) : dans le doute, on compte, comme avant.
+function resolveMatchmade() {
+  if (config.get().mmrFromLog === false || !logReader) return null;
+  let q = null;
+  try { q = logReader.refreshQueue(); } catch (e) { q = null; }
+  if (!q || !q.at) return state.queueUsed ? false : null;
+  const key = q.playlist + '@' + q.at;
+  if (key === state.queueUsed) return false;      // file déjà consommée
+  if (Date.now() - q.at > QUEUE_FRESH_MS) return false;
+  state.queueUsed = key;
+  return true;
+}
+
+// Un match hors file compte-t-il ? Non par défaut : c'est ce que l'utilisateur
+// attend d'un match privé entre amis.
+function countsAsMatch(where) {
+  if (state.currentMatchmade !== false || config.get().countPrivate) return true;
+  log(where + ' — match hors file, non compté');
+  return false;
+}
 function resolveRanked() {
   const pref = config.get().mmrCounts !== false;
   if (config.get().mmrFromLog === false || !logReader) return { ranked: pref, auto: null };

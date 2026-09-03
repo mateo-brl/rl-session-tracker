@@ -561,6 +561,10 @@
                  dire explicitement dans l'aide sinon l'utilisateur redoute de
                  perdre ses données casual. -->
             <label class="check"><input type="checkbox" id="optRankedOnly" /><span data-i18n="cRankedOnly">Ne compter que le classé dans la session</span></label>
+            <div class="gap"></div>
+            <label class="check"><input type="checkbox" id="optPrivate" /><span data-i18n="cPrivate">Compter aussi les matchs privés</span></label>
+            <div class="hint" data-i18n="hintPrivate">Un match privé ne passe par aucune file d'attente : l'appli le reconnaît à ça et ne le compte pas. Coche si tu veux quand même les voir dans la session.</div>
+            <div class="gap"></div>
             <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs — elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
           </div>
         </div>
@@ -819,7 +823,7 @@
           <div class="card">
             <h2 data-i18n="hData">Données</h2>
             <button class="ghost" style="margin-top:0" id="exportBtn" data-i18n="bExport">Exporter les matchs</button>
-            <button class="ghost danger" id="resetBtn" data-i18n="bClear">Vider les matchs récents</button>
+            <button class="ghost danger" id="resetBtn" data-i18n="bClear">Nouvelle session — remettre les compteurs à zéro</button>
             <div class="hint" data-i18n="hintClear">Vider remet les compteurs de session à 0 ; le MMR, la courbe d'évolution et les records sont conservés.</div>
           </div>
 
@@ -1138,6 +1142,8 @@
       lCosAlphaTarget: 'Boost \u00e0 remplacer',
       hintCosAlphaTarget: 'Choisis un boost que tu poss\u00e8des, non peint de pr\u00e9f\u00e9rence \u2014 Bubbles est le choix conseill\u00e9.',
       cosRecommended: 'conseill\u00e9',
+      cPrivate: 'Compter aussi les matchs privés',
+      hintPrivate: 'Un match privé ne passe par aucune file d’attente : l’appli le reconnaît à ça et ne le compte pas. Coche si tu veux quand même les voir dans la session.',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1254,7 +1260,7 @@
       obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connected.' : ' overlay connected.')) : 'No overlay connected yet — paste the URL above into your overlay.'; },
       obsSosErr: function (port) { return 'Port ' + port + ' unavailable — the SOS bridge isn’t running. Another program is probably using this port: change it above or close the other app.'; },
       hintObsSos: 'For streaming overlays written before Easy Anti-Cheat arrived (April 2026) for the now-defunct SOS plugin — they’ve been silent online ever since. This bridge re-emits the same feed, in the same format, locally on the port chosen above: paste the URL into the overlay and it works again unmodified. For streamers using that kind of overlay only — skip it otherwise.',
-      bDash: 'Open the dashboard', bClear: 'Clear recent matches',
+      bDash: 'Open the dashboard', bClear: 'New session — reset the counters',
       bStatsApi: 'Re-enable the game Stats API',
       // Match log export (Application section).
       bExport: 'Export matches', exportBusy: 'Exporting\u2026',
@@ -1321,6 +1327,8 @@
       lCosAlphaTarget: 'Boost to replace',
       hintCosAlphaTarget: 'Pick a boost you own, preferably unpainted \u2014 Bubbles is the recommended choice.',
       cosRecommended: 'recommended',
+      cPrivate: 'Count private matches too',
+      hintPrivate: 'A private match goes through no queue: that is how the app spots it, and it is left out. Tick this to see them in the session anyway.',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -1490,6 +1498,7 @@
     $('optFull').checked = cfg.dashboardFullscreen !== false;
     $('optRanked').checked = cfg.mmrCounts !== false;
     $('optRankedOnly').checked = !!cfg.rankedOnly;
+    $('optPrivate').checked = !!cfg.countPrivate;
     $('optOverlay').checked = !!cfg.overlayEnabled;
     $('optSounds').checked = cfg.sounds !== false;
     $('optDiscord').checked = !!cfg.discordRpc;
@@ -2366,6 +2375,9 @@
   });
   $('optRanked').onchange = function () {
     api.setConfig && api.setConfig({ mmrCounts: $('optRanked').checked });
+  };
+  $('optPrivate').onchange = function () {
+    api.setConfig && api.setConfig({ countPrivate: $('optPrivate').checked });
   };
   $('optRankedOnly').onchange = function () {
     api.setConfig && api.setConfig({ rankedOnly: $('optRankedOnly').checked });
