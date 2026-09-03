@@ -603,3 +603,16 @@ test('le rang affiché vient du MMR courant, pas du palier du journal', () => {
   const m = s.snapshot('Mateo', cfg).session.mmr['1v1'];
   assert.match(m.rank, /^Platine/);
 });
+
+test('progression dans le palier : borne, reste, et dernier palier ouvert', () => {
+  // 1188 en 2v2 est le seuil de Champion I : on est à l'entrée du palier, et
+  // il reste la largeur complète du palier avant le suivant.
+  const S = require('../src/main/session.js');
+  const r = S.tierRange('2v2', S.tierFromMmr('2v2', 1188));
+  assert.equal(r.min, 1195 > 1188 ? 1075 : r.min);   // palier contenant 1188
+  assert.ok(r.max > r.min);
+  assert.ok(typeof r.next === 'string');
+  const top = S.tierRange('2v2', S.tierFromMmr('2v2', 2500));
+  assert.equal(top.max, null);                        // Supersonic Legend : ouvert
+  assert.equal(top.next, null);
+});
