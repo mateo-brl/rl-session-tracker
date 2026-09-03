@@ -956,6 +956,14 @@ ipcMain.handle('cosmetics-add', async (_e, opts) => {
   }));
 });
 ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+// Aperçu d'un habillage : rediffusé tel quel aux fenêtres, jamais écrit dans
+// la configuration. C'est la fenêtre qui l'a lancé qui décide d'appliquer.
+ipcMain.on('preview-look', (_e, look) => {
+  const clean = look && typeof look === 'object'
+    ? { skin: String(look.skin || '').slice(0, 24), theme: look.theme } : null;
+  windows.broadcast('look-preview', clean);
+});
+
 ipcMain.on('open-control', (_e, section) => {
   windows.showControl();
   const w = windows.getControl();
