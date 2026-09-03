@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('rl', {
   setMatchResult: (id, result) => ipcRenderer.invoke('set-match-result', id, result),
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
+  openControl: (section) => ipcRenderer.send('open-control', section),
+  onGotoSection: (cb) => ipcRenderer.on('goto-section', (_e, s) => cb(s)),
   openOverlayComposer: () => ipcRenderer.send('open-overlay-composer'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
   toggleFullscreen: () => ipcRenderer.send('dashboard-fullscreen-toggle'),

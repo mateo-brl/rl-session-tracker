@@ -68,7 +68,12 @@ function handler(req, res) {
 
   if (url === '/' || url === '/overlay' || url === '/classic') {
     try {
-      const html = fs.readFileSync(url === '/classic' ? PAGE_CLASSIC : PAGE);
+      const classic = url === '/classic';
+      let html = fs.readFileSync(classic ? PAGE_CLASSIC : PAGE, 'utf8');
+      // La page composable décide de son mode sur ?obs=1. Une URL retapée à
+      // la main sans le paramètre donnait un dashboard opaque dans OBS : le
+      // serveur marque donc lui-même ce qu'il sert.
+      if (!classic) html = html.replace('<body', '<body data-obs="1"');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } catch (e) {

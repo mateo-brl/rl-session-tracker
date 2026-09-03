@@ -278,3 +278,10 @@
 }
 [data-skin="calme"] .mode { clip-path: none; border-radius: 6px; }
 [data-skin="calme"] .tot::before { display: none; }
+
+/* ─── Fond du volet de configuration ───
+   Les habillages sobres remplacent la trame et les halos de l'Arène par un
+   aplat : « Papier » annonce « aucun dégradé », il ne peut pas en garder un. */
+[data-skin="papier"], [data-skin="console"], [data-skin="brut"], [data-skin="calme"] {
+  --surface-bg: var(--bg);
+}
