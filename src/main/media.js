@@ -30,6 +30,11 @@ const { spawn } = require('child_process');
 const BOM = '﻿';
 
 const PS = `$ErrorActionPreference = 'Stop'
+# PowerShell 5.1 ecrit dans la page de codes de la console : sans cette ligne,
+# « Impossible de trouver le type » arrive en octets isoles cote Node, et le
+# seul message de diagnostic qu'on possede devient illisible. Meme raison que
+# dans enable-statsapi.js.
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
 # Touches multimedia : c'est ce que Windows declenche depuis un clavier de
@@ -50,7 +55,9 @@ $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
   $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
 function Await($op, $type) {
   $t = $asTask.MakeGenericMethod($type).Invoke($null, @($op))
-  $null = $t.Wait(4000)
+  # Lire .Result sur une tache qui n'a pas fini BLOQUE : le delai d'attente ne
+  # servait a rien, et un lecteur suspendu figeait la boucle pour toujours.
+  if (-not $t.Wait(4000)) { return $null }
   $t.Result
 }
 
@@ -93,28 +100,26 @@ function Get-Now {
 # n'y a personne pour taper, et il s'arretait aussitot apres la premiere
 # ligne. On cesse simplement d'ecouter les commandes.
 $reader = [System.IO.StreamReader]::new([System.Console]::OpenStandardInput())
-$stdinDone = $false
-$stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
+$stdin = $reader.ReadLineAsync()
 
 while ($true) {
-  if (-not $stdinDone -and $stdin.IsCompleted) {
-    $cmd = $null
-    try { $cmd = $stdin.Result } catch { $stdinDone = $true }
-    if ($null -eq $cmd) {
-      $stdinDone = $true
-    } else {
-      $s = $mgr.GetCurrentSession()
-      switch ($cmd.Trim()) {
-        'next'      { if ($s) { $null = $s.TrySkipNextAsync() } }
-        'prev'      { if ($s) { $null = $s.TrySkipPreviousAsync() } }
-        'playpause' { if ($s) { $null = $s.TryTogglePlayPauseAsync() } }
-        'volup'     { Send-Key 175 }
-        'voldown'   { Send-Key 174 }
-        'mute'      { Send-Key 173 }
-      }
-      $stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
-      Start-Sleep -Milliseconds 120
+  if ($stdin.IsCompleted) {
+    $cmd = $stdin.Result
+    # Flux fermé : l'application a quitté. C'est la SEULE façon dont ce script
+    # se termine — sans elle, un PowerShell invisible survivait à chaque
+    # fermeture et s'accumulait jusqu'au redemarrage de la machine.
+    if ($null -eq $cmd) { break }
+    $s = $mgr.GetCurrentSession()
+    switch ($cmd.Trim()) {
+      'next'      { if ($s) { $null = $s.TrySkipNextAsync() } }
+      'prev'      { if ($s) { $null = $s.TrySkipPreviousAsync() } }
+      'playpause' { if ($s) { $null = $s.TryTogglePlayPauseAsync() } }
+      'volup'     { Send-Key 175 }
+      'voldown'   { Send-Key 174 }
+      'mute'      { Send-Key 173 }
     }
+    $stdin = $reader.ReadLineAsync()
+    Start-Sleep -Milliseconds 120
   }
   $n = $null
   try { $n = Get-Now } catch { [Console]::Error.WriteLine('lecture: ' + $_.Exception.Message) }
@@ -142,6 +147,17 @@ class MediaControl {
     this._buf = '';
     this._stderr = '';
     this._restarts = 0;
+    this._stopping = false;       // arrêt demandé : aucune relance ne doit suivre
+    this._retry = null;           // minuterie de relance, pour pouvoir l'annuler
+    this._startedAt = 0;
+    this._lastLog = '';
+  }
+
+  // Toute mutation d'état passe par ici. Sans ce point unique, une erreur
+  // posée dans un coin (échec de lancement, arrêt) ne parvenait jamais à
+  // l'interface, qui continuait d'afficher l'état précédent.
+  _publish() {
+    this.onUpdate(this.status());
   }
 
   status() {
@@ -151,30 +167,32 @@ class MediaControl {
   scriptPath() { return path.join(this.dir, 'media-control.ps1'); }
 
   start() {
-    if (!this.available || this.proc) return;
+    if (!this.available || this.proc || this._stopping) return;
+    // Restes de la vie précédente : une ligne coupée en deux par la mort du
+    // processus se recollait sur la première ligne du suivant et rendait le
+    // « prêt » illisible — l'erreur restait alors affichée pour toujours.
+    this._buf = '';
+    this._stderr = '';
     let file;
     try {
       file = this.scriptPath();
       fs.writeFileSync(file, BOM + PS, 'utf8');
     } catch (e) {
       this.error = 'Script indisponible (' + e.code + ')';
+      this._publish();
       return;
     }
     try {
-      // Sysnative : depuis un processus 32 bits, c'est le chemin qui atteint le
-      // PowerShell 64 bits. Sans lui, on tombe sur celui de SysWOW64, où les
-      // types WinRT ne se résolvent pas — et le script sort aussitôt.
-      const exe = (process.arch === 'ia32' && process.env.SystemRoot)
-        ? path.join(process.env.SystemRoot, 'Sysnative', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-        : 'powershell.exe';
-      this.proc = this.spawn(exe,
+      this.proc = this.spawn('powershell.exe',
         ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file],
         { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
       this.error = 'PowerShell indisponible';
       this.proc = null;
+      this._publish();
       return;
     }
+    this._startedAt = Date.now();
     this.log('média : contrôleur lancé (' + process.arch + ', ' + file + ')');
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', (chunk) => this._onData(chunk));
@@ -183,33 +201,70 @@ class MediaControl {
       const msg = String(chunk).replace(/\s+/g, ' ').trim().slice(0, 300);
       if (!msg) return;
       this._stderr = msg;
-      this.log('média : ' + msg);
+      // Le script peut se plaindre à chaque tour de boucle : sans ce filtre,
+      // app.log dépassait son plafond en une heure et emportait l'historique
+      // de tous les autres sous-systèmes avec lui.
+      if (msg === this._lastLog) return;
+      this._lastLog = msg;
+      try { this.log('média : ' + msg); } catch (e) { /* journal indisponible */ }
     });
-    this.proc.on('error', () => { this.error = 'PowerShell indisponible'; this.proc = null; });
+    // Un lancement qui échoue émet « error » et « close », mais PAS « exit » :
+    // sans ce relais, l'erreur n'était ni affichée ni suivie d'une relance.
+    this.proc.on('error', (e) => {
+      this.error = 'PowerShell indisponible (' + (e && e.code ? e.code : 'inconnu') + ')';
+      this.proc = null;
+      this._publish();
+      this._scheduleRestart();
+    });
     this.proc.on('exit', (code, signal) => {
       this.proc = null;
-      this.log('média : PowerShell s’est arrêté (code ' + code
-        + (signal ? ', signal ' + signal : '') + ', relance n°' + this._restarts + ')');
+      // Le morceau affiché appartenait au processus mort : le garder ferait
+      // avancer une barre de progression toute seule jusqu'à 100 %.
+      this.now = null;
+      const alive = Date.now() - this._startedAt;
+      // Un processus qui a tenu longtemps puis meurt est un incident isolé,
+      // pas une boucle d'échec : son compteur repart. C'est ce qui distingue
+      // « ça a planté une fois » de « ça ne démarre pas ».
+      if (alive > 60000) this._restarts = 0;
+      this._restarts++;
+      this.log('média : PowerShell s’est arrêté ('
+        + (signal ? 'signal ' + signal : 'code ' + code)
+        + ', vécu ' + Math.round(alive / 1000) + ' s, relance n°' + this._restarts + ')');
+      if (this._stopping) { this._publish(); return; }
       // Un plantage isolé se rattrape ; une boucle d'échecs, non — sans ce
       // plafond, un Windows sans SMTC relancerait PowerShell indéfiniment.
-      if (this._restarts < 3) {
-        this._restarts++;
-        setTimeout(() => this.start(), 5000).unref?.();
+      if (this._restarts <= 3) {
+        this._scheduleRestart();
       } else {
         // Le message de PowerShell vaut mieux qu'un « indisponible » sec :
         // c'est lui qui dit si c'est le type WinRT, les droits ou autre chose.
         this.error = 'Contrôleur média indisponible'
           + (this._stderr ? ' : ' + this._stderr : ' sur cette machine.');
-        this.onUpdate(this.status());
       }
+      this._publish();
     });
   }
 
+  // La relance est annulable : sans la garder sous la main, `stop()` tuait le
+  // processus et une minuterie déjà armée en ressuscitait un cinq secondes
+  // plus tard — y compris pendant la fermeture de l'application.
+  _scheduleRestart() {
+    if (this._stopping || this._retry) return;
+    this._retry = setTimeout(() => { this._retry = null; this.start(); }, 5000);
+    if (this._retry.unref) this._retry.unref();
+  }
+
   stop() {
+    this._stopping = true;
+    if (this._retry) { clearTimeout(this._retry); this._retry = null; }
     if (this.proc) {
+      try { this.proc.stdin.end(); } catch (e) { /* déjà fermé */ }
       try { this.proc.kill(); } catch (e) { /* déjà mort */ }
       this.proc = null;
     }
+    this.now = null;
+    this._buf = '';
+    this._publish();
   }
 
   _onData(chunk) {
@@ -231,8 +286,7 @@ class MediaControl {
       // prévenir l'interface, sinon le message d'erreur précédent reste
       // affiché alors que tout fonctionne.
       this.error = null;
-      this._restarts = 0;
-      this.onUpdate(this.status());
+      this._publish();
       return;
     }
     if (d.err) {
@@ -252,13 +306,13 @@ class MediaControl {
         playing: !!d.playing,
         progressMs: Number(d.posMs) || 0,
         durationMs: Number(d.lenMs) || 0,
-        at: Date.now(),
+        at: Number(d.at) || Date.now(),
       };
       // Certains lecteurs ne publient aucune durée : une barre de progression
       // sur une durée nulle vaut mieux cachée que fausse.
       if (!(this.now.durationMs > 0)) this.now.durationMs = 0;
     }
-    this.onUpdate(this.status());
+    this._publish();
   }
 
   command(cmd) {

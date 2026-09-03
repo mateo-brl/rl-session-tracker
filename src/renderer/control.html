@@ -504,6 +504,45 @@
     font-size:12.5px; font-family:inherit; cursor:pointer; }
   .suggest button:hover { background:var(--blue-deep); color:#fff; }
   .suggest .none { padding:7px 11px; font-size:12px; color:var(--muted); }
+
+  /* Sous-réglage coupé par un interrupteur général (les quatre cases et la
+     durée des alertes) : grisé et non cliquable, sinon rien ne distingue une
+     case décochée d'une case sans effet. */
+  .check input:disabled, .check input:disabled + span { opacity:.5; cursor:not-allowed; }
+  select:disabled { opacity:.5; cursor:not-allowed; }
+
+  /* ─── Diagnostic ───
+     Le rapport se lit d'abord aux pastilles : c'est ce que l'utilisateur
+     survole en trois secondes avant de tout copier. La couleur ne porte
+     jamais l'information seule (le libellé d'état est écrit à droite) —
+     un vert et un orange se confondent sur un écran mal réglé, et deux des
+     habillages repeignent --blue en vert. */
+  .diag-list { margin-top:12px; }
+  .diag-row { display:flex; align-items:flex-start; gap:11px; padding:9px 0;
+    border-top:1px solid var(--line); }
+  .diag-row:first-child { border-top:0; padding-top:2px; }
+  .diag-dot { width:10px; height:10px; flex:none; margin-top:4px;
+    transform:skewX(-14deg); background:var(--muted); }
+  .diag-row.st-ok .diag-dot { background:var(--blue); }
+  .diag-row.st-warn .diag-dot { background:var(--orange); }
+  .diag-row.st-fail .diag-dot { background:var(--red); }
+  .diag-row.st-skip .diag-dot { background:transparent;
+    box-shadow:inset 0 0 0 1px var(--line); }
+  .diag-main { flex:1; min-width:0; }
+  .diag-main b { display:block; font-size:13.5px; font-weight:600; }
+  .diag-main small { display:block; font-size:11.5px; color:var(--muted);
+    line-height:1.5; margin-top:2px; word-break:break-word; }
+  /* Le conseil ne s'affiche que quand ça ne va pas : sur une ligne verte il
+     n'aurait rien à dire, et il ferait perdre la ligne qui coince. */
+  .diag-main .fix { color:var(--orange); }
+  .diag-row.st-fail .fix { color:var(--red); }
+  .diag-st { flex:none; border:1px solid var(--line); color:var(--muted);
+    transform:skewX(-12deg); padding:2px 9px; font-size:10.5px;
+    font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+  .diag-st > span { display:inline-block; transform:skewX(12deg); }
+  .st-ok .diag-st { color:var(--blue); border-color:var(--blue); }
+  .st-warn .diag-st { color:var(--orange); border-color:var(--orange); }
+  .st-fail .diag-st { color:var(--red); border-color:var(--red); }
   @media (max-width:999px) {
     .swap { flex-wrap:wrap; }
     .swap-actions { width:100%; padding-left:22px; }
@@ -618,6 +657,24 @@
           <div class="hint warn" id="unknownHint" style="display:none;margin-top:0"></div>
           <div class="chips" id="unknownChips" style="display:none;margin-top:8px"></div>
         </div>
+
+        <!-- Diagnostic : quand « rien ne s'affiche », la cause est presque
+             toujours en amont de l'application (ini Stats API réinitialisé
+             par une vérification Steam, jeu jamais relancé depuis, pseudo
+             qui ne correspond à aucun joueur…). Sans rapport, un test chez
+             quelqu'un d'autre ne conclut rien : c'est la version texte,
+             copiable en un clic, qui remonte jusqu'ici. -->
+        <div class="card" id="diagCard">
+          <h2 data-i18n="hDiag">Diagnostic</h2>
+          <div class="hint" style="margin-top:0" data-i18n="hintDiag">Passe en revue ce dont l'application dépend — installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR — et dit quoi faire pour chaque point qui coince. Rien n'est modifié, rien n'est envoyé : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.</div>
+          <div class="duo">
+            <button class="ghost" style="margin-top:0" id="diagRun" data-i18n="bDiagRun">Lancer le diagnostic</button>
+            <button class="ghost lock" style="margin-top:0" id="diagCopy" data-i18n="bDiagCopy" disabled>Copier le rapport</button>
+          </div>
+          <div class="diag-list" id="diagList"></div>
+          <div class="hint" id="diagAt" style="display:none"></div>
+          <div class="hint warn" id="diagErr" style="display:none"></div>
+        </div>
       </section>
 
       <!-- ── Compte & MMR ── -->
@@ -678,7 +735,7 @@
       <section class="sec" data-sec="display">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard</span></div></div>
-          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations et mini-overlay. L’apparence est dans Habillages.</div>
+          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations, alertes et mini-overlay. L’apparence est dans Habillages.</div>
         </div>
 
         <div class="grid2">
@@ -742,6 +799,33 @@
               <button class="ghost" style="margin-top:0" id="testLoss" data-i18n="bTestLoss">Tester défaite</button>
             </div>
             <div class="hint" data-i18n="hintTest">Le test ouvre le dashboard et joue l'animation avec le style et le thème choisis.</div>
+          </div>
+
+          <!-- Alertes : elles ne remplacent pas l'écran de fin de match
+               (juste au-dessus), elles signalent en cours de session ce qui
+               ne se voit pas dans les chiffres — une série qui tient, un
+               rang qui change, un record qui tombe. Quatre cases séparées
+               parce qu'un joueur qui les veut toutes est rare : celui qui
+               stream coupe le MVP, celui qui grimpe ne garde que le rang. -->
+          <div class="card">
+            <h2 data-i18n="hAlerts">Alertes</h2>
+            <label class="check"><input type="checkbox" id="alOn" /><span data-i18n="cAlerts">Afficher les alertes pendant la session</span></label>
+            <div class="gap"></div>
+            <label class="check"><input type="checkbox" id="alStreak" /><span data-i18n="cAlStreak">Série de victoires</span></label>
+            <label class="check"><input type="checkbox" id="alRankUp" /><span data-i18n="cAlRankUp">Montée de rang</span></label>
+            <label class="check"><input type="checkbox" id="alMvp" /><span data-i18n="cAlMvp">MVP</span></label>
+            <label class="check"><input type="checkbox" id="alRecord" /><span data-i18n="cAlRecord">Record battu</span></label>
+            <div class="gap"></div>
+            <label class="field"><span data-i18n="lAlSeconds">Durée d'affichage</span>
+              <select id="alSeconds">
+                <option value="3">3 s</option>
+                <option value="5">5 s</option>
+                <option value="6">6 s</option>
+                <option value="8">8 s</option>
+                <option value="10">10 s</option>
+                <option value="15">15 s</option>
+              </select></label>
+            <div class="hint" data-i18n="hintAlerts">Ces alertes apparaissent sur le dashboard ET dans l'overlay OBS : c'est le bloc « Alertes » qui les affiche, déplaçable et redimensionnable comme les autres blocs (bouton « Personnaliser » du dashboard, « Composer l'overlay » pour OBS).</div>
           </div>
 
         </div>
@@ -842,7 +926,7 @@
       <section class="sec" data-sec="stream">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navStream">Streaming</span></div></div>
-          <div class="sec-sub" data-i18n="subStream">Overlay OBS et pont compatible SOS.</div>
+          <div class="sec-sub" data-i18n="subStream">Overlay OBS composable, ancien bandeau et pont compatible SOS.</div>
         </div>
 
         <div class="card">
@@ -859,6 +943,43 @@
           <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
           <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
           <div class="hint" data-i18n="hintObsAnim">Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.</div>
+
+          <!-- Toile : les blocs sont posés en pourcentages, donc une source
+               OBS plus étroite que la toile du compositeur ne décale rien —
+               elle rétrécit tout, textes compris, jusqu'à l'illisible. D'où
+               le choix explicite, et surtout la taille à recopier telle
+               quelle dans la source Navigateur. -->
+          <div class="gap"></div>
+          <label class="field"><span data-i18n="lObsCanvas">Toile de l’overlay</span>
+            <select id="obsCanvas">
+              <option value="1920x1080">1920 × 1080 — 1080p</option>
+              <option value="2560x1440">2560 × 1440 — 1440p</option>
+              <option value="1280x720">1280 × 720 — 720p</option>
+              <option value="custom" data-i18n="oCanvasCustom">Personnalisé…</option>
+            </select></label>
+          <div class="duo" id="obsCanvasCustom" style="display:none">
+            <label class="field"><span data-i18n="lCanvasW">Largeur (px)</span>
+              <input type="number" id="obsCanvasW" min="320" max="3840" placeholder="1920" /></label>
+            <label class="field"><span data-i18n="lCanvasH">Hauteur (px)</span>
+              <input type="number" id="obsCanvasH" min="320" max="3840" placeholder="1080" /></label>
+          </div>
+          <div class="duo">
+            <input type="text" id="obsCanvasSize" readonly />
+            <button class="ghost" style="margin-top:0" id="obsCanvasCopy" data-i18n="bCopySize">Copier la taille</button>
+          </div>
+          <div class="hint" data-i18n="hintObsCanvas">Recopie ces deux nombres dans la source Navigateur d’OBS (champs Largeur et Hauteur) : c’est la même toile que celle du compositeur, donc ce que tu y places tombe au pixel près dans OBS. Une source plus petite que la toile ne décale rien, elle rétrécit tout.</div>
+
+          <!-- Preset : la disposition seule, pas la session ni le pseudo.
+               C'est ce qui se partage entre streamers, et ce qu'on récupère
+               après une réinstallation. -->
+          <div class="gap"></div>
+          <div class="duo">
+            <button class="ghost" style="margin-top:0" id="obsPresetExport" data-i18n="bPresetExport">Exporter le preset</button>
+            <button class="ghost" style="margin-top:0" id="obsPresetImport" data-i18n="bPresetImport">Importer un preset</button>
+          </div>
+          <div class="hint" id="obsPresetOut" style="display:none"></div>
+          <div class="hint warn" id="obsPresetErr" style="display:none"></div>
+          <div class="hint" data-i18n="hintObsPreset">Un preset est un fichier qui contient la mise en page de l’overlay : les blocs, leurs positions, leurs tailles et leurs réglages. Sert à partager ta composition avec quelqu’un d’autre, ou à la retrouver sur une autre machine. Il n’emporte ni tes matchs, ni ton pseudo, ni ton MMR.</div>
         </div>
 
         <!-- Ancien bandeau : conservé pour ceux qui l'avaient déjà réglé dans
@@ -1134,8 +1255,8 @@
       navApp: 'Application',
       subHome: '\u00c9tat du jeu et de la session en direct.',
       subAccount: 'Pseudo, MMR par mode et matchs class\u00e9s.',
-      subDisplay: 'Dashboard, animations and the game bar. Appearance lives in Skins.',
-      subStream: 'Composable OBS overlay, legacy bar and SOS-compatible bridge.',
+      subDisplay: 'Dashboard, animations, alertes et mini-overlay. L\u2019apparence est dans Habillages.',
+      subStream: 'Overlay OBS composable, ancien bandeau et pont compatible SOS.',
       subApp: 'D\u00e9marrage, langue, fen\u00eatre et donn\u00e9es.',
       hStatus: '\u00c9tat', hUnknown: 'Matchs non attribu\u00e9s',
       hPseudo: 'Pseudo', hRanked: 'Class\u00e9 / occasionnel',
@@ -1225,6 +1346,45 @@
       obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connect\u00e9s.' : ' overlay connect\u00e9.')) : 'Aucun overlay connect\u00e9 pour l\u2019instant \u2014 colle l\u2019URL ci-dessus dans ton overlay.'; },
       obsSosErr: function (port) { return 'Port ' + port + ' indisponible \u2014 le pont SOS ne tourne pas. Un autre logiciel utilise sans doute ce port : change-le ci-dessus ou ferme l\u2019autre application.'; },
       hintObsSos: 'Pour les overlays de diffusion \u00e9crits avant l\u2019arriv\u00e9e d\u2019Easy Anti-Cheat (avril 2026) pour le d\u00e9funt plugin SOS, muets en ligne depuis. Ce pont r\u00e9\u00e9met le m\u00eame flux, au m\u00eame format, en local sur le port choisi ci-dessus : colle l\u2019URL dans l\u2019overlay et il refonctionne sans \u00eatre modifi\u00e9. R\u00e9serv\u00e9 aux streamers utilisant ce type d\u2019overlay \u2014 inutile sinon.',
+      // Toile de l'overlay et presets de disposition (carte de l'overlay
+      // composable, section Overlay & streaming).
+      lObsCanvas: 'Toile de l\u2019overlay', oCanvasCustom: 'Personnalis\u00e9\u2026',
+      lCanvasW: 'Largeur (px)', lCanvasH: 'Hauteur (px)',
+      bCopySize: 'Copier la taille',
+      hintObsCanvas: 'Recopie ces deux nombres dans la source Navigateur d\u2019OBS (champs Largeur et Hauteur) : c\u2019est la m\u00eame toile que celle du compositeur, donc ce que tu y places tombe au pixel pr\u00e8s dans OBS. Une source plus petite que la toile ne d\u00e9cale rien, elle r\u00e9tr\u00e9cit tout.',
+      bPresetExport: 'Exporter le preset', bPresetImport: 'Importer un preset',
+      presetBusy: 'En cours\u2026',
+      presetDone: function (f) { return 'Preset \u00e9crit dans ' + f; },
+      presetIn: function (n) { return 'Preset \u00ab ' + n + ' \u00bb import\u00e9 \u2014 la disposition de l\u2019overlay a \u00e9t\u00e9 remplac\u00e9e.'; },
+      presetFail: 'Le preset n\u2019a pas pu \u00eatre trait\u00e9.',
+      hintObsPreset: 'Un preset est un fichier qui contient la mise en page de l\u2019overlay : les blocs, leurs positions, leurs tailles et leurs r\u00e9glages. Sert \u00e0 partager ta composition avec quelqu\u2019un d\u2019autre, ou \u00e0 la retrouver sur une autre machine. Il n\u2019emporte ni tes matchs, ni ton pseudo, ni ton MMR.',
+      // Alertes de session (section Dashboard).
+      hAlerts: 'Alertes',
+      cAlerts: 'Afficher les alertes pendant la session',
+      cAlStreak: 'S\u00e9rie de victoires', cAlRankUp: 'Mont\u00e9e de rang',
+      cAlMvp: 'MVP', cAlRecord: 'Record battu',
+      lAlSeconds: 'Dur\u00e9e d\u2019affichage',
+      hintAlerts: 'Ces alertes apparaissent sur le dashboard ET dans l\u2019overlay OBS : c\u2019est le bloc \u00ab Alertes \u00bb qui les affiche, d\u00e9pla\u00e7able et redimensionnable comme les autres blocs (bouton \u00ab Personnaliser \u00bb du dashboard, \u00ab Composer l\u2019overlay \u00bb pour OBS).',
+      // Diagnostic (section Accueil).
+      hDiag: 'Diagnostic',
+      hintDiag: 'Passe en revue ce dont l\u2019application d\u00e9pend \u2014 installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR \u2014 et dit quoi faire pour chaque point qui coince. Rien n\u2019est modifi\u00e9, rien n\u2019est envoy\u00e9 : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.',
+      bDiagRun: 'Lancer le diagnostic', bDiagCopy: 'Copier le rapport',
+      diagBusy: 'Diagnostic en cours\u2026', diagCopied: 'Rapport copi\u00e9 !',
+      diagStOk: 'OK', diagStWarn: '\u00c0 voir', diagStFail: '\u00c9chec',
+      diagStSkip: 'Sans objet',
+      diagAt: function (when, bad) {
+        return 'Rapport du ' + when + ' \u2014 '
+          + (bad ? bad + (bad > 1 ? ' points \u00e0 corriger.' : ' point \u00e0 corriger.')
+            : 'tout est en ordre.');
+      },
+      diagEmpty: 'Aucun contr\u00f4le n\u2019a \u00e9t\u00e9 renvoy\u00e9.',
+      diagFail: function (m) { return 'Le diagnostic n\u2019a pas pu aller au bout : ' + m; },
+      diagCopyFail: 'Copie impossible \u2014 s\u00e9lectionne les lignes ci-dessus \u00e0 la main.',
+      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' \u2014 diagnostic du ' + when; },
+      diagTxtHint: '\u2192 conseil :',
+      // Fonction absente du processus principal : version dépareillée, le
+      // plus souvent une mise à jour installée sans redémarrage.
+      noMainApi: 'Indisponible : le processus principal est d\u2019une autre version que cette fen\u00eatre. Red\u00e9marre l\u2019application.',
       bDash: 'Ouvrir le dashboard', bClear: 'Vider les matchs r\u00e9cents',
       bStatsApi: 'R\u00e9activer la Stats API du jeu',
       // Export du journal des matchs (section Application).
@@ -1378,8 +1538,8 @@
       navApp: 'Application',
       subHome: 'Live game and session status.',
       subAccount: 'Name, per-mode MMR and ranked matches.',
-      subDisplay: 'Dashboard, animations, mini-overlay, theme and Alpha Boost sound.',
-      subStream: 'OBS overlay and SOS-compatible bridge.',
+      subDisplay: 'Dashboard, animations, alerts and mini-overlay. Appearance lives in Skins.',
+      subStream: 'Composable OBS overlay, legacy bar and SOS-compatible bridge.',
       subApp: 'Startup, language, window and data.',
       hStatus: 'Status', hUnknown: 'Unattributed matches',
       hPseudo: 'Name', hRanked: 'Ranked / casual',
@@ -1469,6 +1629,45 @@
       obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connected.' : ' overlay connected.')) : 'No overlay connected yet — paste the URL above into your overlay.'; },
       obsSosErr: function (port) { return 'Port ' + port + ' unavailable — the SOS bridge isn’t running. Another program is probably using this port: change it above or close the other app.'; },
       hintObsSos: 'For streaming overlays written before Easy Anti-Cheat arrived (April 2026) for the now-defunct SOS plugin — they’ve been silent online ever since. This bridge re-emits the same feed, in the same format, locally on the port chosen above: paste the URL into the overlay and it works again unmodified. For streamers using that kind of overlay only — skip it otherwise.',
+      // Overlay canvas and layout presets (composable overlay card,
+      // Overlay & streaming section).
+      lObsCanvas: 'Overlay canvas', oCanvasCustom: 'Custom…',
+      lCanvasW: 'Width (px)', lCanvasH: 'Height (px)',
+      bCopySize: 'Copy the size',
+      hintObsCanvas: 'Copy these two numbers into the OBS Browser source (Width and Height fields): it is the very canvas the composer uses, so whatever you place there lands pixel-perfect in OBS. A source smaller than the canvas shifts nothing, it shrinks everything.',
+      bPresetExport: 'Export the preset', bPresetImport: 'Import a preset',
+      presetBusy: 'Working…',
+      presetDone: function (f) { return 'Preset written to ' + f; },
+      presetIn: function (n) { return 'Preset \u201c' + n + '\u201d imported — the overlay layout has been replaced.'; },
+      presetFail: 'The preset could not be handled.',
+      hintObsPreset: 'A preset is a file holding the overlay layout: the blocks, their positions, their sizes and their settings. Use it to share your composition with someone else, or to get it back on another machine. It carries none of your matches, your name or your MMR.',
+      // Session alerts (Dashboard section).
+      hAlerts: 'Alerts',
+      cAlerts: 'Show alerts during the session',
+      cAlStreak: 'Win streak', cAlRankUp: 'Rank up',
+      cAlMvp: 'MVP', cAlRecord: 'Record broken',
+      lAlSeconds: 'On-screen time',
+      hintAlerts: 'These alerts show on the dashboard AND in the OBS overlay: the “Alerts” block displays them, movable and resizable like every other block (the dashboard’s “Customize” button, “Compose the overlay” for OBS).',
+      // Diagnostic (Home section).
+      hDiag: 'Diagnostic',
+      hintDiag: 'Goes through everything the app depends on — the game install, the Stats API file, the live feed, your name, the game log used for MMR — and says what to do about each point that fails. Nothing is changed, nothing is sent: the report stays on your machine until you paste it somewhere.',
+      bDiagRun: 'Run the diagnostic', bDiagCopy: 'Copy the report',
+      diagBusy: 'Running…', diagCopied: 'Report copied!',
+      diagStOk: 'OK', diagStWarn: 'Check', diagStFail: 'Failed',
+      diagStSkip: 'N/A',
+      diagAt: function (when, bad) {
+        return 'Report from ' + when + ' — '
+          + (bad ? bad + (bad > 1 ? ' points to fix.' : ' point to fix.')
+            : 'everything is in order.');
+      },
+      diagEmpty: 'No check was returned.',
+      diagFail: function (m) { return 'The diagnostic could not finish: ' + m; },
+      diagCopyFail: 'Copy failed — select the lines above by hand.',
+      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' — diagnostic from ' + when; },
+      diagTxtHint: '→ fix:',
+      // Function missing from the main process: mismatched versions, most
+      // often an update installed without a restart.
+      noMainApi: 'Unavailable: the main process is a different version from this window. Restart the app.',
       bDash: 'Open the dashboard', bClear: 'New session — reset the counters',
       bStatsApi: 'Re-enable the game Stats API',
       // Match log export (Application section).
@@ -1631,6 +1830,10 @@
       var v = T[el.dataset.i18nTitle];
       if (typeof v === 'string') el.title = v;
     });
+    // Le rapport de diagnostic est construit en JS : ses pastilles d'état et
+    // sa ligne de résumé n'ont pas d'attribut data-i18n, la boucle ci-dessus
+    // les laisserait dans l'ancienne langue.
+    if (diagReport) renderDiag(diagReport);
   }
 
   // ─── Thème (partagé avec le dashboard et l'overlay) ───
@@ -2197,6 +2400,27 @@
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
 
+    // Alertes de session : c'est le bloc « Alertes » du dashboard et de
+    // l'overlay qui les affiche, ces réglages ne font que le nourrir.
+    // Réglage absent (première ouverture après la mise à jour) = tout
+    // allumé, comme les autres cases de cette section.
+    var al = cfg.alerts || {};
+    $('alOn').checked = al.enabled !== false;
+    $('alStreak').checked = al.streak !== false;
+    $('alRankUp').checked = al.rankUp !== false;
+    $('alMvp').checked = al.mvp !== false;
+    $('alRecord').checked = al.record !== false;
+    if (document.activeElement !== $('alSeconds')) {
+      // Le contrat autorise 2 à 15 s, le menu n'en propose que six : une
+      // valeur écrite à la main dans config.json (2, 4, 7...) laisserait le
+      // menu vide. Plutôt qu'un champ sans valeur, on retombe sur 6 s —
+      // l'utilisateur voit alors ce qui sera réellement enregistré au
+      // prochain changement.
+      $('alSeconds').value = String(al.seconds || 6);
+      if (!$('alSeconds').value) $('alSeconds').value = '6';
+    }
+    alertsDim();
+
     // Mode streamer : URL à copier quand le serveur tourne, erreur sinon.
     var oc2 = cfg.obs || {};
     $('obsOn').checked = !!oc2.enabled;
@@ -2214,6 +2438,7 @@
     $('obsH2h').checked = oc2.showH2h !== false;
     $('obsBanner').checked = oc2.banner !== false;
     $('obsGoal').checked = oc2.goalFlash !== false;
+    canvasToUI(oc2.canvas);
     var obsSt = s.obs || {};
     $('obsUrlRow').style.display = obsSt.running ? 'grid' : 'none';
     if (obsSt.running) {
@@ -2322,7 +2547,29 @@
     // passage par l'accueil.
     var vis = function (id) { return $(id).style.display !== 'none'; };
     setNavAlert('home', vis('updCard') || vis('apiHint') || vis('whoCard') || vis('unknownCard'));
+    renderApiGaps();
     cosOnState(s);
+  }
+
+  // Processus principal d'une autre version que cette fenêtre (mise à jour
+  // installée sans redémarrage) : les fonctions du pont manquent. On coupe
+  // les boutons concernés en le disant — un bouton qui ne réagit pas se lit
+  // comme une panne de l'application. Appelé depuis render() et pas à
+  // l'initialisation pour que le message soit dans la bonne langue.
+  // On ne remet jamais un bouton en service ici : il peut être désactivé
+  // parce qu'il travaille, et l'état arrive pendant ce temps.
+  function renderApiGaps() {
+    if (!api.runDiagnostic) {
+      $('diagRun').disabled = true;
+      $('diagErr').textContent = T.noMainApi;
+      $('diagErr').style.display = 'block';
+    }
+    if (!(api.exportOverlayPreset && api.importOverlayPreset)) {
+      $('obsPresetExport').disabled = true;
+      $('obsPresetImport').disabled = true;
+      $('obsPresetErr').textContent = T.noMainApi;
+      $('obsPresetErr').style.display = 'block';
+    }
   }
 
   // Raccourci global : touches séparées à partir de l'accélérateur fourni par
@@ -3075,6 +3322,33 @@
   ['animPreset', 'sndPreset', 'animEnd', 'animGoal'].forEach(function (id) {
     $(id).addEventListener('change', saveAnim);
   });
+  // ─── Alertes ───
+  // Quatre cases séparées : celui qui stream coupe le MVP, celui qui grimpe
+  // ne garde que le rang. La durée est un menu et non un curseur — entre
+  // 6 et 7 secondes personne ne fait la différence, et le contrat borne à
+  // 15 s de toute façon.
+  function saveAlerts() {
+    api.setConfig && api.setConfig({ alerts: {
+      enabled: $('alOn').checked,
+      streak: $('alStreak').checked,
+      rankUp: $('alRankUp').checked,
+      mvp: $('alMvp').checked,
+      record: $('alRecord').checked,
+      seconds: Number($('alSeconds').value) || 6,
+    } });
+    alertsDim();
+  }
+  ['alOn', 'alStreak', 'alRankUp', 'alMvp', 'alRecord', 'alSeconds']
+    .forEach(function (id) { $(id).addEventListener('change', saveAlerts); });
+  // Interrupteur général coupé : les quatre cases et la durée ne pilotent
+  // plus rien. Les griser évite de chercher pendant une session pourquoi une
+  // alerte pourtant cochée n'apparaît jamais.
+  function alertsDim() {
+    var off = !$('alOn').checked;
+    ['alStreak', 'alRankUp', 'alMvp', 'alRecord', 'alSeconds']
+      .forEach(function (id) { $(id).disabled = off; });
+  }
+
   $('testWin').onclick = function () {
     api.previewAnimation && api.previewAnimation('W');
   };
@@ -3170,6 +3444,108 @@
       done();
     }
   };
+  // ─── Toile de l'overlay ───
+  // Les blocs sont posés en pourcentages : une source OBS plus étroite que
+  // la toile ne décale rien, elle rétrécit tout — textes compris. D'où le
+  // choix explicite, et la taille affichée telle qu'on doit la recopier.
+  // Les bornes du contrat (320 → 3840) sont réappliquées ici : un
+  // <input type="number"> hors bornes se contente de se colorer, il envoie
+  // quand même sa valeur.
+  var CANVAS_MIN = 320, CANVAS_MAX = 3840;
+  var CANVAS_PRESETS = ['1920x1080', '2560x1440', '1280x720'];
+  // « Personnalisé » choisi à la main : la ligne largeur/hauteur reste
+  // ouverte même quand les nombres retombent par hasard sur un préréglage,
+  // sinon le menu se referme sous les doigts pendant la saisie.
+  var canvasCustom = false;
+
+  function clampCanvas(v, fallback) {
+    v = Math.round(Number(v));
+    if (!isFinite(v) || !v) return fallback;
+    return Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, v));
+  }
+  function canvasToUI(c) {
+    var w = clampCanvas(c && c.w, 1920);
+    var h = clampCanvas(c && c.h, 1080);
+    var key = w + 'x' + h;
+    var custom = canvasCustom || CANVAS_PRESETS.indexOf(key) < 0;
+    if (document.activeElement !== $('obsCanvas')) {
+      $('obsCanvas').value = custom ? 'custom' : key;
+    }
+    $('obsCanvasCustom').style.display = custom ? 'grid' : 'none';
+    if (document.activeElement !== $('obsCanvasW')) $('obsCanvasW').value = String(w);
+    if (document.activeElement !== $('obsCanvasH')) $('obsCanvasH').value = String(h);
+    $('obsCanvasSize').value = w + ' × ' + h;
+  }
+  function saveCanvas() {
+    var c;
+    if ($('obsCanvas').value === 'custom') {
+      // Champ vidé ou saisie encore invalide (collage cassé, frappe en
+      // cours) : on garde la toile déjà enregistrée plutôt que de replacer
+      // d'autorité l'overlay en 1920 × 1080 sous les doigts.
+      var known = (cur && cur.config && cur.config.obs && cur.config.obs.canvas) || {};
+      c = { w: clampCanvas($('obsCanvasW').value, clampCanvas(known.w, 1920)),
+        h: clampCanvas($('obsCanvasH').value, clampCanvas(known.h, 1080)) };
+    } else {
+      var p = $('obsCanvas').value.split('x');
+      c = { w: Number(p[0]), h: Number(p[1]) };
+    }
+    // Affichage immédiat : la taille à recopier dans OBS doit suivre la
+    // frappe, pas attendre l'aller-retour par le processus principal.
+    canvasToUI(c);
+    api.setConfig && api.setConfig({ obs: { canvas: c } });
+  }
+  $('obsCanvas').addEventListener('change', function () {
+    canvasCustom = $('obsCanvas').value === 'custom';
+    saveCanvas();
+  });
+  ['obsCanvasW', 'obsCanvasH'].forEach(function (id) {
+    $(id).addEventListener('change', saveCanvas);
+    $(id).addEventListener('blur', saveCanvas);
+  });
+  $('obsCanvasCopy').onclick = function () {
+    copyText($('obsCanvasSize').value).then(function () {
+      flashBtn($('obsCanvasCopy'), T.bCopied, T.bCopySize);
+    }, function () { /* presse-papier refusé : le champ reste sélectionnable */ });
+  };
+
+  // ─── Presets de disposition ───
+  // Le fichier ne contient que la mise en page : rien de personnel n'en
+  // sort, et rien n'écrase la session en l'important.
+  function presetAction(btn, label, call, done) {
+    var out = $('obsPresetOut'), err = $('obsPresetErr');
+    out.style.display = 'none';
+    err.style.display = 'none';
+    if (!call) { renderApiGaps(); return; }
+    btn.disabled = true; btn.textContent = T.presetBusy;
+    Promise.resolve().then(call)
+      .then(function (res) {
+        // Boîte de dialogue fermée sans choisir de fichier : ni succès ni
+        // erreur, comme l'export du journal des matchs.
+        if (res && res.canceled) return;
+        if (res && res.ok) {
+          out.textContent = done(res);
+          out.style.display = 'block';
+        } else {
+          err.textContent = (res && res.error) || T.presetFail;
+          err.style.display = 'block';
+        }
+      }, function (e) {
+        err.textContent = (e && e.message) || String(e) || T.presetFail;
+        err.style.display = 'block';
+      })
+      .then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+  $('obsPresetExport').onclick = function () {
+    presetAction($('obsPresetExport'), T.bPresetExport,
+      api.exportOverlayPreset ? function () { return api.exportOverlayPreset(); } : null,
+      function (res) { return T.presetDone(res.file || '?'); });
+  };
+  $('obsPresetImport').onclick = function () {
+    presetAction($('obsPresetImport'), T.bPresetImport,
+      api.importOverlayPreset ? function () { return api.importOverlayPreset(); } : null,
+      function (res) { return T.presetIn(res.name || '?'); });
+  };
+
   $('obsSosCopy').onclick = function () {
     var input = $('obsSosUrl');
     input.select();
@@ -3226,6 +3602,164 @@
           b.disabled = false; b.textContent = T.bStatsApi;
         }, failed ? 8000 : 5000);
       });
+  };
+
+  // Copie dans le presse-papier. navigator.clipboard n'est pas garanti
+  // (contexte non sécurisé selon la version d'Electron), d'où le repli sur
+  // execCommand — avec un <textarea> et non un <input> : le rapport de
+  // diagnostic fait plusieurs lignes, un champ simple les écraserait en une.
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      if (ok) resolve(); else reject(new Error('copy'));
+    });
+  }
+  // Confirmation dans le bouton lui-même, comme « Copier l'URL » : pas de
+  // popup pour un geste aussi anodin.
+  function flashBtn(b, shown, back) {
+    b.textContent = shown;
+    clearTimeout(b._t);
+    b._t = setTimeout(function () { b.textContent = back; }, 2000);
+  }
+
+  // ─── Diagnostic ───
+  // Tout le contenu vient du processus principal : cette fenêtre met en
+  // forme, elle ne conclut rien. L'important est la version texte : deux
+  // mécanismes (l'ini Stats API d'une installation Steam, la réconciliation
+  // d'un forfait adverse) ne se vérifient qu'en conditions réelles, chez
+  // quelqu'un d'autre — sans rapport à recoller dans un message, un test
+  // ne remonte rien d'exploitable.
+  var DIAG_STATES = ['ok', 'warn', 'fail', 'skip'];
+  var DIAG_LABEL = { ok: 'diagStOk', warn: 'diagStWarn', fail: 'diagStFail', skip: 'diagStSkip' };
+  var diagReport = null;
+
+  // Un état inconnu (contrôle ajouté plus tard côté processus principal)
+  // n'est ni bon ni mauvais : « sans objet » plutôt qu'une pastille verte
+  // qui rassurerait à tort.
+  function diagState(c) {
+    return c && DIAG_STATES.indexOf(c.state) >= 0 ? c.state : 'skip';
+  }
+  function diagWhen(at) {
+    var d = at ? new Date(at) : new Date();
+    return isNaN(d.getTime()) ? String(at) : d.toLocaleString();
+  }
+
+  function renderDiag(rep) {
+    var list = $('diagList');
+    var at = $('diagAt');
+    list.innerHTML = '';
+    if (!rep) { at.style.display = 'none'; return; }
+    var checks = Array.isArray(rep.checks) ? rep.checks : [];
+    var bad = 0;
+    checks.forEach(function (c) {
+      var st = diagState(c);
+      if (st === 'warn' || st === 'fail') bad++;
+      var row = document.createElement('div');
+      row.className = 'diag-row st-' + st;
+      var dot = document.createElement('span');
+      dot.className = 'diag-dot';
+      row.appendChild(dot);
+
+      var main = document.createElement('div');
+      main.className = 'diag-main';
+      var lab = document.createElement('b');
+      lab.textContent = (c && (c.label || c.id)) || '?';
+      main.appendChild(lab);
+      if (c && c.detail) {
+        var det = document.createElement('small');
+        det.textContent = c.detail;
+        main.appendChild(det);
+      }
+      // Le conseil ne s'affiche que là où ça coince : sur une ligne verte
+      // il n'aurait rien à conseiller.
+      if (c && c.hint && (st === 'warn' || st === 'fail')) {
+        var fix = document.createElement('small');
+        fix.className = 'fix';
+        fix.textContent = c.hint;
+        main.appendChild(fix);
+      }
+      row.appendChild(main);
+
+      var pill = document.createElement('span');
+      pill.className = 'diag-st';
+      var inner = document.createElement('span');
+      inner.textContent = T[DIAG_LABEL[st]];
+      pill.appendChild(inner);
+      row.appendChild(pill);
+      list.appendChild(row);
+    });
+    at.textContent = checks.length ? T.diagAt(diagWhen(rep.at), bad) : T.diagEmpty;
+    at.style.display = 'block';
+  }
+
+  // Version texte : c'est elle qui voyage dans un message. États en clair et
+  // en ASCII pour rester lisibles quel que soit le client de messagerie, et
+  // identiques dans les deux langues — celui qui reçoit le rapport n'a pas
+  // forcément réglé l'application dans la même.
+  function diagText(rep) {
+    var lines = [T.diagTxtHead((cur && cur.version) || '?', diagWhen(rep.at))];
+    (Array.isArray(rep.checks) ? rep.checks : []).forEach(function (c) {
+      var st = diagState(c);
+      lines.push('[' + st.toUpperCase() + '] ' + ((c && (c.label || c.id)) || '?')
+        + (c && c.detail ? ' — ' + c.detail : ''));
+      if (c && c.hint && (st === 'warn' || st === 'fail')) {
+        lines.push('       ' + T.diagTxtHint + ' ' + c.hint);
+      }
+    });
+    return lines.join('\n');
+  }
+
+  $('diagRun').onclick = function () {
+    var b = $('diagRun');
+    var err = $('diagErr');
+    err.style.display = 'none';
+    if (!api.runDiagnostic) { renderApiGaps(); return; }
+    b.disabled = true; b.textContent = T.diagBusy;
+    $('diagCopy').disabled = true;
+    Promise.resolve().then(function () { return api.runDiagnostic(); })
+      .then(function (rep) {
+        diagReport = (rep && typeof rep === 'object') ? rep : null;
+        renderDiag(diagReport);
+        $('diagCopy').disabled = !diagReport;
+        if (!diagReport) {
+          err.textContent = T.diagEmpty;
+          err.style.display = 'block';
+        }
+      }, function (e) {
+        // Le pont IPC a lâché (processus principal occupé, exception côté
+        // main) : rester muet laisserait croire que le bouton ne fait rien.
+        diagReport = null;
+        renderDiag(null);
+        err.textContent = T.diagFail((e && e.message) || String(e));
+        err.style.display = 'block';
+      })
+      .then(function () {
+        b.disabled = false; b.textContent = T.bDiagRun;
+      });
+  };
+
+  $('diagCopy').onclick = function () {
+    if (!diagReport) return;
+    var b = $('diagCopy');
+    var err = $('diagErr');
+    copyText(diagText(diagReport)).then(function () {
+      err.style.display = 'none';
+      flashBtn(b, T.diagCopied, T.bDiagCopy);
+    }, function () {
+      err.textContent = T.diagCopyFail;
+      err.style.display = 'block';
+    });
   };
 
   // ─── Export du journal des matchs ───
