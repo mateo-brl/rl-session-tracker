@@ -43,6 +43,10 @@
     -webkit-user-select:none; user-select:none; overflow:hidden;
   }
   .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
+  /* Habillage sélectionné : la pastille est remplie, pour qu'on voie d'un
+     coup d'œil lequel est actif parmi les six. */
+  .chip.on { background:var(--blue); border-color:var(--blue); }
+  .chip.on > span { color:#fff; }
 
   /* ─── Barre de titre (fenêtre sans cadre) ─── */
   .titlebar {
@@ -428,6 +432,7 @@
     .swap-actions { width:100%; padding-left:22px; }
   }
 </style>
+  <link rel="stylesheet" href="skins.css" />
 </head>
 <body>
 
@@ -660,6 +665,11 @@
 
           <div class="card">
             <h2 data-i18n="hLook">Apparence</h2>
+            <div class="field" data-i18n="lSkin">Habillage</div>
+            <div class="chips" id="skinPresets"></div>
+            <div class="hint" data-i18n="hintSkin">Un habillage change la forme de l'interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.</div>
+            <div class="gap"></div>
+            <div class="field" data-i18n="lThemeColors">Couleurs</div>
             <div class="chips" id="themePresets"></div>
             <div class="gap"></div>
             <div class="color-grid">
@@ -1144,6 +1154,9 @@
       cosRecommended: 'conseill\u00e9',
       cPrivate: 'Compter aussi les matchs privés',
       hintPrivate: 'Un match privé ne passe par aucune file d’attente : l’appli le reconnaît à ça et ne le compte pas. Coche si tu veux quand même les voir dans la session.',
+      lSkin: 'Habillage',
+      lThemeColors: 'Couleurs',
+      hintSkin: 'Un habillage change la forme de l’interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1329,6 +1342,9 @@
       cosRecommended: 'recommended',
       cPrivate: 'Count private matches too',
       hintPrivate: 'A private match goes through no queue: that is how the app spots it, and it is left out. Tick this to see them in the session anyway.',
+      lSkin: 'Skin',
+      lThemeColors: 'Colors',
+      hintSkin: 'A skin changes the shape of the interface: type, card cuts, rules, shadows. It brings its own palette, which you can tweak just below.',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -1379,6 +1395,39 @@
     });
     return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
   }
+  // Un fond clair (skin « Papier », ou une couleur choisie à la main) impose
+  // d'inverser tout ce qui se dérivait du fond : le texte, et le SENS des
+  // mélanges. Sans ça, panneaux et filets étaient éclaircis vers le blanc sur
+  // un fond déjà blanc, et le texte clair restait illisible.
+  function isLight(hex) {
+    var c = String(hex || '').replace('#', '');
+    if (c.length !== 6) return false;
+    var r = parseInt(c.slice(0, 2), 16) / 255;
+    var g = parseInt(c.slice(2, 4), 16) / 255;
+    var b = parseInt(c.slice(4, 6), 16) / 255;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55;
+  }
+  // ─── Habillages (skins) : la FORME de l'interface, pas seulement ses
+  // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
+  // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
+  var SKINS = [
+    { id: 'arena',   name: 'Arène',    t: { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' } },
+    { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
+    { id: 'papier',  name: 'Papier',   t: { win: '#1f6feb', loss: '#c2410c', bg: '#f4f1ea', gold: '#a16207' } },
+    { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
+    { id: 'brut',    name: 'Brut',     t: { win: '#ffffff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
+    { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
+  ];
+  function skinById(id) {
+    for (var i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
+    return SKINS[0];
+  }
+  function applySkin(id) {
+    var s = skinById(id);
+    if (document.documentElement.dataset.skin !== s.id) {
+      document.documentElement.dataset.skin = s.id;
+    }
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1392,10 +1441,28 @@
     s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
     s.setProperty('--gold', t.gold);
     s.setProperty('--bg', t.bg);
-    s.setProperty('--panel', mix(t.bg, '#ffffff', .035));
-    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
-    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+    var toward = isLight(t.bg) ? '#000000' : '#ffffff';
+    s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
+    s.setProperty('--muted', isLight(t.bg) ? '#5b6472' : '#8b93a1');
+    s.setProperty('--panel', mix(t.bg, toward, .035));
+    s.setProperty('--panel2', mix(t.bg, toward, .07));
+    s.setProperty('--line', mix(t.bg, toward, .14));
   }
+  // Pastilles d'habillage : chaque clic pose le skin ET sa palette. La
+  // sélection courante est marquée par render(), pas ici.
+  SKINS.forEach(function (sk) {
+    var b = document.createElement('button');
+    b.className = 'chip skin-chip';
+    b.dataset.skin = sk.id;
+    var inner = document.createElement('span');
+    inner.textContent = sk.name;
+    b.appendChild(inner);
+    b.onclick = function () {
+      applySkin(sk.id);                       // retour immédiat, sans attendre l'état
+      api.setConfig && api.setConfig({ skin: sk.id, theme: sk.t });
+    };
+    document.getElementById('skinPresets').appendChild(b);
+  });
   // Pastilles de thèmes prédéfinis (construites une fois).
   PRESETS.forEach(function (p) {
     var b = document.createElement('button');
@@ -1510,7 +1577,12 @@
     renderHotkey(s.hotkey);
 
     // Apparence + mini-overlay (sans écraser une saisie en cours).
+    applySkin(cfg.skin);
     applyTheme(cfg.theme);
+    var cur = skinById(cfg.skin).id;
+    Array.prototype.forEach.call(document.querySelectorAll('.skin-chip'), function (b) {
+      b.classList.toggle('on', b.dataset.skin === cur);
+    });
     var th = Object.assign({}, THEME_DEFAULT, cfg.theme || {});
     [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
       .forEach(function (pair) {
