@@ -224,11 +224,30 @@ function update(partial) {
         const w = partial.layout[id];
         if (!w || typeof w !== 'object') continue;
         const c = (v, lo, hi) => Math.max(lo, Math.min(hi, Number(v)));
-        out[String(id).slice(0, 16)] = {
+        const entry = {
           x: c(w.x, 0, 95) || 0, y: c(w.y, 0, 95) || 0,
           w: c(w.w, 5, 100) || 20, h: c(w.h, 5, 100) || 20,
           hidden: !!w.hidden,
         };
+        // Réglages propres au widget (quels modes afficher, combien de
+        // lignes…). Le contenu dépend du widget : on borne la taille et on
+        // laisse la fenêtre décider du sens, sans liste blanche à maintenir
+        // en double ici.
+        if (w.opts && typeof w.opts === 'object') {
+          const o = {};
+          for (const k of Object.keys(w.opts).slice(0, 8)) {
+            const v = w.opts[k];
+            if (Array.isArray(v)) {
+              o[k] = v.slice(0, 12).map((x) => String(x).slice(0, 16));
+            } else if (typeof v === 'boolean' || typeof v === 'number') {
+              o[k] = v;
+            } else if (typeof v === 'string') {
+              o[k] = v.slice(0, 32);
+            }
+          }
+          if (Object.keys(o).length) entry.opts = o;
+        }
+        out[String(id).slice(0, 16)] = entry;
       }
       if (Object.keys(out).length) config.layouts[config.layoutSlot] = out;
     }
