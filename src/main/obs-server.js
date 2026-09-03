@@ -16,7 +16,13 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PAGE = path.join(__dirname, '..', 'renderer', 'obs.html');
+// Overlay composable : c'est la MÊME page que le dashboard, servie ici en
+// HTTP avec ?obs=1. Un seul jeu de blocs, de réglages et d'habillages à
+// maintenir — l'ancienne page compacte reste servie sur /classic pour ceux
+// qui l'avaient déjà réglée dans OBS.
+const PAGE = path.join(__dirname, '..', 'renderer', 'dashboard.html');
+const PAGE_CLASSIC = path.join(__dirname, '..', 'renderer', 'obs.html');
+const SKINS = path.join(__dirname, '..', 'renderer', 'skins.css');
 const FONTS = path.join(__dirname, '..', 'renderer', 'fonts');
 const HEARTBEAT_MS = 25 * 1000;   // garde les connexions SSE en vie
 // OBS ouvre une seule source « Navigateur », éventuellement un navigateur de
@@ -60,9 +66,9 @@ function handler(req, res) {
 
   const url = String(req.url || '/').split('?')[0];
 
-  if (url === '/' || url === '/overlay') {
+  if (url === '/' || url === '/overlay' || url === '/classic') {
     try {
-      const html = fs.readFileSync(PAGE);
+      const html = fs.readFileSync(url === '/classic' ? PAGE_CLASSIC : PAGE);
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(html);
     } catch (e) {
@@ -70,6 +76,15 @@ function handler(req, res) {
       res.end('overlay page missing');
     }
     return;
+  }
+
+  if (url === '/skins.css') {
+    try {
+      const css = fs.readFileSync(SKINS);
+      res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8' });
+      res.end(css);
+      return;
+    } catch (e) { /* 404 ci-dessous */ }
   }
 
   if (url === '/state') {
@@ -136,7 +151,7 @@ function start(p, logger, statusCb) {
   // 127.0.0.1 uniquement : jamais exposé au réseau local.
   server.listen(port, '127.0.0.1', () => {
     port = server.address().port;   // port effectif (utile si 0 = éphémère)
-    log('overlay OBS : http://127.0.0.1:' + port + '/overlay');
+    log('overlay OBS : http://127.0.0.1:' + port + '/overlay?obs=1');
     onStatus({ running: true, port: port, error: null });
   });
   if (!heartTimer) {

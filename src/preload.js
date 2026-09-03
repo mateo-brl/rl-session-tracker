@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('rl', {
   setMatchResult: (id, result) => ipcRenderer.invoke('set-match-result', id, result),
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
+  openOverlayComposer: () => ipcRenderer.send('open-overlay-composer'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
   toggleFullscreen: () => ipcRenderer.send('dashboard-fullscreen-toggle'),
   setCurrentRanked: (on) => ipcRenderer.send('set-current-ranked', on),
