@@ -25,7 +25,9 @@ const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
 const Cosmetics = require('./cosmetics');
-const { enableStatsApi, checkStatsApi, detectInstalls, iniRate } = require('./enable-statsapi');
+const diagnostic = require('./diagnostic');
+const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured } =
+  require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
@@ -48,6 +50,11 @@ let store = null;
 let media = null;
 let tray = null;
 let cosmetics = null;   // swaps cosmétiques (seul module qui touche aux fichiers du jeu)
+// Horodatage du dernier paquet EXPLOITÉ de la Stats API. Le connecteur peut
+// être connecté sans que rien n'arrive (le jeu n'émet qu'en match) : sans cette
+// date, le diagnostic ne pourrait pas distinguer « le flux coule » de « le
+// socket tient tout seul depuis une heure ».
+let statsApiSeenAt = 0;
 
 const state = {
   version: app.getVersion(),
@@ -348,6 +355,7 @@ function startStatsApi() {
     recomputeRunning();
   });
   api.on('state', (d) => {
+    statsApiSeenAt = Date.now();
     sos.send('state', d);
     state.live = d && d.active ? { ...d, training: isTraining(d) } : null;
     // Nouveau match : classé ou casual ? Pré-réglé sur la préférence, et
@@ -364,6 +372,7 @@ function startStatsApi() {
     pushState();
   });
   api.on('match', (d) => {
+    statsApiSeenAt = Date.now();
     sos.send(d.phase, {});
     if (d.phase === 'start') matchSinceRecord = true;
     if (d.phase === 'destroyed') {
@@ -423,6 +432,7 @@ function startStatsApi() {
   });
   api.on('podium', (d) => sos.send('podium', d));
   api.on('goal', (d) => {
+    statsApiSeenAt = Date.now();
     if (state.live && state.live.training) return;
     windows.broadcast('goal', d);
     obs.emit('goal', d);
@@ -789,6 +799,150 @@ ipcMain.handle('enable-statsapi', async () => {
   pushState();
   return r;
 });
+
+// ───────── Diagnostic ─────────
+// Deux mécanismes n'ont jamais été validés en conditions réelles : l'activation
+// de la Stats API sur une installation Steam et la réconciliation d'un forfait
+// adverse. Ils échouent en silence — d'où ce rapport, qui dit ce qui va et ce
+// qui ne va pas plutôt que de laisser une séance de test sans conclusion.
+// Toutes les dépendances sont passées explicitement : le module reste ainsi
+// testable sans Electron ni Windows.
+ipcMain.handle('run-diagnostic', () => {
+  let r;
+  try {
+    r = diagnostic.run({
+      config: config.get(),
+      game: state.game,
+      lastPacketAt: statsApiSeenAt,
+      // Hors Windows, la détection n'a pas d'objet : on rend une liste vide
+      // plutôt que de laisser reg.exe échouer contrôle par contrôle.
+      detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
+      iniConfigured: iniConfigured,
+      iniRate: iniRate,
+      logFile: RLLogReader.defaultLogPath(),
+      readQueue: () => (logReader ? logReader.refreshQueue() : null),
+      readMmr: () => (logReader ? logReader.read() : null),
+      history: state.history,
+      playersSeen: state.playersSeen,
+      obs: state.obs,
+      cosmetics: cosmetics ? cosmetics.list() : null,
+    });
+  } catch (e) {
+    // `diagnostic.run` ne doit jamais lever — mais s'il le faisait, la fenêtre
+    // resterait sur un bouton qui ne rend rien. On répond quand même.
+    log('diagnostic : échec inattendu : ' + e.message);
+    return { at: Date.now(), ok: false, checks: [{ id: 'diagnostic', state: 'fail',
+      label: 'Diagnostic', detail: 'échec inattendu : ' + e.message, hint: null }] };
+  }
+  const ko = r.checks.filter((c) => c.state === 'fail').map((c) => c.id);
+  log('diagnostic : ' + r.checks.length + ' contrôle(s), '
+    + (ko.length ? 'en échec : ' + ko.join(', ') : 'aucun échec'));
+  return r;
+});
+
+// ───────── Dispositions d'overlay : export et import ─────────
+// Une disposition d'overlay se compose au pixel près pendant une heure : elle
+// doit pouvoir suivre l'utilisateur d'un PC à l'autre (et se partager), sans
+// quoi tout est à refaire après une réinstallation.
+const PRESET_MAX_BYTES = 256 * 1024;
+const PRESET_APP = 'rl-session-tracker';
+
+ipcMain.handle('export-overlay-preset', async () => {
+  try {
+    const cfg = config.get();
+    const stamp = new Date().toISOString().slice(0, 10);
+    const r = await dialog.showSaveDialog({
+      title: state.lang === 'en' ? 'Export the overlay preset'
+        : 'Exporter la disposition de l’overlay',
+      defaultPath: 'overlay-' + stamp + '.rlst.json',
+      filters: [{ name: 'RL Session Tracker', extensions: ['rlst.json', 'json'] }],
+    });
+    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+    // L'habillage et la palette voyagent AVEC la disposition : sans eux, le
+    // fichier rouvert chez quelqu'un d'autre place bien les blocs mais ne
+    // ressemble à rien de ce qui avait été composé.
+    const preset = {
+      app: PRESET_APP,
+      v: 1,
+      at: Date.now(),
+      obsLayout: cfg.obsLayout || null,
+      skin: cfg.skin || null,
+      theme: cfg.theme || null,
+      tune: cfg.tune || null,
+      canvas: (cfg.obs && cfg.obs.canvas) || null,
+    };
+    fs.writeFileSync(r.filePath, JSON.stringify(preset, null, 2) + '\n');
+    log('disposition d’overlay exportée vers ' + r.filePath);
+    return { ok: true, file: r.filePath };
+  } catch (e) {
+    log('export de la disposition échoué : ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
+
+ipcMain.handle('import-overlay-preset', async () => {
+  try {
+    const r = await dialog.showOpenDialog({
+      title: state.lang === 'en' ? 'Import an overlay preset'
+        : 'Importer une disposition d’overlay',
+      properties: ['openFile'],
+      filters: [{ name: 'RL Session Tracker', extensions: ['rlst.json', 'json'] }],
+    });
+    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
+    const file = r.filePaths[0];
+    // Fichier VENU DE L'EXTÉRIEUR : on borne la taille AVANT de lire (une
+    // disposition pèse quelques kilo-octets ; au-delà, ce n'en est pas une), et
+    // on revérifie après lecture — le fichier a pu grossir entre les deux.
+    let size = 0;
+    try { size = fs.statSync(file).size; } catch (e) { size = 0; }
+    if (size > PRESET_MAX_BYTES) {
+      return { ok: false, error: 'Fichier trop volumineux : ce n’est pas une disposition.' };
+    }
+    const raw = fs.readFileSync(file, 'utf8');
+    if (Buffer.byteLength(raw) > PRESET_MAX_BYTES) {
+      return { ok: false, error: 'Fichier trop volumineux : ce n’est pas une disposition.' };
+    }
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (e) { return { ok: false, error: 'Fichier illisible : ce n’est pas du JSON valide.' }; }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, error: 'Fichier invalide : disposition attendue.' };
+    }
+    if (data.app !== PRESET_APP) {
+      return { ok: false, error: 'Ce fichier ne vient pas de RL Session Tracker.' };
+    }
+    // Une version FUTURE peut contenir des clés dont le sens nous échappe :
+    // appliquer ce qu'on en comprend donnerait un résultat à moitié juste, plus
+    // déroutant qu'un refus franc.
+    const v = Number(data.v);
+    if (!Number.isFinite(v) || v > 1) {
+      return { ok: false, error: 'Disposition créée par une version plus récente de l’application.' };
+    }
+    // Tout passe par config.update : c'est LUI qui borne les positions, filtre
+    // l'habillage par liste blanche et rejette une couleur qui n'est pas un
+    // hexadécimal. Dupliquer cette validation ici, c'est la voir diverger.
+    const partial = {};
+    const obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
+    if (obj(data.obsLayout)) partial.obsLayout = data.obsLayout;
+    if (typeof data.skin === 'string') partial.skin = data.skin;
+    if (obj(data.theme)) partial.theme = data.theme;
+    if (obj(data.tune)) partial.tune = data.tune;
+    if (obj(data.canvas)) partial.obs = { canvas: data.canvas };
+    // Un fichier bien formé mais vide s'appliquerait « avec succès » sans rien
+    // changer : l'utilisateur croirait avoir importé sa disposition.
+    if (!Object.keys(partial).length) {
+      return { ok: false, error: 'Ce fichier ne contient aucune disposition.' };
+    }
+    config.update(partial);
+    pushState();
+    const name = path.basename(file);
+    log('disposition d’overlay importée depuis ' + file);
+    return { ok: true, name: name };
+  } catch (e) {
+    log('import de la disposition échoué : ' + e.message);
+    return { ok: false, error: e.message };
+  }
+});
 // Export du journal : 2000 matchs ne doivent pas rester enfermés dans un
 // fichier interne. CSV (une ligne par match, ouvrable dans un tableur) ou
 // JSON complet, au choix de l'extension retenue dans la boîte de dialogue.
@@ -978,7 +1132,16 @@ if (!gotLock) {
     else app.whenReady().then(() => windows.showControl());
   });
   app.on('window-all-closed', () => { /* on vit dans la barre des tâches */ });
-  app.on('before-quit', () => { app.isQuitting = true; discord.stop(); obs.stop(); sos.stop(); });
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    discord.stop();
+    obs.stop();
+    sos.stop();
+    // Sans cet arrêt, le PowerShell du contrôleur média survivait à la
+    // fermeture : invisible, il continuait d'interroger le système, et il
+    // s'en accumulait un par lancement jusqu'au redémarrage de la machine.
+    if (media) media.stop();
+  });
   app.on('will-quit', () => { try { globalShortcut.unregisterAll(); } catch (e) {} });
 
   app.whenReady().then(async () => {

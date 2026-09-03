@@ -142,6 +142,45 @@ test('overlay OBS : style, échelle et contenu validés', () => {
   assert.equal(c.get().obs.bgOpacity, 0.5);
 });
 
+test('overlay OBS : toile de composition bornée et entière', () => {
+  const c = freshConfig();
+  assert.deepEqual(c.get().obs.canvas, { w: 1920, h: 1080 });
+  c.update({ obs: { canvas: { w: 2560.6, h: 1440 } } });
+  assert.deepEqual(c.get().obs.canvas, { w: 2561, h: 1440 });
+  c.update({ obs: { canvas: { w: 100, h: 9000 } } });        // hors bornes : ignorées
+  assert.deepEqual(c.get().obs.canvas, { w: 2561, h: 1440 });
+  c.update({ obs: { canvas: { w: 'large' } } });             // NaN : ignoré
+  assert.equal(c.get().obs.canvas.w, 2561);
+  c.update({ obs: { canvas: { h: 720 } } });                 // fusion, pas remplacement
+  assert.deepEqual(c.get().obs.canvas, { w: 2561, h: 720 });
+  // Les valeurs par défaut ne doivent pas avoir été écrites au passage : une
+  // toile modifiée ici la changerait pour toute nouvelle configuration.
+  const neuf = freshConfig();
+  assert.deepEqual(neuf.get().obs.canvas, { w: 1920, h: 1080 });
+});
+
+test('alertes : interrupteurs stricts, durée bornée 2..15 s', () => {
+  const c = freshConfig();
+  assert.deepEqual(c.get().alerts,
+    { enabled: true, streak: true, rankUp: true, mvp: true, record: true, seconds: 6 });
+  c.update({ alerts: { mvp: false, record: false, seconds: 12 } });
+  assert.equal(c.get().alerts.mvp, false);
+  assert.equal(c.get().alerts.record, false);
+  assert.equal(c.get().alerts.seconds, 12);
+  assert.equal(c.get().alerts.streak, true);        // les autres restent intacts
+  c.update({ alerts: { seconds: 0 } });             // sous la borne : ignoré
+  assert.equal(c.get().alerts.seconds, 12);
+  c.update({ alerts: { seconds: 99 } });            // au-dessus : ignoré
+  assert.equal(c.get().alerts.seconds, 12);
+  c.update({ alerts: { seconds: 5.4 } });           // arrondi à la seconde
+  assert.equal(c.get().alerts.seconds, 5);
+  c.update({ alerts: { enabled: 'oui', streak: 1 } });   // non booléens : rejetés
+  assert.equal(c.get().alerts.enabled, true);
+  assert.equal(c.get().alerts.streak, true);
+  c.update({ alerts: { enabled: false } });
+  assert.equal(c.get().alerts.enabled, false);
+});
+
 test('persistance : relecture depuis le fichier', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rlst-cfg-'));
   config.init(dir);

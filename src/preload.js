@@ -20,6 +20,15 @@ contextBridge.exposeInMainWorld('rl', {
   // pour revenir au calcul automatique.
   setMatchResult: (id, result) => ipcRenderer.invoke('set-match-result', id, result),
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
+  // Rapport de diagnostic : ce qui va et ce qui ne va pas, contrôle par
+  // contrôle. Il ne modifie aucun réglage et ne touche à aucun fichier du jeu
+  // (sauf un fichier temporaire aussitôt supprimé, pour éprouver les droits
+  // d'écriture) : on peut le relancer autant de fois qu'on veut.
+  runDiagnostic: () => ipcRenderer.invoke('run-diagnostic'),
+  // Disposition de l'overlay : elle se compose au pixel près, donc elle doit
+  // pouvoir se sauvegarder, se transporter et se partager.
+  exportOverlayPreset: () => ipcRenderer.invoke('export-overlay-preset'),
+  importOverlayPreset: () => ipcRenderer.invoke('import-overlay-preset'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   openControl: (section) => ipcRenderer.send('open-control', section),
   // Télécommande média : passe par le contrôleur de Windows, donc pilote le

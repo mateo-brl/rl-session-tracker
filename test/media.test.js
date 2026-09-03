@@ -173,12 +173,119 @@ test('ligne « prêt » : l’erreur est effacée ET l’interface prévenue', (
   assert.equal(seen[seen.length - 1].error, null);
 });
 
-test('script : la fin de l’entrée standard n’arrête pas la boucle', () => {
-  // Lancé à la main dans une console, personne ne tape : le script s'arrêtait
-  // après la première ligne. La fin du flux ne doit couper que l'écoute des
-  // commandes, pas la publication de ce qui joue.
+test('script : aucune conversion de bloc de script en délégué', () => {
+  // CAUSE RÉELLE du bug d'origine : [Task]::Run([Func[string]]{ ... }) échoue
+  // toujours, parce que convertir un bloc de script en délégué exige un espace
+  // d'exécution sur le thread appelant, et un thread du pool n'en a pas. La
+  // tâche partait en faute, le script prenait ça pour une fin de flux et
+  // sortait. ReadLineAsync est du CLR pur : aucun espace d'exécution requis.
   const ps = MediaControl.PS_SCRIPT;
-  assert.ok(ps.includes('$stdinDone'), 'l’état de fin de flux doit exister');
-  assert.ok(!/if \(\$null -eq \$cmd\) \{ break \}/.test(ps), 'plus de sortie sur flux clos');
-  assert.ok(ps.includes('while ($true)'));
+  assert.ok(!/\[Func\[/.test(ps), 'plus de bloc de script converti en délégué');
+  assert.ok(!/Task\]::Run/.test(ps), 'plus de Task::Run');
+  assert.ok(ps.includes('ReadLineAsync'));
+  // Le script doit pouvoir se terminer : c'est la seule chose qui empêche un
+  // PowerShell invisible de survivre à la fermeture de l'application.
+  const i = ps.indexOf('while ($true)');
+  assert.ok(i !== -1);
+  assert.ok(/\bbreak\b/.test(ps.slice(i)), 'la boucle doit pouvoir sortir sur fin de flux');
+  // Le délai d'attente doit être honoré, sinon lire .Result bloque à jamais.
+  assert.ok(ps.includes('if (-not $t.Wait(4000)) { return $null }'));
+  // Accents lisibles côté Node.
+  assert.ok(ps.includes('[Console]::OutputEncoding'));
+});
+
+test('arrêt : rien ne ressuscite le processus, et l’état est vidé', () => {
+  let spawned = 0;
+  const procs = [];
+  const m = new MediaControl(dir(), {
+    platform: 'win32',
+    spawn: () => { spawned++; const p = fakeProc(); procs.push(p); return p; },
+  });
+  m.start();
+  m.now = { title: 'Vieux morceau' };
+  m.stop();
+  // La mort du processus arrive APRÈS le kill : sans le drapeau d'arrêt, elle
+  // armait une relance qui ressuscitait tout cinq secondes plus tard.
+  procs[0].emit('exit', null, 'SIGTERM');
+  assert.equal(m._retry, null, 'aucune relance armée');
+  assert.equal(spawned, 1);
+  assert.equal(m.status().now, null, 'le morceau du processus mort est oublié');
+  m.start();
+  assert.equal(spawned, 1, 'un démarrage après arrêt ne relance rien');
+});
+
+test('mort du processus : le morceau affiché est oublié', () => {
+  const { m, proc, seen } = make();
+  m.start();
+  proc.stdout.emit('data', '{"title":"Endgame","playing":true,"posMs":1,"lenMs":2}\n');
+  assert.ok(m.now);
+  proc.emit('exit', 1);
+  assert.equal(m.now, null, 'sinon la barre de progression avance toute seule');
+  assert.ok(seen[seen.length - 1].now === null);
+});
+
+test('relances : le plafond tient même après un « prêt »', () => {
+  // « prêt » est écrit AVANT la boucle : il dit que SMTC répond, pas que le
+  // processus est stable. Le compter comme un succès rendait le plafond
+  // inopérant et relançait PowerShell toutes les cinq secondes, sans fin.
+  let spawned = 0;
+  const procs = [];
+  const m = new MediaControl(dir(), {
+    platform: 'win32',
+    spawn: () => { spawned++; const p = fakeProc(); procs.push(p); return p; },
+  });
+  m.start();
+  for (let i = 0; i < 6; i++) {
+    const p = procs[procs.length - 1];
+    p.stdout.emit('data', '{"ready":true}\n');
+    p.emit('exit', 1);
+    if (m._retry) { clearTimeout(m._retry); m._retry = null; m.start(); }
+  }
+  assert.ok(spawned <= 4, 'relances plafonnées malgré les « prêt », vu ' + spawned);
+  assert.match(m.status().error || '', /indisponible/);
+});
+
+test('lancement impossible : l’interface est prévenue et une relance est armée', () => {
+  const procs = [];
+  const seen = [];
+  const m = new MediaControl(dir(), {
+    platform: 'win32',
+    spawn: () => { const p = fakeProc(); procs.push(p); return p; },
+    onUpdate: (st) => seen.push(st),
+  });
+  m.start();
+  const before = seen.length;
+  // Un lancement raté émet « error » puis « close », jamais « exit ».
+  procs[0].emit('error', Object.assign(new Error('spawn ENOENT'), { code: 'ENOENT' }));
+  assert.ok(seen.length > before, 'l’interface doit être prévenue');
+  assert.match(m.status().error, /ENOENT/);
+  assert.ok(m._retry, 'une relance doit être armée');
+  clearTimeout(m._retry);
+});
+
+test('reste de ligne : la mort du processus ne pollue pas le suivant', () => {
+  const { m, proc } = make();
+  m.start();
+  proc.stdout.emit('data', '{"title":"Endga');     // ligne coupée en deux
+  proc.emit('exit', 1);
+  m._stopping = false;
+  if (m._retry) { clearTimeout(m._retry); m._retry = null; }
+  m.start();
+  // Sans remise à zéro du tampon, ce « prêt » se collait au reste précédent,
+  // devenait illisible, et l'erreur restait affichée pour toujours.
+  m._stderr = '';
+  const p2 = m.proc;
+  p2.stdout.emit('data', '{"ready":true}\n');
+  assert.equal(m.status().error, null);
+});
+
+test('horodatage : celui du script est conservé, pas celui de la réception', () => {
+  // Le script date son relevé pour que l'affichage puisse annuler le retard du
+  // tuyau ; l'écraser faisait avancer la barre d'environ une seconde d'avance.
+  const { m, proc } = make();
+  m.start();
+  const at = Date.now() - 5000;
+  proc.stdout.emit('data', JSON.stringify({ title: 'X', playing: true, posMs: 1000,
+    lenMs: 200000, at: at }) + '\n');
+  assert.equal(m.now.at, at);
 });

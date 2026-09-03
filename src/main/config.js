@@ -105,6 +105,19 @@ const DEFAULTS = {
   },
   soundPreset: 'broadcast',  // style du jingle : broadcast | arcade | soft | epic
   discordRpc: false,     // statut Discord (Rich Presence) pendant le jeu
+  // Alertes du dashboard : bandeaux qui saluent un évènement remarquable
+  // (série en cours, montée de rang, MVP, record battu). Activées par défaut —
+  // c'est ce qu'on attend d'un tracker de session — mais chacune se coupe
+  // séparément : en stream, la montée de rang se garde, le MVP fait doublon
+  // avec l'écran de fin de match.
+  alerts: {
+    enabled: true,       // interrupteur général
+    streak: true,        // série de victoires
+    rankUp: true,        // changement de palier
+    mvp: true,           // MVP du match
+    record: true,        // record de session battu
+    seconds: 6,          // durée d'affichage (2 à 15 s)
+  },
   obs: {                 // mode streamer : overlay local à capturer dans OBS
     enabled: false,
     port: 49350,
@@ -122,6 +135,11 @@ const DEFAULTS = {
     // quel overlay de diffusion écrit avant Easy Anti-Cheat.
     sosBridge: false,
     sosPort: 49122,
+    // Toile de composition de l'overlay : la disposition est en POURCENTAGES,
+    // donc elle ne dit rien de la taille réelle de la source dans OBS. C'est
+    // cette toile qui la fixe — sans elle, une disposition composée sur un
+    // écran 1440p rendait des textes minuscules dans une scène 1080p.
+    canvas: { w: 1920, h: 1080 },
   },
 };
 
@@ -340,6 +358,27 @@ function update(partial) {
       }
       const sp = Number(partial.obs.sosPort);
       if (Number.isInteger(sp) && sp >= 1024 && sp <= 65535) o.sosPort = sp;
+      if (partial.obs.canvas && typeof partial.obs.canvas === 'object') {
+        // Nouvel objet AVANT toute écriture : `{ ...DEFAULTS.obs }` juste
+        // au-dessus a copié la RÉFÉRENCE de DEFAULTS.obs.canvas, et écrire
+        // dedans corromprait les valeurs par défaut pour tout le processus.
+        const cv = o.canvas = { ...DEFAULTS.obs.canvas, ...(o.canvas || {}) };
+        for (const k of ['w', 'h']) {
+          const v = Number(partial.obs.canvas[k]);
+          if (Number.isFinite(v) && v >= 320 && v <= 3840) cv[k] = Math.round(v);
+        }
+      }
+    }
+    // Alertes du dashboard : interrupteurs stricts et durée bornée. Une valeur
+    // hors bornes garde l'ancienne — un « 0 seconde » saisi par erreur rendrait
+    // les alertes invisibles sans que personne comprenne pourquoi.
+    if (partial.alerts && typeof partial.alerts === 'object') {
+      const a = config.alerts = { ...DEFAULTS.alerts, ...(config.alerts || {}) };
+      for (const k of ['enabled', 'streak', 'rankUp', 'mvp', 'record']) {
+        if (typeof partial.alerts[k] === 'boolean') a[k] = partial.alerts[k];
+      }
+      const s = Number(partial.alerts.seconds);
+      if (Number.isFinite(s) && s >= 2 && s <= 15) a.seconds = Math.round(s);
     }
     // Son Alpha Boost : activation, volume, profil sonore.
     // Mini-overlay : contenu, échelle, opacité.

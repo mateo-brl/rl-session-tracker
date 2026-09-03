@@ -73,8 +73,12 @@
     text-shadow:0 2px 10px rgba(0, 0, 0, .8);
   }
   html.obs .tag > span, html.obs .wl-cap span, html.obs .tot span,
-  html.obs .mode .name, html.obs .mode .sub {
+  html.obs .mode .name, html.obs .mode .sub, html.obs .al-kick {
     text-shadow:0 1px 4px rgba(0, 0, 0, .92);
+  }
+  html.obs .al-text {
+    paint-order:stroke fill; -webkit-text-stroke:5px rgba(0, 0, 0, .72);
+    text-shadow:0 2px 10px rgba(0, 0, 0, .8);
   }
   /* Plancher typographique : sous 15 px, un texte ne survit pas à un flux
      réencodé en 4:2:0. Ce qui ne tient pas est retiré plutôt que rendu illisible. */
@@ -84,6 +88,10 @@
      source OBS ne garantit pas : on retombe sur un fond franc plutôt que sur
      du gameplay qui bouge derrière le texte. */
   html.obs .card { backdrop-filter:none; background-color:rgba(10, 12, 16, .84); }
+  /* Le bloc « Alertes » est la seule exception : il n'a de fond QUE pendant
+     l'alerte. Lui donner celui des autres cartes poserait un rectangle opaque
+     en permanence sur le gameplay, pour deux secondes d'info par heure. */
+  html.obs .card.alerts { background:none !important; }
   html.obs-edit body {
     background:
       repeating-conic-gradient(#1b1f26 0 25%, #12161b 0 50%) 0 0 / 26px 26px !important;
@@ -96,12 +104,40 @@
   html.obs-edit #editBtn { display:inline-flex !important; }
   html.obs #settingsBtn { display:none !important; }
   html.obs-edit .fs-btn { display:none !important; }
+  /* L'heure n'a rien à faire dans un outil de composition, et elle prenait
+     la place du dernier bouton de la barre. */
+  html.obs-edit .clock { display:none !important; }
   /* Rappel de ce qu'on est en train de composer, pour ne pas confondre avec
      le dashboard quand les deux fenêtres sont ouvertes côte à côte. */
   html.obs-edit header::before {
     content:'OVERLAY'; position:absolute; left:26px; bottom:-1px;
     font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--orange);
   }
+  /* ─── Toile au format de la source OBS ───
+     La fenêtre du compositeur n'a ni la taille ni le ratio de la source
+     d'OBS : poser un bloc « en bas à droite » ne voulait donc rien dire, il
+     atterrissait ailleurs dans le direct. La zone de composition prend
+     désormais le format déclaré (cfg.obs.canvas), calculé en pixels par
+     fitObsCanvas() ; le damier reste tout autour, assombri pour qu'on voie
+     où s'arrête ce que verra le spectateur. La page servie à OBS (html.obs
+     sans .obs-edit) n'est jamais concernée : elle reste plein cadre. */
+  html.obs-edit main {
+    display:flex; align-items:center; justify-content:center;
+    padding:16px 24px; overflow:hidden;
+  }
+  html.obs-edit #canvas {
+    flex:0 0 auto; margin:auto; outline:1px solid var(--orange);
+    /* Le voile est un box-shadow plutôt qu'un élément : il déborde de la
+       toile dans toutes les directions et se fait rogner par le overflow
+       de <main>, donc il ne mange jamais le bandeau d'outils. */
+    box-shadow:0 0 0 100vmax rgba(6, 8, 11, .5);
+  }
+  /* Dimensions à recopier dans la source « Navigateur » d'OBS. */
+  .obs-size {
+    display:none; cursor:default; color:var(--text);
+    border-color:var(--orange); font-variant-numeric:tabular-nums;
+  }
+  .obs-size:hover { border-color:var(--orange); }
 
   /* Respect du réglage système : une animation de 6 s en plein écran sur un
      second écran doit être négociable. */
@@ -192,8 +228,12 @@
   }
 
   /* ─── En-tête : barre de score broadcast ─── */
+  /* Le bandeau se replie plutôt que de perdre sa fin. Dans le compositeur
+     d'overlay, six blocs masqués suffisaient déjà à pousser « Terminé » hors
+     de l'écran, sans le moindre indice qu'il existait. */
   header {
     position:relative; display:flex; align-items:center; gap:14px;
+    flex-wrap:wrap; row-gap:8px;
     padding:12px 26px;
     background:linear-gradient(90deg, var(--panel2), var(--panel) 46%);
   }
@@ -241,6 +281,11 @@
   .hd-streak.tilt { background:var(--orange-deep); }
   /* En mode « Personnaliser », la place est reprise par les outils. */
   body.editing .hd-score { display:none; }
+  /* Et ces outils sont nombreux : profils, blocs masqués, réinitialiser,
+     aperçu, terminé. Le bandeau se resserre le temps de l'édition plutôt que
+     de rogner le dernier bouton de la file sur un écran de 1280 px. */
+  body.editing header { gap:9px; }
+  body.editing .hdr-btn { padding:7px 11px; }
   .chip {
     display:flex; align-items:center; gap:8px;
     background:var(--panel2); border:1px solid var(--line);
@@ -290,18 +335,24 @@
      étroite pour deux colonnes. Les hauteurs en pourcentage n'ont plus de sens
      ici : chaque bloc prend la hauteur de son contenu, dans l'ordre de la
      disposition (haut vers le bas, puis gauche vers la droite). */
+  /* Le compositeur d'overlay est exclu du repli : sa toile a un cadre fixe,
+     celui de la source OBS. Empilée en colonne, elle ne montrerait plus rien
+     de ce qui sera diffusé — même dans une petite fenêtre. */
   @media (max-aspect-ratio: 4/3), (max-width: 1000px), (max-height: 700px) {
-    main { overflow-y:auto; }
-    #canvas {
+    html:not(.obs-edit) main { overflow-y:auto; }
+    html:not(.obs-edit) #canvas {
       display:flex; flex-direction:column; gap:14px;
       height:auto; min-height:100%; padding-bottom:14px;
     }
-    #canvas .card {
+    html:not(.obs-edit) #canvas .card {
       position:static !important; overflow:visible;
       left:auto !important; top:auto !important;
       width:100% !important; height:auto !important;
       min-height:var(--stack-min, 128px);
     }
+    /* Une alerte n'occupe de la place que le temps de son passage : en
+       colonne, un bloc vide de 128 px creuserait un trou permanent. */
+    #canvas .card.alerts { --stack-min:0; }
     /* Les blocs qui vivent d'une hauteur (courbe, historique) en gardent une. */
     #canvas .card.evo { --stack-min:210px; }
     #canvas .card.history { --stack-min:260px; }
@@ -318,6 +369,10 @@
     .clock { font-size:19px; }
     .hdr-btn { padding:4px 9px; font-size:10px; }
     .fs-btn { display:none; }
+    /* L'horloge est ce qui débordait en premier, et c'est aussi ce dont on se
+       passe le plus facilement : il existe un widget « Horloge » pour ceux
+       qui la veulent. Sans elle, le bandeau retient sa ligne unique. */
+    .clock { display:none; }
   }
 
   body.editing #canvas .card {
@@ -373,6 +428,9 @@
   .hdr-btn:hover { border-color:var(--blue); color:var(--text); }
   .hdr-btn.accent { border-color:var(--blue); color:#fff;
     background:var(--blue-deep); }
+  /* Les blocs masqués sont la partie élastique du bandeau : ils se replient
+     entre eux avant d'entraîner tous les outils à la ligne. */
+  #hiddenChips { flex-wrap:wrap; }
   #editTools { display:none; align-items:center; gap:8px; }
   body.editing #editTools { display:flex; }
   body.editing #editBtn { display:none; }
@@ -890,6 +948,72 @@
     font-weight:600; letter-spacing:.06em; color:var(--muted); opacity:.55;
     text-transform:uppercase; }
 
+  /* ─── Alertes ───
+     Un bloc qui n'existe que le temps d'une nouvelle. Contrairement aux
+     autres widgets il ne porte ni fond, ni liseré, ni coin d'accent : hors
+     alerte il ne doit rester NI cadre vide sur le dashboard, NI rectangle
+     opaque par-dessus le jeu dans OBS. Seule la plaque est peinte, et
+     seulement quand il y a quelque chose à dire. */
+  .card.alerts {
+    background:none; border:0; box-shadow:none; clip-path:none;
+    padding:0; overflow:visible; z-index:20; pointer-events:none;
+    justify-content:center; align-items:flex-start;
+  }
+  .card.alerts::before, .card.alerts::after { display:none; }
+  /* L'étiquette et les poignées ne servent qu'à placer le bloc : hors mode
+     « Personnaliser », elles laisseraient une trace là où il ne doit rien y
+     avoir. */
+  .card.alerts .tag { display:none; }
+  body.editing .card.alerts { pointer-events:auto; }
+  body.editing .card.alerts .tag { display:inline-block; opacity:.7; }
+  /* Le bloc est le plus court de la toile : son panneau de réglages est plus
+     grand que lui. Il déborde donc, mais seulement pendant l'édition — en
+     usage, l'alerte reste rognée à l'intérieur comme n'importe quelle carte.
+     (#canvas .card impose overflow:hidden, d'où l'ancrage sur #canvas ici.) */
+  body.editing #canvas .card.alerts { overflow:visible; }
+  .alert-plate {
+    display:none; width:max-content; max-width:100%;
+    transform:skewX(var(--skew));
+    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 160%);
+    border-left:5px solid var(--blue);
+    padding:calc(9px * var(--dens)) calc(24px * var(--dens))
+            calc(10px * var(--dens)) calc(16px * var(--dens));
+    box-shadow:0 6px 0 var(--edge);
+  }
+  .alert-plate > * { display:block; transform:skewX(calc(-1 * var(--skew))); }
+  /* Rang, MVP, record : la couleur de la rareté, celle des MVP de
+     l'historique. La série garde le bleu des victoires. */
+  .card.alerts.gold .alert-plate {
+    background:linear-gradient(90deg, color-mix(in srgb, var(--gold) 34%, #000),
+      var(--panel2) 160%);
+    border-left-color:var(--gold);
+  }
+  .al-kick {
+    font-size:11.5px; font-weight:800; letter-spacing:.22em;
+    text-transform:uppercase; color:#fff; opacity:.74;
+  }
+  /* Le texte se replie plutôt que de se faire couper : un bloc étroit ou une
+     traduction plus longue ne doit pas amputer la moitié de la phrase. */
+  .al-text {
+    font-style:var(--num-style); font-weight:800; line-height:1.05;
+    font-size:clamp(19px, 2.6vw, 38px); letter-spacing:.03em;
+    text-transform:uppercase; color:#fff;
+  }
+  /* L'apparition est un bonus, pas le mécanisme : c'est un minuteur qui pose
+     et retire la classe. Avec prefers-reduced-motion, l'animation dure
+     0,01 ms (bloc plus haut) et la plaque s'affiche simplement d'un coup —
+     elle ne reste ni invisible, ni collée à l'écran. */
+  .card.alerts.on .alert-plate {
+    display:block; animation:al-in .34s cubic-bezier(.2, 1.3, .4, 1) both;
+  }
+  .card.alerts.on.leaving .alert-plate { animation:al-out .22s ease-in both; }
+  @keyframes al-in {
+    from { opacity:0; transform:skewX(var(--skew)) translateX(-26px); }
+  }
+  @keyframes al-out {
+    to { opacity:0; transform:skewX(var(--skew)) translateX(-14px); }
+  }
+
   /* ─── Fin de match : VICTOIRE / DÉFAITE ─── */
   .result-overlay {
     position:fixed; inset:0; z-index:50; display:none; flex-direction:column;
@@ -1097,6 +1221,9 @@
       <span class="lbl" id="gameTxt">Rocket League</span></div>
     <div class="chip" id="pseudoPill" style="display:none">
       <span class="lbl on" id="pseudoTxt"></span></div>
+    <!-- Dimensions de la toile : ce qu'il faut recopier dans la source
+         « Navigateur » d'OBS pour que la composition tombe juste. -->
+    <span class="hdr-btn obs-size" id="obsSize"><span id="obsSizeTxt"></span></span>
     <div class="spacer"></div>
     <!-- Barre de score broadcast : le bilan de session reste sous les yeux
          même si le widget « Session » est déplacé ou masqué. -->
@@ -1117,6 +1244,9 @@
       <span id="slotChips" style="display:flex;gap:6px"></span>
       <span id="hiddenChips" style="display:flex;gap:8px"></span>
       <button class="hdr-btn" id="layoutResetBtn"><span data-i18n="reset">Réinitialiser</span></button>
+      <!-- Aperçu de fin de match : voir sa bannière et ses alertes sans avoir
+           à gagner une vraie partie. -->
+      <button class="hdr-btn" id="simBtn"><span id="simBtnTxt" data-i18n="simRun">Simuler</span></button>
       <button class="hdr-btn accent" id="editDoneBtn"><span data-i18n="done">Terminé</span></button>
     </div>
     <button class="hdr-btn" id="settingsBtn"><span data-i18n="settings">Réglages</span></button>
@@ -1302,6 +1432,17 @@
       </div>
       <div class="empty-hint" id="goalEmpty" data-i18n="goalEmpty">Renseigne ton MMR dans les réglages<br/>pour suivre un objectif.</div>
     </section>
+
+    <!-- Alertes. En DERNIER dans la toile : sans z-index à inventer, une
+         plaque d'alerte passe ainsi par-dessus les blocs qu'elle recouvre —
+         c'est le propre d'une alerte, et elle ne dure que quelques secondes. -->
+    <section class="card alerts">
+      <div class="tag"><span data-i18n="tagAlerts">Alertes</span></div>
+      <div class="alert-plate">
+        <span class="al-kick" id="alertKick"></span>
+        <span class="al-text" id="alertText"></span>
+      </div>
+    </section>
   </div></main>
 
   <div class="esc-hint" data-i18n="escHint">F11 plein écran — Échap quitter / fermer</div>
@@ -1428,6 +1569,9 @@
   // Dernier état reçu : un réglage de widget doit pouvoir redessiner sans
   // attendre la prochaine poussée du processus principal.
   var lastState = null;
+  // Dernier état RÉEL, mis de côté pendant un aperçu de match : c'est lui
+  // qu'on réaffiche quand l'aperçu s'arrête.
+  var realState = null;
 
   // ─── Langue (FR / EN) ───
   var I18N = {
@@ -1443,6 +1587,10 @@
       optPips: 'Suite des résultats',
       optTotals: 'Compteurs',
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Buts', assists: 'Passes', saves: 'Arrêts', shots: 'Tirs', mvps: 'MVP' },
+      optAlStreak: 'Série de victoires',
+      optAlRank: 'Montée de rang',
+      optAlMvp: 'MVP',
+      optAlRecord: 'Record battu',
       settings: 'Réglages',
       kvMmrNet: 'MMR sur la session',
       tagMusic: 'En écoute',
@@ -1450,7 +1598,22 @@
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
-      tagGoal: 'Objectif de session',
+      tagGoal: 'Objectif de session', tagAlerts: 'Alertes',
+      // Alertes : deux lignes, une étiquette et une phrase. Le spectateur
+      // lit ça en deux secondes en coin d'écran, pas un paragraphe.
+      alStreakK: 'Série en cours',
+      alStreakT: function (n) { return n + ' victoires d’affilée'; },
+      alRankK: 'Montée de rang',
+      alRankT: function (mode, rank) { return mode + ' · ' + rank; },
+      alMvpK: 'MVP',
+      alMvpT: 'Meilleur joueur du match',
+      alRecK: 'Record battu',
+      alRecStreakT: function (n) { return 'Meilleure série : ' + n + ' victoires'; },
+      alRecDayT: function (n) { return n + ' victoires dans la journée'; },
+      // Aperçu de fin de match, déclenché depuis la barre d'édition.
+      simRun: 'Simuler', simStop: 'Arrêter',
+      simTip: 'Rejoue un match complet dans cette fenêtre — rien n’est enregistré.',
+      obsSizeTip: 'Taille à donner à la source « Navigateur » dans OBS.',
       wins: 'Victoires', losses: 'Défaites',
       kvWinrate: 'de victoires', kvPlayed: 'matchs joués', kvBest: 'meilleure série',
       liveOff: 'En attente d’un match.<br/>Lance une partie : le score s’affiche ici en direct.',
@@ -1504,7 +1667,7 @@
       goalLeft: function (n) { return 'Encore +' + n; },
       widgets: { hero: 'Session', modes: 'Par mode', live: 'Match', evo: 'Évolution',
         totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif',
-        music: 'En écoute' },
+        music: 'En écoute', alerts: 'Alertes' },
       h2h: function (w, l) { return w + 'V – ' + l + 'D'; },
       h2hTip: 'Déjà croisé — ton bilan contre ce joueur',
       // Lettres des pastilles de résultat (historique + boutons de
@@ -1530,6 +1693,10 @@
       optPips: 'Result run',
       optTotals: 'Counters',
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Goals', assists: 'Assists', saves: 'Saves', shots: 'Shots', mvps: 'MVP' },
+      optAlStreak: 'Win streak',
+      optAlRank: 'Rank up',
+      optAlMvp: 'MVP',
+      optAlRecord: 'Record broken',
       settings: 'Settings',
       kvMmrNet: 'MMR this session',
       tagMusic: 'Now playing',
@@ -1537,7 +1704,19 @@
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
-      tagGoal: 'Session goal',
+      tagGoal: 'Session goal', tagAlerts: 'Alerts',
+      alStreakK: 'Win streak',
+      alStreakT: function (n) { return n + ' wins in a row'; },
+      alRankK: 'Rank up',
+      alRankT: function (mode, rank) { return mode + ' · ' + rank; },
+      alMvpK: 'MVP',
+      alMvpT: 'Best player of the match',
+      alRecK: 'Record broken',
+      alRecStreakT: function (n) { return 'Best streak: ' + n + ' wins'; },
+      alRecDayT: function (n) { return n + ' wins in a single day'; },
+      simRun: 'Simulate', simStop: 'Stop',
+      simTip: 'Replays a full match in this window — nothing is saved.',
+      obsSizeTip: 'Size to give the "Browser" source in OBS.',
       wins: 'Wins', losses: 'Losses',
       kvWinrate: 'win rate', kvPlayed: 'matches played', kvBest: 'best streak',
       liveOff: 'Waiting for a match.<br/>Start playing: the score shows up here live.',
@@ -1580,7 +1759,7 @@
       goalLeft: function (n) { return '+' + n + ' to go'; },
       widgets: { hero: 'Session', modes: 'Modes', live: 'Match', evo: 'Evolution',
         totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal',
-        music: 'Now playing' },
+        music: 'Now playing', alerts: 'Alerts' },
       h2h: function (w, l) { return w + 'W – ' + l + 'L'; },
       h2hTip: 'Seen before — your record against this player',
       resW: 'W', resL: 'L',
@@ -1602,6 +1781,9 @@
       var v = T[el.dataset.i18n];
       if (typeof v === 'string') el.innerHTML = v;
     });
+    // Le libellé du bouton d'aperçu dépend de son état, pas seulement de la
+    // langue : la boucle ci-dessus vient de le remettre à « Simuler ».
+    syncSimBtn();
     tickClock();
   }
 
@@ -1721,7 +1903,7 @@
   var WIDGET_LABELS = {
     hero: 'Session', modes: 'Par mode', live: 'Match', music: 'En écoute',
     evo: 'Évolution', totals: 'Stats', history: 'Historique',
-    clockw: 'Horloge', goalw: 'Objectif',
+    clockw: 'Horloge', goalw: 'Objectif', alerts: 'Alertes',
   };
   var LAYOUT_DEFAULT = {
     hero: { x: 0, y: 0, w: 55, h: 27 },
@@ -1737,6 +1919,12 @@
     music: { x: 56, y: 76, w: 44, h: 24 },
     clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
     goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
+    // Alertes : visible d'emblée. Le bloc ne peint rien hors alerte, donc le
+    // chevauchement ne coûte rien le reste du temps — mais quand la plaque
+    // tombe, elle recouvre quelque chose. Elle est donc posée sur la COUTURE
+    // entre « Session » et « Par mode » : elle masque deux étiquettes, pas
+    // des chiffres.
+    alerts: { x: 12, y: 24, w: 74, h: 12 },
   };
   // Écran en PORTRAIT : les deux colonnes 55/44 pensées pour un moniteur
   // paysage y donnaient des cartes squelettiques, aux trois quarts vides.
@@ -1752,6 +1940,7 @@
     music: { x: 0, y: 86, w: 100, h: 14 },
     clockw: { x: 0, y: 93, w: 40, h: 7, hidden: true },
     goalw: { x: 60, y: 93, w: 40, h: 7, hidden: true },
+    alerts: { x: 0, y: 41, w: 100, h: 9 },
   };
   // Défaut de l'overlay : une bande haute et large, le reste masqué. Sur un
   // stream la place est comptée et le spectateur ne regarde que deux
@@ -1766,6 +1955,10 @@
     music: { x: 0, y: 74, w: 46, h: 24 },
     clockw: { x: 0, y: 76, w: 20, h: 22, hidden: true },
     goalw: { x: 22, y: 76, w: 24, h: 22, hidden: true },
+    // Sur un stream, l'alerte va en bande basse : c'est là qu'un spectateur
+    // balaie entre deux actions, et elle ne mange pas le terrain de jeu.
+    // Juste au-dessus du bloc « En écoute », qu'elle ne recouvre donc pas.
+    alerts: { x: 0, y: 57, w: 100, h: 15 },
   };
   function baseLayout() {
     if (OBS) return LAYOUT_OBS;
@@ -1813,6 +2006,10 @@
   // est rechoisi — uniquement hors personnalisation, qui garde la main.
   var lastCfgLayout = null;
   window.addEventListener('resize', function () {
+    // La toile du compositeur garde le format de la source OBS quelle que
+    // soit la taille de la fenêtre : elle se recalcule d'abord, avant tout
+    // retour éventuel au défaut.
+    fitObsCanvas();
     if (editing) return;
     layout = mergeLayout(lastCfgLayout);
     applyLayout();
@@ -1867,6 +2064,7 @@
     });
     renderHiddenChips();
     renderSlotChips();
+    syncAlertDemo();
   }
   function renderHiddenChips() {
     var box = $('hiddenChips');
@@ -1903,6 +2101,19 @@
       { key: 'pips', type: 'bool', label: 'optPips' },
     ],
     totals: [{ key: 'stats', type: 'set', values: TOTAL_KEYS, label: 'optTotals' }],
+    // Déclencheurs, un par un. Ce sont des cases indépendantes et non un
+    // « set » : tout décocher est un choix légitime (garder le bloc en place
+    // pour plus tard), alors qu'un « set » refuse de rester vide.
+    // Ces cases affinent la politique générale (cfg.alerts, réglée dans la
+    // fenêtre de contrôle) SURFACE PAR SURFACE : le dashboard et l'overlay
+    // ont chacun leur disposition, donc chacun ses déclencheurs — on peut
+    // vouloir le MVP dans OBS sans l'avoir sur son second écran.
+    alerts: [
+      { key: 'streak', type: 'bool', label: 'optAlStreak' },
+      { key: 'rankUp', type: 'bool', label: 'optAlRank' },
+      { key: 'mvp', type: 'bool', label: 'optAlMvp' },
+      { key: 'record', type: 'bool', label: 'optAlRecord' },
+    ],
   };
   // Valeur d'une option, avec repli sur « tout affiché ».
   function wopt(id, key, fallback) {
@@ -2054,8 +2265,403 @@
   });
   applyLayout();
 
+  // ─── Alertes ───
+  // L'application détectait déjà tout ça sans jamais le dire : une série qui
+  // s'allonge, un rang qui monte, un MVP, un record qui tombe. Sur un stream
+  // c'est exactement ce qu'un spectateur remarque, et ça passait sous
+  // silence. Le bloc reste INVISIBLE le reste du temps : un cadre permanent
+  // coûterait toute la journée ce qu'une alerte rapporte deux fois par heure.
+  // Trois victoires, c'est le seuil qui fait déjà s'allumer le bandeau de
+  // série du bilan : une alerte à deux serait une alerte permanente.
+  var ALERT_MIN_STREAK = 3;
+  var alertSeen = {};       // signatures déjà annoncées (jamais deux fois)
+  var alertRank = {};       // dernier palier vu par mode, pour la MONTÉE
+  var alertPrimed = false;  // le premier état sert de photo de départ
+  var alertQueue = [];
+  var alertTimer = null;    // alerte à l'écran
+  var alertWait = null;     // silence entre deux alertes / attente bannière
+  var alertShown = null;    // alerte actuellement peinte, pour la remettre en file
+
+  function resetAlerts() {
+    alertSeen = {};
+    alertRank = {};
+    alertPrimed = false;
+  }
+  // Deux verrous se cumulent : la politique générale (cfg.alerts, réglée
+  // dans la fenêtre de contrôle) et la case du bloc, propre à cette surface.
+  function alertOn(cfg, key) {
+    var a = (cfg && cfg.alerts) || {};
+    if (a.enabled === false) return false;
+    if (a[key] === false) return false;
+    return wopt('alerts', key, true) !== false;
+  }
+  function alertMs(cfg) {
+    var n = Number(((cfg && cfg.alerts) || {}).seconds);
+    if (!isFinite(n) || n <= 0) n = 6;
+    return Math.max(2, Math.min(15, n)) * 1000;
+  }
+
+  // Ce que l'état courant a de neuf à annoncer. Chaque alerte porte une
+  // SIGNATURE : c'est elle qui empêche la série de trois d'être reprise à
+  // chaque état poussé par le processus principal (soit toutes les secondes
+  // pendant un match).
+  function collectAlerts(s) {
+    var out = [];
+    var ses = s.session || {};
+    var hist = s.history || [];
+    var rec = s.records || {};
+    var since = ses.startedAt || 0;
+
+    var st = ses.streak || {};
+    if (st.type === 'W' && st.count >= ALERT_MIN_STREAK) {
+      out.push({ key: 'streak', sig: 'st:' + since + ':' + st.count,
+        kick: T.alStreakK, text: T.alStreakT(st.count) });
+    }
+
+    // Montée de rang : on compare le PALIER (numérique, croissant) et non le
+    // nom du rang — sinon une descente déclencherait la même fête qu'une
+    // montée. Un mode vu pour la première fois n'annonce rien : on ne sait
+    // pas d'où il vient.
+    var mmr = ses.mmr || {};
+    Object.keys(mmr).forEach(function (k) {
+      var r = mmr[k];
+      if (!r || r.tier == null || !r.rank) return;
+      var prev = alertRank[k];
+      alertRank[k] = r.tier;
+      if (prev == null || r.tier <= prev) return;
+      out.push({ key: 'rankUp', sig: 'rk:' + k + ':' + r.tier, gold: true,
+        kick: T.alRankK, text: T.alRankT(k, r.rank) });
+    });
+
+    var last = hist[0];
+    if (last && last.me && last.me.mvp) {
+      out.push({ key: 'mvp', sig: 'mvp:' + (last.id || last.endedAt || 0), gold: true,
+        kick: T.alMvpK, text: T.alMvpT });
+    }
+
+    // Record battu. `records` est calculé sur TOUT l'historique, session en
+    // cours comprise : « la session tient le record » s'écrit donc avec un
+    // >=, et la signature porte le compte pour ne sonner qu'une fois par
+    // palier franchi. Le bilan des 7 jours (`week`) ne sert pas ici : il n'a
+    // pas de référence historique à battre.
+    var bws = ses.bestWinStreak || 0;
+    if (bws >= ALERT_MIN_STREAK && rec.bestWinStreak && bws >= rec.bestWinStreak) {
+      out.push({ key: 'record', sig: 'rc:s:' + since + ':' + bws, gold: true,
+        kick: T.alRecK, text: T.alRecStreakT(bws) });
+    }
+    var wins = ses.wins || 0;
+    if (wins >= ALERT_MIN_STREAK && rec.bestDayWins && wins >= rec.bestDayWins) {
+      out.push({ key: 'record', sig: 'rc:d:' + since + ':' + wins, gold: true,
+        kick: T.alRecK, text: T.alRecDayT(wins) });
+    }
+    return out;
+  }
+
+  function pollAlerts(s) {
+    var cfg = s.config || {};
+    var found = collectAlerts(s);
+    var first = !alertPrimed;
+    alertPrimed = true;
+    found.forEach(function (a) {
+      if (alertSeen[a.sig]) return;
+      alertSeen[a.sig] = 1;
+      // Premier état reçu : on note ce qui est DÉJÀ vrai sans l'annoncer.
+      // Ouvrir le dashboard en pleine série de cinq ne doit pas déclencher
+      // une alerte pour un événement vieux d'une demi-heure.
+      if (first) return;
+      if (layout.alerts && layout.alerts.hidden) return;
+      if (!alertOn(cfg, a.key)) return;
+      alertQueue.push(a);
+    });
+    pumpAlerts();
+  }
+
+  function paintAlert(a) {
+    var card = widgetEl('alerts');
+    if (!card) return;
+    if (!a) {
+      alertShown = null;
+      card.classList.remove('on');
+      card.classList.remove('leaving');
+      card.classList.remove('gold');
+      return;
+    }
+    alertShown = a;
+    $('alertKick').textContent = a.kick;
+    $('alertText').textContent = a.text;
+    card.classList.remove('leaving');
+    if (a.gold) card.classList.add('gold'); else card.classList.remove('gold');
+    // Retirer puis remettre la classe relance l'animation d'entrée : sans le
+    // reflow forcé, deux alertes qui s'enchaînent glisseraient une seule fois.
+    card.classList.remove('on');
+    void card.offsetWidth;
+    card.classList.add('on');
+  }
+  function fadeAlert(done) {
+    var card = widgetEl('alerts');
+    if (!card) { done(); return; }
+    card.classList.add('leaving');
+    // Le fondu occupe la file comme une alerte : sans ça, une alerte poussée
+    // pendant ces 240 ms s'afficherait puis serait effacée par la fin du
+    // fondu de la précédente.
+    alertWait = setTimeout(function () {
+      alertWait = null;
+      paintAlert(null);
+      done();
+    }, 240);
+  }
+
+  // La bannière de fin de match couvre TOUT l'écran. Or c'est le même match
+  // qui la déclenche ET qui fait monter la série : les deux tombent dans la
+  // même seconde, dans un ordre que le processus principal ne garantit pas.
+  // L'alerte est donc remise en file dès que la bannière s'ouvre, et rejouée
+  // après — le cas est la règle, pas l'exception.
+  function holdAlertsForBanner() {
+    var back = alertShown;
+    clearTimeout(alertTimer); alertTimer = null;
+    clearTimeout(alertWait); alertWait = null;
+    paintAlert(null);
+    if (back) alertQueue.unshift(back);
+    if (alertQueue.length) {
+      alertWait = setTimeout(function () { alertWait = null; pumpAlerts(); }, 400);
+    }
+  }
+
+  function pumpAlerts() {
+    if (alertTimer || alertWait || !alertQueue.length) return;
+    if ($('resultOverlay').classList.contains('show')) {
+      alertWait = setTimeout(function () { alertWait = null; pumpAlerts(); }, 400);
+      return;
+    }
+    paintAlert(alertQueue.shift());
+    alertTimer = setTimeout(function () {
+      alertTimer = null;
+      fadeAlert(function () {
+        syncAlertDemo();
+        if (!alertQueue.length) return;
+        // Un blanc entre deux plaques : enchaînées sans respiration, elles se
+        // lisent comme un seul texte qui change tout seul.
+        alertWait = setTimeout(function () { alertWait = null; pumpAlerts(); }, 320);
+      });
+    }, alertMs(cur && cur.config));
+  }
+
+  // En mode « Personnaliser », le bloc montre une alerte d'exemple : sans
+  // elle on placerait et redimensionnerait un rectangle vide à l'aveugle.
+  function syncAlertDemo() {
+    var card = widgetEl('alerts');
+    if (!card) return;
+    if (alertTimer || alertWait) return;   // une vraie alerte a la priorité
+    var want = editing && !simTimer
+      && !(layout.alerts && layout.alerts.hidden);
+    if (want) {
+      if (!card.classList.contains('on')) {
+        paintAlert({ kick: T.alStreakK, text: T.alStreakT(5) });
+      }
+      return;
+    }
+    if (card.classList.contains('on')) paintAlert(null);
+  }
+
+  // ─── Toile au format de la source OBS ───
+  // Le compositeur s'ouvre dans une fenêtre qui n'a ni la taille ni le ratio
+  // de la source d'OBS : régler un bloc « en bas à droite » ne voulait donc
+  // rien dire, il atterrissait ailleurs dans le direct. La zone de
+  // composition prend le format déclaré, et les blocs, positionnés en % de
+  // cette zone, ne peuvent plus en sortir.
+  function obsCanvasSize(cfg) {
+    var c = (cfg && cfg.obs && cfg.obs.canvas) || {};
+    var w = Math.round(Number(c.w));
+    var h = Math.round(Number(c.h));
+    if (!isFinite(w) || w <= 0) w = 1920;
+    if (!isFinite(h) || h <= 0) h = 1080;
+    return { w: Math.max(160, Math.min(7680, w)),
+      h: Math.max(90, Math.min(4320, h)) };
+  }
+  function fitObsCanvas() {
+    if (!OBS_EDIT) return;
+    var size = obsCanvasSize(cur && cur.config);
+    var host = document.querySelector('main');
+    var cv = $('canvas');
+    if (!host || !cv) return;
+    // clientWidth/Height incluent le rembourrage : on le retire, c'est la
+    // marge de damier qui doit rester visible tout autour de la toile.
+    var cs = getComputedStyle(host);
+    var aw = host.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var ah = host.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (!(aw > 0) || !(ah > 0)) return;
+    var k = Math.min(aw / size.w, ah / size.h);
+    cv.style.width = Math.floor(size.w * k) + 'px';
+    cv.style.height = Math.floor(size.h * k) + 'px';
+    var lbl = $('obsSize');
+    if (lbl) {
+      lbl.style.display = 'inline-block';
+      lbl.title = T.obsSizeTip;
+      $('obsSizeTxt').textContent = size.w + ' × ' + size.h;
+    }
+  }
+
+  // ─── Aperçu : simuler un match ───
+  // Jusqu'ici, le seul moyen de voir sa bannière de fin de match et ses
+  // alertes était de GAGNER une vraie partie — autant dire qu'on composait
+  // son overlay à l'aveugle. Ce bouton rejoue un match plausible dans le
+  // renderer seul : rien n'est envoyé au processus principal, rien n'est
+  // enregistré, et l'état réel reprend la main dès qu'on arrête.
+  var SIM_TICK = 250;    // ms entre deux images de l'aperçu
+  var SIM_CLOCK = 4;     // le chrono du match défile 4× plus vite
+  // Chronologie, en secondes depuis le clic. Cinq minutes de temps
+  // réglementaire tiennent en 75 s, la prolongation et le verdict gardent
+  // leur durée réelle : l'ensemble fait le tour en une minute et demie.
+  var SIM_SCRIPT = [
+    { at: 22, goal: 0 },   // premier but, pour nous
+    { at: 51, goal: 1 },   // égalisation adverse
+    { at: 83, goal: 0 },   // but en or, en prolongation
+    { at: 84, end: true },
+    { at: 91, stop: true },
+  ];
+  var simTimer = null;
+  var simT = 0;
+  var simDone = {};
+  var simScore = [0, 0];
+  var simOT = false;
+  var simEnded = false;
+  var simStartedAt = 0;
+
+  function simBuild() {
+    var base = realState || {};
+    var cfg = base.config || {};
+    var me = cfg.pseudo || T.you;
+    var s = Object.assign({}, base);
+    s.game = { running: true };
+    s.currentRanked = true;
+    s.currentRankedAuto = true;
+    // Un adversaire déjà croisé : la pastille de bilan fait partie de ce
+    // qu'on vient vérifier avant un stream.
+    s.h2h = { Vega: { wins: 2, losses: 1 } };
+    // Session inventée de bout en bout : l'aperçu raconte toujours la même
+    // histoire — quatre victoires, deux défaites, une série qui atteint trois
+    // — quel que soit l'état réel. Sinon la démonstration dépendrait de la
+    // soirée qu'on est justement en train de faire.
+    var wins = simEnded ? 5 : 4;
+    var streak = simEnded ? 3 : 2;
+    var played = wins + 2;
+    s.session = {
+      startedAt: simStartedAt,
+      played: played, wins: wins, losses: 2, unknown: 0, unmatched: 0,
+      streak: { type: 'W', count: streak },
+      bestWinStreak: streak,
+      winrate: Math.round(wins / played * 100),
+      perMode: { '2v2': { played: played, wins: wins, losses: 2,
+        streak: { type: 'W', count: streak } } },
+      totals: { goals: simEnded ? 9 : 7, assists: 3, saves: 5, shots: 14,
+        mvps: simEnded ? 3 : 2 },
+      // Le MMR reste celui du joueur : les tuiles de mode gardent leur rang
+      // et leur courbe, et aucun palier ne bouge — donc aucune fausse
+      // alerte de montée de rang pendant l'aperçu.
+      mmr: (base.session && base.session.mmr) || {},
+    };
+    // Records volontairement hors d'atteinte : l'aperçu montre la série et le
+    // MVP, pas quatre plaques à la file.
+    s.records = { bestWinStreak: 6, bestDayWins: 9, totalPlayed: 120 };
+    var hist = (base.history || []).slice(0, 12);
+    if (simEnded) {
+      // Aucun id : les boutons de correction de l'historique ne sont
+      // construits que pour un match qui en a un, et ce match n'existe pas.
+      hist = [{ endedAt: simStartedAt + 90000, mode: '2v2', score: [2, 1],
+        isOT: true, ranked: true, forfeit: false, overridden: false, result: 'W',
+        me: { goals: 2, assists: 0, saves: 1, shots: 4, score: 640, mvp: true },
+      }].concat(hist);
+    }
+    s.history = hist;
+    if (simEnded) {
+      s.live = null;
+    } else {
+      var reg = 300 - simT * SIM_CLOCK;
+      s.live = {
+        mode: '2v2', ranked: true, training: false,
+        score: [simScore[0], simScore[1]],
+        timeSeconds: simOT ? -reg : reg,
+        isOT: simOT,
+        players: [
+          { name: me, team: 0, goals: simScore[0], assists: 0, saves: 1,
+            shots: 4, score: 246 + simScore[0] * 210 },
+          { name: 'Nyx', team: 0, goals: 0, assists: simScore[0], saves: 2,
+            shots: 1, score: 188 + simScore[0] * 60 },
+          { name: 'Vega', team: 1, goals: simScore[1], assists: 0, saves: 1,
+            shots: 3, score: 212 + simScore[1] * 190 },
+          { name: 'Orbit', team: 1, goals: 0, assists: simScore[1], saves: 0,
+            shots: 2, score: 154 },
+        ],
+      };
+    }
+    return s;
+  }
+
+  function simTick() {
+    simT += SIM_TICK / 1000;
+    simOT = (300 - simT * SIM_CLOCK) <= 0;
+    var stopped = false;
+    SIM_SCRIPT.forEach(function (e, i) {
+      if (stopped || simDone[i] || simT < e.at) return;
+      simDone[i] = 1;
+      if (e.goal !== undefined) { simScore[e.goal]++; flashGoal(); }
+      if (e.end) {
+        simEnded = true;
+        // L'état d'abord (la bannière lit la série dans `cur`), la bannière
+        // ensuite. `preview` force son affichage : on a cliqué exprès pour la
+        // voir, même si elle est coupée dans les réglages.
+        render(simBuild());
+        showResult({ result: 'W', preview: true, score: [2, 1], isOT: true,
+          mode: '2v2', me: { mvp: true } });
+      }
+      if (e.stop) { simStop(); stopped = true; }
+    });
+    if (stopped || !simTimer) return;
+    render(simBuild());
+  }
+
+  function syncSimBtn() {
+    var txt = $('simBtnTxt');
+    if (!txt) return;
+    txt.textContent = simTimer ? T.simStop : T.simRun;
+    $('simBtn').title = T.simTip;
+    $('simBtn').className = 'hdr-btn' + (simTimer ? ' accent' : '');
+  }
+
+  function simStart() {
+    if (simTimer) return;
+    simT = 0; simDone = {}; simScore = [0, 0];
+    simOT = false; simEnded = false; simStartedAt = Date.now() - 1800000;
+    hideResult();
+    // Mémoire des alertes remise à zéro puis réamorcée sur l'état de départ
+    // de l'aperçu : la série qui monte à trois pendant la simulation est
+    // alors une nouvelle, et rien de ce qui précède ne se rejoue.
+    resetAlerts();
+    alertQueue.length = 0;
+    render(simBuild());
+    simTimer = setInterval(simTick, SIM_TICK);
+    syncSimBtn();
+    syncAlertDemo();
+  }
+
+  function simStop() {
+    if (!simTimer) return;
+    clearInterval(simTimer);
+    simTimer = null;
+    // Les alertes déjà en file finissent leur passage — c'est la fin de
+    // l'aperçu. Seule la mémoire repart de zéro, pour que l'état réel qui
+    // revient soit réamorcé sans rien réannoncer.
+    resetAlerts();
+    syncSimBtn();
+    if (realState) render(realState);
+    syncAlertDemo();
+  }
+
   function setEditing(on) {
     editing = on;
+    // Le bouton d'arrêt de l'aperçu vit dans la barre d'édition : le laisser
+    // tourner après « Terminé » ne laisserait aucun moyen d'y couper court.
+    if (!on) simStop();
     document.body.classList.toggle('editing', on);
     applyLayout();
   }
@@ -2064,6 +2670,8 @@
   $('settingsBtn').onclick = function () { api.openControl && api.openControl('account'); };
   $('editBtn').onclick = function () { setEditing(true); };
   $('editDoneBtn').onclick = function () { setEditing(false); };
+  $('simBtn').onclick = function () { if (simTimer) simStop(); else simStart(); };
+  syncSimBtn();
   $('layoutResetBtn').onclick = function () {
     layout = mergeLayout(null);
     applyLayout();
@@ -2100,6 +2708,9 @@
       layout = mergeLayout(lastCfgLayout);
       applyLayout();
     }
+    // Le format de la toile vient de la configuration : il peut donc changer
+    // en cours de composition, sans rouvrir la fenêtre.
+    fitObsCanvas();
 
     // En-tête.
     var running = s.game && s.game.running;
@@ -2383,6 +2994,9 @@
         + '</tr>';
     });
     $('histBody').innerHTML = rows;
+
+    // En dernier : les alertes se lisent sur l'état qui vient d'être posé.
+    pollAlerts(s);
   }
 
   function renderLivePlayers(live, pseudo, h2h) {
@@ -2847,6 +3461,7 @@
       }
     }
     ov.className = 'result-overlay show preset-' + preset + ' ' + (win ? 'win' : 'loss');
+    holdAlertsForBanner();
     resultTimer = setTimeout(hideResult, preset === 'minimal' ? 3500 : 6500);
   }
   $('resultOverlay').onclick = hideResult;
@@ -2872,32 +3487,40 @@
   });
 
   // Flash sur la carte live à chaque but (désactivable dans les réglages).
-  if (api.onGoal) {
-    api.onGoal(function () {
-      var anim = (cur && cur.config && cur.config.anim) || {};
-      if (anim.goal === false) return;
-      if (OBS) {
-        var og = (cur && cur.config && cur.config.obs) || {};
-        if (og.goalFlash === false) return;
-      }
-      var c = $('liveCard');
-      c.classList.remove('goal');
-      void c.offsetWidth;
-      c.classList.add('goal');
-    });
+  // Extrait de l'abonnement pour que l'aperçu de match le rejoue à
+  // l'identique, réglages compris.
+  function flashGoal() {
+    var anim = (cur && cur.config && cur.config.anim) || {};
+    if (anim.goal === false) return;
+    if (OBS) {
+      var og = (cur && cur.config && cur.config.obs) || {};
+      if (og.goalFlash === false) return;
+    }
+    var c = $('liveCard');
+    c.classList.remove('goal');
+    void c.offsetWidth;
+    c.classList.add('goal');
   }
+  if (api.onGoal) api.onGoal(flashGoal);
 
   // Compositeur d'overlay : on entre directement en édition, il n'y a rien
   // d'autre à faire dans cette fenêtre.
-  if (OBS_EDIT) setEditing(true);
+  if (OBS_EDIT) { setEditing(true); fitObsCanvas(); }
   if (api.onLookPreview) {
     api.onLookPreview(function (l) {
       lookPreview = l;
       if (lastState) render(lastState);
     });
   }
-  if (api.onState) api.onState(render);
-  if (api.getState) api.getState().then(render);
+  // L'état réel est toujours mémorisé, mais il ne s'affiche pas par-dessus un
+  // aperçu en cours : il attend sagement qu'on rende la main.
+  function onPush(s) {
+    realState = s;
+    if (simTimer) return;
+    render(s);
+  }
+  if (api.onState) api.onState(onPush);
+  if (api.getState) api.getState().then(onPush);
 })();
 </script>
 </body>
