@@ -16,10 +16,10 @@
     src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
 
   :root {
-    --bg:#0c0e11; --panel:#13161b; --panel2:#1a1e25; --line:#272d37;
-    --text:#eef1f5; --muted:#8b93a1;
-    --blue:#2f9bff; --blue-deep:#1466b8;
-    --orange:#ff8a1e; --orange-deep:#c45f00;
+    --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d; --line:#39414f;
+    --text:#e3e8ef; --muted:#8b93a1;
+    --blue:#4dabff; --blue-deep:#1466b8;
+    --orange:#e0741a; --orange-deep:#a34f00;
     --gold:#ffc233;
     /* Rouge d'erreur (swap cosmétique dont l'original a disparu du jeu) :
        volontairement hors thème — la couleur « défaite » choisie par
@@ -33,7 +33,15 @@
     --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
     --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
     --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
-    --edge:color-mix(in srgb, #000 30%, transparent);
+    --edge:rgba(0, 0, 0, .62);
+    /* Fond du volet de contenu : l'habillage peut le remplacer par un aplat.
+       Sans cette variable, la trame et les halos de l'Arène restaient visibles
+       sous « Papier » ou « Console », qui annoncent l'inverse. */
+    --surface-bg:
+      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
+      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
+      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
+      var(--bg);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
@@ -104,7 +112,7 @@
   .sq.ok { background:var(--blue); }
   .sq.warn { background:var(--orange); }
   .side-status span:last-child {
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
+    font-family:inherit; font-style:italic;
     font-weight:800; font-size:15px; letter-spacing:.06em; line-height:1.15;
     text-transform:uppercase;
   }
@@ -113,7 +121,7 @@
     display:flex; align-items:center; gap:11px; width:100%;
     padding:11px 16px 11px 15px; border:0; border-left:3px solid transparent;
     background:transparent; color:var(--muted); text-align:left; cursor:pointer;
-    font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:15.5px;
+    font-family:inherit; font-weight:700; font-size:15.5px;
     letter-spacing:.08em; text-transform:uppercase; position:relative;
   }
   .nav svg { width:17px; height:17px; flex:none; stroke:currentColor; fill:none;
@@ -138,11 +146,7 @@
     flex:1; min-width:0; overflow-y:auto; padding:22px 28px 30px;
     /* Fond « arène » du dashboard : deux halos aux couleurs des équipes et
        une fine trame diagonale — le volet n'est pas un aplat muet. */
-    background:
-      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
-      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
-      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
-      var(--bg);
+    background:var(--surface-bg);
   }
   .content::-webkit-scrollbar { width:8px; }
   .content::-webkit-scrollbar-thumb { background:var(--line); }
@@ -732,7 +736,24 @@
           </div>
           <div class="hint warn" id="obsErr" style="display:none"></div>
           <button class="ghost" id="obsCompose" data-i18n="bObsCompose">Composer l’overlay</button>
+          <div class="hint" data-i18n="hintObsUse">Dans OBS : Sources → + → Navigateur, colle l'URL ci-dessus, et décoche « Arrêter la source lorsqu'elle est invisible » — sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n'est exposé à internet.</div>
           <div class="hint" data-i18n="hintObsCompose">L’overlay servi à OBS utilise les MÊMES blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.</div>
+          <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
+          <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
+          <div class="hint" data-i18n="hintObsAnim">Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.</div>
+        </div>
+
+        <!-- Ancien bandeau : conservé pour ceux qui l'avaient déjà réglé dans
+             OBS. Ses six réglages ne pilotent QUE /classic — les laisser dans
+             la carte de l'overlay composable en faisait des interrupteurs
+             débranchés. -->
+        <details class="card" id="obsClassicCard">
+          <summary><h2 style="display:inline" data-i18n="hObsClassic">Ancien bandeau compact</h2></summary>
+          <div class="hint" data-i18n="hintObsClassic">Page à part, servie sur /classic. Elle ne se compose pas : ce sont les réglages ci-dessous qui la pilotent. À n’utiliser que si tu l’avais déjà en place dans OBS.</div>
+          <div class="duo">
+            <input type="text" id="obsUrlClassic" readonly />
+            <button class="ghost" style="margin-top:0" id="obsCopyClassic" data-i18n="bCopy">Copier l'URL</button>
+          </div>
           <div class="duo">
             <label class="field"><span data-i18n="lObsStyle">Style</span>
               <select id="obsStyle">
@@ -758,15 +779,11 @@
           <label class="check"><input type="checkbox" id="obsStreak" /><span data-i18n="cObsStreak">Afficher la série en cours</span></label>
           <label class="check"><input type="checkbox" id="obsLive" /><span data-i18n="cObsLive">Afficher le score du match en direct</span></label>
           <label class="check"><input type="checkbox" id="obsH2h" /><span data-i18n="cObsH2h">Afficher « déjà croisé » (1v1)</span></label>
-          <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
-          <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
-          <div class="hint" data-i18n="hintObs">Dans OBS : Sources → + →
-            Navigateur, colle l'URL (taille conseillée 860 × 220, fond
-            transparent automatique). Le bandeau affiche ta session, la série, le
-            score en direct — avec flash de but et bannière de fin de match. Les
-            boutons « Tester victoire / défaite » (section Dashboard &amp; overlay)
-            l'animent aussi. Local uniquement : rien n'est exposé à internet.</div>
-        </div>
+          <div class="hint" data-i18n="hintObsClassicUse">Dans OBS : Sources → + →
+            Navigateur, colle l'URL ci-dessus (taille conseillée 860 × 220). Ce
+            bandeau affiche ta session, la série et le score en direct. Local
+            uniquement : rien n'est exposé à internet.</div>
+        </details>
 
         <!-- Pont compatible SOS : fonctionnalité de niche pour streamers dont
              l'overlay de diffusion a été écrit avant l'arrivée d'Easy
@@ -1161,6 +1178,11 @@
       hintSkin: 'Un habillage change la forme de l’interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.',
       bObsCompose: 'Composer l’overlay',
       hintObsCompose: 'L’overlay servi à OBS utilise les mêmes blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.',
+      hObsClassic: 'Ancien bandeau compact',
+      hintObsClassic: 'Page à part, servie sur /classic. Elle ne se compose pas : ce sont les réglages ci-dessous qui la pilotent. À n’utiliser que si tu l’avais déjà en place dans OBS.',
+      hintObsAnim: 'Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.',
+      hintObsClassicUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus (taille conseillée 860 × 220). Ce bandeau affiche ta session, la série et le score en direct. Local uniquement : rien n’est exposé à internet.',
+      hintObsUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus, et décoche « Arrêter la source lorsqu’elle est invisible » — sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n’est exposé à internet.',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1351,6 +1373,11 @@
       hintSkin: 'A skin changes the shape of the interface: type, card cuts, rules, shadows. It brings its own palette, which you can tweak just below.',
       bObsCompose: 'Compose the overlay',
       hintObsCompose: 'The overlay served to OBS uses the same blocks as the dashboard, with its own layout. The composer opens a window where you move, resize, hide and configure each block over a checkerboard — whatever is transparent stays transparent in OBS. The old compact bar is still served on /classic.',
+      hObsClassic: 'Old compact bar',
+      hintObsClassic: 'A separate page, served on /classic. It cannot be composed: the settings below drive it. Use it only if you already had it set up in OBS.',
+      hintObsAnim: 'These two settings apply to the overlay served to OBS. The banner covers the whole source during the celebration: turn it off if your source fills the screen. No sound ever leaves the overlay.',
+      hintObsClassicUse: 'In OBS: Sources → + → Browser, paste the URL above (860 × 220 recommended). This bar shows your session, streak and live score. Local only: nothing is exposed to the internet.',
+      hintObsUse: 'In OBS: Sources → + → Browser, paste the URL above, and untick “Shutdown source when not visible” — otherwise your session restarts on every scene change. Transparent background is automatic, no colour filter needed. Local only: nothing is exposed to the internet.',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -1382,7 +1409,7 @@
   }
 
   // ─── Thème (partagé avec le dashboard et l'overlay) ───
-  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  var THEME_DEFAULT = { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' };
   var PRESETS = [
     { name: 'Bleu / Orange', t: THEME_DEFAULT },
     { name: 'Vert / Rouge', t: { win: '#2ee68a', loss: '#ff5d6c', bg: '#0c0e11', gold: '#ffc233' } },
@@ -1417,11 +1444,11 @@
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
   // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
   var SKINS = [
-    { id: 'arena',   name: 'Arène',    t: { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' } },
+    { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
     { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
-    { id: 'papier',  name: 'Papier',   t: { win: '#1f6feb', loss: '#c2410c', bg: '#f4f1ea', gold: '#a16207' } },
+    { id: 'papier',  name: 'Papier',   t: { win: '#1a5fd0', loss: '#a8350a', bg: '#f4f1ea', gold: '#8a5209' } },
     { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
-    { id: 'brut',    name: 'Brut',     t: { win: '#ffffff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
+    { id: 'brut',    name: 'Brut',     t: { win: '#00e0ff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
     { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
   ];
   function skinById(id) {
@@ -1450,9 +1477,9 @@
     var toward = isLight(t.bg) ? '#000000' : '#ffffff';
     s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
     s.setProperty('--muted', isLight(t.bg) ? '#5b6472' : '#8b93a1');
-    s.setProperty('--panel', mix(t.bg, toward, .035));
-    s.setProperty('--panel2', mix(t.bg, toward, .07));
-    s.setProperty('--line', mix(t.bg, toward, .14));
+    s.setProperty('--panel', mix(t.bg, toward, .055));
+    s.setProperty('--panel2', mix(t.bg, toward, .10));
+    s.setProperty('--line', mix(t.bg, toward, .22));
   }
   // Pastilles d'habillage : chaque clic pose le skin ET sa palette. La
   // sélection courante est marquée par render(), pas ici.
@@ -1653,7 +1680,8 @@
     var obsSt = s.obs || {};
     $('obsUrlRow').style.display = obsSt.running ? 'grid' : 'none';
     if (obsSt.running) {
-      $('obsUrl').value = 'http://127.0.0.1:' + obsSt.port + '/overlay';
+      $('obsUrl').value = 'http://127.0.0.1:' + obsSt.port + '/overlay?obs=1';
+      $('obsUrlClassic').value = 'http://127.0.0.1:' + obsSt.port + '/classic';
     }
     var oe = $('obsErr');
     if (oc2.enabled && obsSt.error) {
@@ -2548,6 +2576,20 @@
       }
       out.textContent = txt;
     }).catch(function (e) { out.textContent = String(e && e.message || e); });
+  };
+
+  // Demande venue du dashboard : ouvrir directement la bonne section.
+  if (api.onGotoSection) {
+    api.onGotoSection(function (sec) {
+      var b = document.querySelector('.nav[data-sec="' + String(sec).replace(/[^a-z]/g, '') + '"]');
+      if (b) b.click();
+    });
+  }
+
+  $('obsCopyClassic').onclick = function () {
+    var el = $('obsUrlClassic');
+    el.select();
+    try { document.execCommand('copy'); } catch (e) {}
   };
 
   $('obsCompose').onclick = function () {
