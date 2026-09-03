@@ -159,11 +159,26 @@ test('erreur PowerShell : remontée telle quelle, pas noyée dans « indisponibl
   assert.match(m.status().error, /Impossible de trouver le type/);
 });
 
-test('ligne « prêt » : l’erreur précédente est effacée', () => {
-  const { m, proc } = make();
+test('ligne « prêt » : l’erreur est effacée ET l’interface prévenue', () => {
+  // Sans la notification, le message « indisponible » restait affiché alors
+  // que le contrôleur venait de démarrer.
+  const { m, proc, seen } = make();
   m.start();
   m.error = 'vieille erreur';
+  const before = seen.length;
   proc.stdout.emit('data', '{"ready":true}\n');
   assert.equal(m.status().error, null);
   assert.equal(m.now, null);          // « prêt » n'invente pas de lecture
+  assert.ok(seen.length > before, 'l’interface doit être prévenue');
+  assert.equal(seen[seen.length - 1].error, null);
+});
+
+test('script : la fin de l’entrée standard n’arrête pas la boucle', () => {
+  // Lancé à la main dans une console, personne ne tape : le script s'arrêtait
+  // après la première ligne. La fin du flux ne doit couper que l'écoute des
+  // commandes, pas la publication de ce qui joue.
+  const ps = MediaControl.PS_SCRIPT;
+  assert.ok(ps.includes('$stdinDone'), 'l’état de fin de flux doit exister');
+  assert.ok(!/if \(\$null -eq \$cmd\) \{ break \}/.test(ps), 'plus de sortie sur flux clos');
+  assert.ok(ps.includes('while ($true)'));
 });
