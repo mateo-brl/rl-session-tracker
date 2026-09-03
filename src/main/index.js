@@ -79,16 +79,30 @@ const state = {
 
 // ── Mode streamer : extrait de l'état envoyé à la page overlay OBS ──
 function obsState() {
+  const cfg = config.get();
   return {
     lang: state.lang,
-    theme: config.get().theme,
-    obsCfg: config.get().obs,    // style, échelle, contenu — appliqués en direct
+    theme: cfg.theme,
+    obsCfg: cfg.obs,             // style, échelle, contenu — appliqués en direct
     game: state.game.running,
     live: state.live,
     currentRanked: state.currentRanked,
     currentRankedAuto: state.currentRankedAuto,
     session: state.session,
     h2h: state.h2h,
+    // L'overlay composable est la même page que le dashboard : il lui faut
+    // donc de quoi nourrir TOUS les blocs, pas seulement le bandeau de score.
+    // Rien de personnel n'y transite de plus que ce que la page affiche déjà,
+    // et le serveur n'écoute que sur 127.0.0.1.
+    history: state.history,
+    evolution: state.evolution,
+    week: state.week,
+    records: state.records,
+    config: {
+      pseudo: cfg.pseudo, lang: cfg.lang, theme: cfg.theme, skin: cfg.skin,
+      obsLayout: cfg.obsLayout, mmr: cfg.mmr, mmrStep: cfg.mmrStep,
+      rankedOnly: cfg.rankedOnly, sessionGoal: cfg.sessionGoal, anim: cfg.anim,
+    },
   };
 }
 
@@ -942,6 +956,13 @@ ipcMain.handle('cosmetics-add', async (_e, opts) => {
   }));
 });
 ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+ipcMain.on('open-overlay-composer', () => {
+  const w = windows.openOverlayComposer();
+  // La fenêtre reçoit l'état comme les autres (windows.broadcast la couvre
+  // dès qu'elle existe) ; on pousse tout de suite pour ne pas attendre.
+  if (w) w.webContents.once('did-finish-load', () => pushState());
+});
+
 ipcMain.handle('cosmetics-check-targets', (_e, id, install) =>
   (cosmetics ? cosmetics.checkTargets(id, install) : { ok: false, error: 'indisponible' }));
 

@@ -731,6 +731,8 @@
             <button class="ghost" style="margin-top:0" id="obsCopy" data-i18n="bCopy">Copier l'URL</button>
           </div>
           <div class="hint warn" id="obsErr" style="display:none"></div>
+          <button class="ghost" id="obsCompose" data-i18n="bObsCompose">Composer l’overlay</button>
+          <div class="hint" data-i18n="hintObsCompose">L’overlay servi à OBS utilise les MÊMES blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.</div>
           <div class="duo">
             <label class="field"><span data-i18n="lObsStyle">Style</span>
               <select id="obsStyle">
@@ -1157,6 +1159,8 @@
       lSkin: 'Habillage',
       lThemeColors: 'Couleurs',
       hintSkin: 'Un habillage change la forme de l’interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.',
+      bObsCompose: 'Composer l’overlay',
+      hintObsCompose: 'L’overlay servi à OBS utilise les mêmes blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1345,6 +1349,8 @@
       lSkin: 'Skin',
       lThemeColors: 'Colors',
       hintSkin: 'A skin changes the shape of the interface: type, card cuts, rules, shadows. It brings its own palette, which you can tweak just below.',
+      bObsCompose: 'Compose the overlay',
+      hintObsCompose: 'The overlay served to OBS uses the same blocks as the dashboard, with its own layout. The composer opens a window where you move, resize, hide and configure each block over a checkerboard — whatever is transparent stays transparent in OBS. The old compact bar is still served on /classic.',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -2542,6 +2548,10 @@
       }
       out.textContent = txt;
     }).catch(function (e) { out.textContent = String(e && e.message || e); });
+  };
+
+  $('obsCompose').onclick = function () {
+    api.openOverlayComposer && api.openOverlayComposer();
   };
 
   $('abTest').onclick = function () {
