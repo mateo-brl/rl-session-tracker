@@ -88,25 +88,33 @@ function Get-Now {
   }
 }
 
-# Les commandes arrivent sur l'entree standard, une par ligne.
+# Les commandes arrivent sur l'entree standard, une par ligne. La fin de ce
+# flux ne doit PAS arreter le script : lance a la main dans une console, il
+# n'y a personne pour taper, et il s'arretait aussitot apres la premiere
+# ligne. On cesse simplement d'ecouter les commandes.
 $reader = [System.IO.StreamReader]::new([System.Console]::OpenStandardInput())
+$stdinDone = $false
 $stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
 
 while ($true) {
-  if ($stdin.IsCompleted) {
-    $cmd = $stdin.Result
-    if ($null -eq $cmd) { break }
-    $s = $mgr.GetCurrentSession()
-    switch ($cmd.Trim()) {
-      'next'      { if ($s) { $null = $s.TrySkipNextAsync() } }
-      'prev'      { if ($s) { $null = $s.TrySkipPreviousAsync() } }
-      'playpause' { if ($s) { $null = $s.TryTogglePlayPauseAsync() } }
-      'volup'     { Send-Key 175 }
-      'voldown'   { Send-Key 174 }
-      'mute'      { Send-Key 173 }
+  if (-not $stdinDone -and $stdin.IsCompleted) {
+    $cmd = $null
+    try { $cmd = $stdin.Result } catch { $stdinDone = $true }
+    if ($null -eq $cmd) {
+      $stdinDone = $true
+    } else {
+      $s = $mgr.GetCurrentSession()
+      switch ($cmd.Trim()) {
+        'next'      { if ($s) { $null = $s.TrySkipNextAsync() } }
+        'prev'      { if ($s) { $null = $s.TrySkipPreviousAsync() } }
+        'playpause' { if ($s) { $null = $s.TryTogglePlayPauseAsync() } }
+        'volup'     { Send-Key 175 }
+        'voldown'   { Send-Key 174 }
+        'mute'      { Send-Key 173 }
+      }
+      $stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
+      Start-Sleep -Milliseconds 120
     }
-    $stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
-    Start-Sleep -Milliseconds 120
   }
   $n = $null
   try { $n = Get-Now } catch { [Console]::Error.WriteLine('lecture: ' + $_.Exception.Message) }
@@ -153,7 +161,13 @@ class MediaControl {
       return;
     }
     try {
-      this.proc = this.spawn('powershell.exe',
+      // Sysnative : depuis un processus 32 bits, c'est le chemin qui atteint le
+      // PowerShell 64 bits. Sans lui, on tombe sur celui de SysWOW64, où les
+      // types WinRT ne se résolvent pas — et le script sort aussitôt.
+      const exe = (process.arch === 'ia32' && process.env.SystemRoot)
+        ? path.join(process.env.SystemRoot, 'Sysnative', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+        : 'powershell.exe';
+      this.proc = this.spawn(exe,
         ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', file],
         { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
     } catch (e) {
@@ -161,6 +175,7 @@ class MediaControl {
       this.proc = null;
       return;
     }
+    this.log('média : contrôleur lancé (' + process.arch + ', ' + file + ')');
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', (chunk) => this._onData(chunk));
     this.proc.stderr.setEncoding('utf8');
@@ -171,8 +186,10 @@ class MediaControl {
       this.log('média : ' + msg);
     });
     this.proc.on('error', () => { this.error = 'PowerShell indisponible'; this.proc = null; });
-    this.proc.on('exit', () => {
+    this.proc.on('exit', (code, signal) => {
       this.proc = null;
+      this.log('média : PowerShell s’est arrêté (code ' + code
+        + (signal ? ', signal ' + signal : '') + ', relance n°' + this._restarts + ')');
       // Un plantage isolé se rattrape ; une boucle d'échecs, non — sans ce
       // plafond, un Windows sans SMTC relancerait PowerShell indéfiniment.
       if (this._restarts < 3) {
@@ -210,8 +227,12 @@ class MediaControl {
 
   _apply(d) {
     if (d.ready) {
-      // Le script a résolu SMTC : tout ce qui suivra est fiable.
+      // Le script a résolu SMTC : tout ce qui suivra est fiable. Il FAUT
+      // prévenir l'interface, sinon le message d'erreur précédent reste
+      // affiché alors que tout fonctionne.
       this.error = null;
+      this._restarts = 0;
+      this.onUpdate(this.status());
       return;
     }
     if (d.err) {
