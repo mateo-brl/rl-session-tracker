@@ -294,8 +294,10 @@ function psQuote(s) {
 // seul se contenterait de 10). Un ini déjà écrit à une autre cadence reste
 // valide pour la vérification (débit > 0) ; l'activation du son, elle,
 // réécrit à 120 si besoin.
-const PACKET_RATE = 120;
-const ALPHA_RATE = 120;
+// 60 paquets/s : assez pour un score et un chrono fluides. Les 120 servaient
+// au moteur audio Alpha Boost, retiré depuis que le swap de fichiers rend le
+// vrai son du jeu.
+const PACKET_RATE = 60;
 const DEFAULT_PORT = 49123;
 
 function numOrPort(v) {
@@ -440,4 +442,4 @@ async function enableStatsApi(port, opts) {
 }
 
 module.exports = { enableStatsApi, checkStatsApi, iniConfigured, detectInstalls,
-  parseLibraryFolders, isRLInstall, iniRate, ALPHA_RATE, canonicalPath, pathKey };
+  parseLibraryFolders, isRLInstall, iniRate, canonicalPath, pathKey };

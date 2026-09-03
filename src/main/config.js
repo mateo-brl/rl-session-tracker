@@ -84,6 +84,9 @@ const DEFAULTS = {
   // Looks enregistrés : un habillage + une palette, sous un nom. Partageables
   // par code (voir la vitrine dans control.html).
   looks: [],
+  // Ingrédients d'atelier posés par-dessus l'habillage (police, découpe,
+  // densité…). `null` partout = l'habillage décide, comportement d'origine.
+  tune: null,
   layouts: {},           // profils de disposition du dashboard : '1'|'2'|'3'
   obsLayout: null,       // disposition PROPRE à l'overlay OBS (mêmes blocs)
   layoutSlot: '1',       // profil actif
@@ -101,11 +104,6 @@ const DEFAULTS = {
     goal: true,          // flash à chaque but
   },
   soundPreset: 'broadcast',  // style du jingle : broadcast | arcade | soft | epic
-  alphaBoost: {          // son Alpha Boost (100 % externe, via la Stats API)
-    enabled: false,
-    volume: 0.45,        // 0 → 1
-    profile: 'quality',  // quality (paliers de vitesse) | classic (statique)
-  },
   discordRpc: false,     // statut Discord (Rich Presence) pendant le jeu
   obs: {                 // mode streamer : overlay local à capturer dans OBS
     enabled: false,
@@ -239,6 +237,23 @@ function update(partial) {
         y: Math.round(partial.overlayPos.y) };
     }
     // Thème : 4 couleurs hex validées, ou null pour revenir au défaut.
+    if (partial.tune === null) {
+      config.tune = null;
+    } else if (partial.tune && typeof partial.tune === 'object') {
+      const t = {};
+      const one = (k, list) => {
+        if (list.includes(partial.tune[k])) t[k] = partial.tune[k];
+      };
+      one('font', ['auto', 'cond', 'sans', 'mono', 'serif']);
+      one('cut', ['auto', 'bevel', 'square', 'round']);
+      one('density', ['auto', 'cosy', 'dense', 'couch']);
+      const sk = Number(partial.tune.skew);
+      if (Number.isFinite(sk) && Math.abs(sk) <= 30) t.skew = Math.round(sk);
+      else if (partial.tune.skew === null) t.skew = null;
+      if (typeof partial.tune.italic === 'boolean') t.italic = partial.tune.italic;
+      else if (partial.tune.italic === null) t.italic = null;
+      config.tune = Object.keys(t).length ? { ...(config.tune || {}), ...t } : config.tune;
+    }
     if (Array.isArray(partial.looks)) {
       const out = [];
       for (const l of partial.looks.slice(0, 24)) {
@@ -249,11 +264,13 @@ function update(partial) {
           if (HEX.test(String(l.theme && l.theme[k] || ''))) t[k] = String(l.theme[k]).toLowerCase();
         }
         if (Object.keys(t).length !== 4) continue;
-        out.push({
+        const entry = {
           id: String(l.id || '').slice(0, 24) || ('l' + out.length),
           name: String(l.name || '').slice(0, 40) || 'Look',
           skin: l.skin, theme: t,
-        });
+        };
+        if (l.tune && typeof l.tune === 'object') entry.tune = l.tune;
+        out.push(entry);
       }
       config.looks = out;
     }
@@ -325,13 +342,6 @@ function update(partial) {
       if (Number.isInteger(sp) && sp >= 1024 && sp <= 65535) o.sosPort = sp;
     }
     // Son Alpha Boost : activation, volume, profil sonore.
-    if (partial.alphaBoost && typeof partial.alphaBoost === 'object') {
-      const ab = config.alphaBoost = { ...DEFAULTS.alphaBoost, ...(config.alphaBoost || {}) };
-      if (typeof partial.alphaBoost.enabled === 'boolean') ab.enabled = partial.alphaBoost.enabled;
-      const vol = Number(partial.alphaBoost.volume);
-      if (Number.isFinite(vol) && vol >= 0 && vol <= 1) ab.volume = vol;
-      if (ALPHA_PROFILES.includes(partial.alphaBoost.profile)) ab.profile = partial.alphaBoost.profile;
-    }
     // Mini-overlay : contenu, échelle, opacité.
     if (partial.overlayCfg && typeof partial.overlayCfg === 'object') {
       const o = config.overlayCfg = { ...DEFAULTS.overlayCfg, ...(config.overlayCfg || {}) };

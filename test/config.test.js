@@ -173,14 +173,43 @@ test('controlBounds : validé, arrondi, jamais absurde', () => {
   assert.equal(c.get().controlBounds.width, 1080);
 });
 
-test('alpha boost : volume et profil validés', () => {
+test('réglage inconnu ignoré : la configuration ne se laisse pas polluer', () => {
+  // Le moteur audio Alpha Boost a été retiré (le swap de fichiers rend le vrai
+  // son du jeu) : une configuration qui en garde la trace ne doit ni faire
+  // planter la validation, ni ressusciter la clé.
   const c = freshConfig();
-  assert.equal(c.get().alphaBoost.enabled, false);   // désactivé par défaut
-  c.update({ alphaBoost: { enabled: true, volume: 0.7, profile: 'classic' } });
-  assert.deepEqual(c.get().alphaBoost,
-    { enabled: true, volume: 0.7, profile: 'classic' });
-  c.update({ alphaBoost: { volume: 5, profile: '<script>' } });  // rejetés
-  assert.equal(c.get().alphaBoost.volume, 0.7);
-  assert.equal(c.get().alphaBoost.profile, 'classic');
-  assert.equal(c.get().alphaBoost.enabled, true);    // intact
+  c.update({ alphaBoost: { enabled: true, volume: 0.7 }, inventé: 42 });
+  assert.equal(c.get().alphaBoost, undefined);
+  assert.equal(c.get()['inventé'], undefined);
+});
+test('atelier : ingrédients validés, valeurs inconnues ignorées', () => {
+  const c = freshConfig();
+  assert.equal(c.get().tune, null);                       // l'habillage décide
+  c.update({ tune: { font: 'mono', cut: 'round', density: 'couch', skew: -7, italic: false } });
+  assert.deepEqual(c.get().tune,
+    { font: 'mono', cut: 'round', density: 'couch', skew: -7, italic: false });
+  // Fusion, pas remplacement : on ne perd pas les autres ingrédients.
+  c.update({ tune: { font: 'serif' } });
+  assert.equal(c.get().tune.font, 'serif');
+  assert.equal(c.get().tune.density, 'couch');
+  // Valeurs hors liste ou hors bornes : ignorées.
+  c.update({ tune: { font: '<script>', cut: 'nope', skew: 400 } });
+  assert.equal(c.get().tune.font, 'serif');
+  assert.equal(c.get().tune.cut, 'round');
+  assert.equal(c.get().tune.skew, -7);
+  c.update({ tune: null });
+  assert.equal(c.get().tune, null);
+});
+
+test('looks : un look enregistré emporte ses ingrédients d’atelier', () => {
+  const c = freshConfig();
+  c.update({ looks: [{ id: 'a', name: 'Stream', skin: 'neon',
+    theme: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' },
+    tune: { font: 'mono', cut: 'round' } }] });
+  const l = c.get().looks[0];
+  assert.equal(l.name, 'Stream');
+  assert.equal(l.tune.font, 'mono');
+  // Un look sans palette complète est refusé : il rendrait un aperçu faux.
+  c.update({ looks: [{ id: 'b', name: 'Cassé', skin: 'neon', theme: { win: '#22d3ee' } }] });
+  assert.equal(c.get().looks.length, 0);
 });
