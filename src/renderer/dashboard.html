@@ -818,6 +818,7 @@
   }
   body[data-anim="cinema"] .live.goal { animation:goalflash-cinema 1.2s ease-in-out; }
 </style>
+  <link rel="stylesheet" href="skins.css" />
 </head>
 <body>
 
@@ -1232,6 +1233,39 @@
       if (window.confirm(T.confirmSessReset)) api.resetSession && api.resetSession();
     };
   }
+  // Un fond clair (skin « Papier », ou une couleur choisie à la main) impose
+  // d'inverser tout ce qui se dérivait du fond : le texte, et le SENS des
+  // mélanges. Sans ça, panneaux et filets étaient éclaircis vers le blanc sur
+  // un fond déjà blanc, et le texte clair restait illisible.
+  function isLight(hex) {
+    var c = String(hex || '').replace('#', '');
+    if (c.length !== 6) return false;
+    var r = parseInt(c.slice(0, 2), 16) / 255;
+    var g = parseInt(c.slice(2, 4), 16) / 255;
+    var b = parseInt(c.slice(4, 6), 16) / 255;
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55;
+  }
+  // ─── Habillages (skins) : la FORME de l'interface, pas seulement ses
+  // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
+  // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
+  var SKINS = [
+    { id: 'arena',   name: 'Arène',    t: { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' } },
+    { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
+    { id: 'papier',  name: 'Papier',   t: { win: '#1f6feb', loss: '#c2410c', bg: '#f4f1ea', gold: '#a16207' } },
+    { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
+    { id: 'brut',    name: 'Brut',     t: { win: '#ffffff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
+    { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
+  ];
+  function skinById(id) {
+    for (var i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
+    return SKINS[0];
+  }
+  function applySkin(id) {
+    var s = skinById(id);
+    if (document.documentElement.dataset.skin !== s.id) {
+      document.documentElement.dataset.skin = s.id;
+    }
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1245,9 +1279,12 @@
     s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
     s.setProperty('--gold', t.gold);
     s.setProperty('--bg', t.bg);
-    s.setProperty('--panel', mix(t.bg, '#ffffff', .035));
-    s.setProperty('--panel2', mix(t.bg, '#ffffff', .07));
-    s.setProperty('--line', mix(t.bg, '#ffffff', .14));
+    var toward = isLight(t.bg) ? '#000000' : '#ffffff';
+    s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
+    s.setProperty('--muted', isLight(t.bg) ? '#5b6472' : '#8b93a1');
+    s.setProperty('--panel', mix(t.bg, toward, .035));
+    s.setProperty('--panel2', mix(t.bg, toward, .07));
+    s.setProperty('--line', mix(t.bg, toward, .14));
   }
 
   // ─── Widgets : disposition libre, mémorisée ───
@@ -1440,6 +1477,7 @@
     var ses = s.session || {};
 
     applyLang(s.lang);
+    applySkin(cfg.skin);
     applyTheme(cfg.theme);
     document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
     // La disposition vient de la config — sauf pendant qu'on la modifie

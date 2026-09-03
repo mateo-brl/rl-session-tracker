@@ -7,6 +7,10 @@ const fs = require('fs');
 const path = require('path');
 const { MMR_STEP_MIN, MMR_STEP_MAX } = require('./session');
 
+// Habillages connus. Une valeur inconnue (fichier édité à la main, retour
+// arrière de version) est ignorée : on garde celui déjà en place.
+const SKINS = ['arena', 'console', 'papier', 'neon', 'brut', 'calme'];
+
 const DEFAULTS = {
   pseudo: '',            // pseudo en jeu — sert à attribuer victoire/défaite
   autoDashboard: true,   // ouvrir le dashboard quand Rocket League démarre
@@ -38,6 +42,9 @@ const DEFAULTS = {
   overlayPos: null,      // { x, y } — position mémorisée du mini-overlay
   // ── Personnalisation ──
   theme: null,           // { win, loss, bg, gold } — null = thème par défaut
+  // Habillage complet de l'interface (forme, police, découpes), distinct des
+  // quatre couleurs du thème : voir src/renderer/skins.css.
+  skin: 'arena',
   layouts: {},           // profils de disposition du dashboard : '1'|'2'|'3'
   layoutSlot: '1',       // profil actif
   sessionGoal: 50,       // objectif de MMR de la session (widget)
@@ -192,6 +199,9 @@ function update(partial) {
         y: Math.round(partial.overlayPos.y) };
     }
     // Thème : 4 couleurs hex validées, ou null pour revenir au défaut.
+    if (typeof partial.skin === 'string' && SKINS.includes(partial.skin)) {
+      config.skin = partial.skin;
+    }
     if (partial.theme === null) config.theme = null;
     else if (partial.theme && typeof partial.theme === 'object') {
       const t = {};
@@ -314,3 +324,4 @@ function save() {
 }
 
 module.exports = { init, get, exists, update, save };
+module.exports.SKINS = SKINS;
