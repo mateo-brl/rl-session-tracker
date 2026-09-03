@@ -81,6 +81,9 @@ const DEFAULTS = {
   // Habillage complet de l'interface (forme, police, découpes), distinct des
   // quatre couleurs du thème : voir src/renderer/skins.css.
   skin: 'arena',
+  // Looks enregistrés : un habillage + une palette, sous un nom. Partageables
+  // par code (voir la vitrine dans control.html).
+  looks: [],
   layouts: {},           // profils de disposition du dashboard : '1'|'2'|'3'
   obsLayout: null,       // disposition PROPRE à l'overlay OBS (mêmes blocs)
   layoutSlot: '1',       // profil actif
@@ -236,6 +239,24 @@ function update(partial) {
         y: Math.round(partial.overlayPos.y) };
     }
     // Thème : 4 couleurs hex validées, ou null pour revenir au défaut.
+    if (Array.isArray(partial.looks)) {
+      const out = [];
+      for (const l of partial.looks.slice(0, 24)) {
+        if (!l || typeof l !== 'object') continue;
+        if (!SKINS.includes(l.skin)) continue;
+        const t = {};
+        for (const k of ['win', 'loss', 'bg', 'gold']) {
+          if (HEX.test(String(l.theme && l.theme[k] || ''))) t[k] = String(l.theme[k]).toLowerCase();
+        }
+        if (Object.keys(t).length !== 4) continue;
+        out.push({
+          id: String(l.id || '').slice(0, 24) || ('l' + out.length),
+          name: String(l.name || '').slice(0, 40) || 'Look',
+          skin: l.skin, theme: t,
+        });
+      }
+      config.looks = out;
+    }
     if (typeof partial.skin === 'string' && SKINS.includes(partial.skin)) {
       config.skin = partial.skin;
     }

@@ -53,6 +53,67 @@
   .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
   /* Habillage sélectionné : la pastille est remplie, pour qu'on voie d'un
      coup d'œil lequel est actif parmi les six. */
+  /* ─── Vitrine des habillages ─── */
+  .look-active {
+    margin-left:auto; font-size:12px; color:var(--muted);
+    letter-spacing:.06em; text-transform:uppercase;
+  }
+  .look-active b { color:var(--text); font-style:italic; }
+  .look-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+  .look-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:14px; }
+  .look-item {
+    border:1px solid var(--line); background:var(--panel2);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .look-item.on { border-color:var(--blue); }
+  /* La vignette : un dashboard en réduction, avec les classes réelles. Le
+     conteneur porte l'habillage et sa palette, donc skins.css s'y applique
+     exactement comme sur le vrai écran. */
+  .look-prev {
+    height:118px; padding:10px; overflow:hidden; position:relative;
+    background:var(--bg); color:var(--text);
+    font-family:'Barlow Condensed','Segoe UI',sans-serif;
+  }
+  .look-prev .card { padding:8px 10px; height:100%; }
+  .look-prev .tag { margin-bottom:8px; padding:3px 9px; }
+  .look-prev .tag > span { font-size:9px; letter-spacing:.14em; }
+  .look-prev .wl { display:flex; align-items:baseline; gap:8px; }
+  .look-prev .wl .w, .look-prev .wl .l {
+    font-size:30px; font-weight:800; font-style:italic; line-height:.95;
+  }
+  .look-prev .wl .w { color:var(--blue); }
+  .look-prev .wl .l { color:var(--orange); }
+  .look-prev .wl .sep {
+    font-size:0; width:3px; height:20px; align-self:center;
+    background:linear-gradient(180deg, var(--blue), var(--orange));
+    transform:skewX(-14deg);
+  }
+  .look-prev .plabel {
+    font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); margin-top:4px;
+  }
+  .look-body { padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .look-name { font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .look-name .badge-on {
+    font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+    background:var(--blue); color:#fff; padding:1px 6px;
+  }
+  .look-desc { font-size:12.5px; color:var(--muted); line-height:1.45; flex:1; }
+  .look-btns { display:flex; gap:8px; }
+  .look-btns button { margin-top:0; flex:1; }
+  /* Barre d'essayage : elle dit que rien n'est enregistré, et comment sortir. */
+  .try-bar {
+    position:fixed; left:0; right:0; bottom:0; z-index:60;
+    display:none; align-items:center; gap:12px;
+    padding:10px 18px; background:var(--panel2);
+    border-top:2px solid var(--blue);
+  }
+  .try-bar.on { display:flex; }
+  .try-bar .t { font-size:13px; color:var(--muted); }
+  .try-bar .t b { color:var(--text); font-style:italic; }
+  .try-bar button { margin-top:0; }
+  .try-bar .grow { flex:1; }
+
   .chip.on { background:var(--blue); border-color:var(--blue); }
   .chip.on > span { color:#fff; }
 
@@ -466,6 +527,10 @@
           <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
           <span data-i18n="navAccount">Compte &amp; MMR</span><i class="badge"></i>
         </button>
+        <button class="nav" data-sec="looks">
+          <svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z"/></svg>
+          <span data-i18n="navLooks">Habillages</span><i class="badge"></i>
+        </button>
         <button class="nav" data-sec="display">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>
           <span data-i18n="navDisplay">Dashboard &amp; overlay</span><i class="badge"></i>
@@ -717,6 +782,39 @@
           <div class="hint" data-i18n="hintAlphaApi">Nécessite 120 paquets/s de la
             Stats API : l'appli règle ça toute seule, mais il faut redémarrer
             Rocket League après la première activation.</div>
+        </div>
+      </section>
+
+      <!-- ── Habillages : la vitrine ──
+           Un seul endroit où la forme, la palette et la disposition forment un
+           « look » qu'on essaie avec ses vraies données avant d'appliquer.
+           Jusqu'ici ces trois choses se réglaient dans trois cartes
+           différentes, et rien ne s'essayait : on appliquait à l'aveugle. -->
+      <section class="sec" data-sec="looks">
+        <div class="sec-head">
+          <div class="tag-row"><div class="tag"><span data-i18n="navLooks">Habillages</span></div>
+            <div class="look-active" id="lookActive"></div></div>
+          <div class="sec-sub" data-i18n="subLooks">Un habillage porte la forme et la palette. Tu l'essaies, tu l'appliques, tu le retouches.</div>
+        </div>
+
+        <div class="card">
+          <div class="look-filters" id="lookFilters"></div>
+          <div class="look-grid" id="lookGrid"></div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="hMyLooks">Mes looks</h2>
+          <div class="hint" data-i18n="hintMyLooks">Un look garde l'habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation — c'est comme ça qu'un look se partage.</div>
+          <div class="look-grid" id="myLookGrid"></div>
+          <div class="duo">
+            <button class="ghost" id="lookSave" data-i18n="bLookSave">Créer un look à partir de l'actuel</button>
+            <button class="ghost" id="lookCopy" data-i18n="bLookCopy">Copier le code</button>
+          </div>
+          <div class="duo">
+            <input type="text" id="lookCode" placeholder="RLST-…" />
+            <button class="ghost" style="margin-top:0" id="lookPaste" data-i18n="bLookPaste">Coller un code</button>
+          </div>
+          <div class="hint warn" id="lookErr" style="display:none"></div>
         </div>
       </section>
 
@@ -988,7 +1086,16 @@
     </main>
   </div>
 
-<script>
+  <!-- Barre d'essayage : visible seulement pendant un aperçu. Elle existe
+       parce qu'un aperçu qu'on ne sait pas annuler n'est pas un aperçu. -->
+  <div class="try-bar" id="tryBar">
+    <div class="t"><span data-i18n="tryLive">Aperçu en direct</span> — <b id="tryName"></b></div>
+    <div class="grow"></div>
+    <button class="ghost" id="tryCancel" data-i18n="bTryCancel">Annuler (Échap)</button>
+    <button class="primary" id="tryApply" data-i18n="bTryApply">Appliquer</button>
+  </div>
+
+  <script>
 (function () {
   'use strict';
   function $(id) { return document.getElementById(id); }
@@ -1183,6 +1290,38 @@
       hintObsAnim: 'Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.',
       hintObsClassicUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus (taille conseillée 860 × 220). Ce bandeau affiche ta session, la série et le score en direct. Local uniquement : rien n’est exposé à internet.',
       hintObsUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus, et décoche « Arrêter la source lorsqu’elle est invisible » — sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n’est exposé à internet.',
+      navLooks: 'Habillages',
+      subLooks: 'Un habillage porte la forme et la palette. Tu l’essaies, tu l’appliques, tu le retouches.',
+      hMyLooks: 'Mes looks',
+      hintMyLooks: 'Un look garde l’habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation — c’est comme ça qu’un look se partage.',
+      bLookSave: 'Créer un look à partir de l’actuel',
+      bLookCopy: 'Copier le code',
+      bLookPaste: 'Coller un code',
+      tryLive: 'Aperçu en direct',
+      bTryCancel: 'Annuler (Échap)',
+      bTryApply: 'Appliquer',
+      tagSessionPrev: 'Session',
+      prevWinrate: 'de victoires',
+      lookOn: 'Actif',
+      bLookTweak: 'Retoucher',
+      bLookTry: 'Essayer',
+      bLookDel: 'Retirer',
+      lookActiveLbl: 'Look actif',
+      lookTweaked: 'retouché',
+      famAll: 'Tout',
+      famSobre: 'Sobres',
+      famBroadcast: 'Broadcast',
+      famStream: 'Pour le stream',
+      descArena: 'L’origine. Plaques biseautées, italiques lourds, halos d’équipe.',
+      descConsole: 'Terminal à phosphore. Chasse fixe, cadres d’un pixel, scanlines.',
+      descPapier: 'Imprimé clair. Empattements, filets fins, aucun aplat.',
+      descNeon: 'Verre et enseignes. Coins arrondis, panneaux floutés, halos.',
+      descBrut: 'Brutaliste. Cadres de trois pixels, ombres décalées, typo énorme.',
+      descCalme: 'Rien que le contenu. Ni cadre ni biseau, de l’air et des filets.',
+      myLooksEmpty: 'Aucun look enregistré. Règle tes couleurs, puis crée-en un.',
+      lookFromCode: 'Look collé',
+      lookBadCode: 'Code illisible. Colle le code entier, il commence par RLST-.',
+      lookNamePrompt: 'Nom du look ?',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1378,6 +1517,38 @@
       hintObsAnim: 'These two settings apply to the overlay served to OBS. The banner covers the whole source during the celebration: turn it off if your source fills the screen. No sound ever leaves the overlay.',
       hintObsClassicUse: 'In OBS: Sources → + → Browser, paste the URL above (860 × 220 recommended). This bar shows your session, streak and live score. Local only: nothing is exposed to the internet.',
       hintObsUse: 'In OBS: Sources → + → Browser, paste the URL above, and untick “Shutdown source when not visible” — otherwise your session restarts on every scene change. Transparent background is automatic, no colour filter needed. Local only: nothing is exposed to the internet.',
+      navLooks: 'Skins',
+      subLooks: 'A skin carries the shape and the palette. Try it, apply it, tweak it.',
+      hMyLooks: 'My looks',
+      hintMyLooks: 'A look keeps the skin AND the colours as you set them, under a name. The code pastes into another install — that is how a look is shared.',
+      bLookSave: 'Create a look from the current one',
+      bLookCopy: 'Copy the code',
+      bLookPaste: 'Paste a code',
+      tryLive: 'Live preview',
+      bTryCancel: 'Cancel (Esc)',
+      bTryApply: 'Apply',
+      tagSessionPrev: 'Session',
+      prevWinrate: 'win rate',
+      lookOn: 'Active',
+      bLookTweak: 'Tweak',
+      bLookTry: 'Try',
+      bLookDel: 'Remove',
+      lookActiveLbl: 'Active look',
+      lookTweaked: 'tweaked',
+      famAll: 'All',
+      famSobre: 'Quiet',
+      famBroadcast: 'Broadcast',
+      famStream: 'For streaming',
+      descArena: 'The original. Chamfered plates, heavy italics, team halos.',
+      descConsole: 'Phosphor terminal. Monospace, one-pixel frames, scanlines.',
+      descPapier: 'Light print. Serifs, hairlines, no flat colour.',
+      descNeon: 'Glass and signs. Rounded corners, blurred panels, halos.',
+      descBrut: 'Brutalist. Three-pixel frames, offset shadows, huge type.',
+      descCalme: 'Content only. No frame, no chamfer, air and hairlines.',
+      myLooksEmpty: 'No saved look yet. Set your colours, then create one.',
+      lookFromCode: 'Pasted look',
+      lookBadCode: 'Unreadable code. Paste the whole thing, it starts with RLST-.',
+      lookNamePrompt: 'Look name?',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -1451,6 +1622,15 @@
     { id: 'brut',    name: 'Brut',     t: { win: '#00e0ff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
     { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
   ];
+  // Familles, pour filtrer : un habillage peut en porter plusieurs.
+  var SKIN_META = {
+    arena:   { fam: ['broadcast'], desc: 'descArena' },
+    console: { fam: ['stream'],    desc: 'descConsole' },
+    papier:  { fam: ['sobre'],     desc: 'descPapier' },
+    neon:    { fam: ['broadcast', 'stream'], desc: 'descNeon' },
+    brut:    { fam: ['stream'],    desc: 'descBrut' },
+    calme:   { fam: ['sobre'],     desc: 'descCalme' },
+  };
   function skinById(id) {
     for (var i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
     return SKINS[0];
@@ -1461,6 +1641,8 @@
       document.documentElement.dataset.skin = s.id;
     }
   }
+  // Habillage essayé depuis la vitrine, poussé par le processus principal.
+  var lookPreview = null;
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1481,6 +1663,229 @@
     s.setProperty('--panel2', mix(t.bg, toward, .10));
     s.setProperty('--line', mix(t.bg, toward, .22));
   }
+  // ─────────── Vitrine des habillages ───────────
+  // L'essayage applique l'habillage PARTOUT (cette fenêtre, le dashboard,
+  // l'overlay) sans rien enregistrer : c'est le processus principal qui
+  // rediffuse l'aperçu. Annuler remet la configuration réelle.
+  var tryLook = null;          // { skin, theme, name } pendant un aperçu
+  var lookFilter = 'all';
+
+  function currentLook() {
+    var cfg = (cur && cur.config) || {};
+    return { skin: skinById(cfg.skin).id, theme: Object.assign({}, THEME_DEFAULT, cfg.theme || {}) };
+  }
+  // « Retouché » : la palette ne correspond plus à celle de l'habillage.
+  function isTweaked(look) {
+    var base = skinById(look.skin).t;
+    return ['win', 'loss', 'bg', 'gold'].some(function (k) {
+      return String(look.theme[k]).toLowerCase() !== String(base[k]).toLowerCase();
+    });
+  }
+
+  // Vignette : les VRAIES classes de l'application dans un conteneur qui
+  // porte l'habillage et sa palette. Ce que tu vois est ce que tu auras.
+  function lookThumb(look) {
+    var d = document.createElement('div');
+    d.className = 'look-prev';
+    d.dataset.skin = look.skin;
+    var t = look.theme;
+    d.style.setProperty('--blue', t.win);
+    d.style.setProperty('--orange', t.loss);
+    d.style.setProperty('--gold', t.gold);
+    d.style.setProperty('--bg', t.bg);
+    var light = isLight(t.bg);
+    var toward = light ? '#000000' : '#ffffff';
+    d.style.setProperty('--text', light ? '#12161c' : '#e3e8ef');
+    d.style.setProperty('--muted', light ? '#5b6472' : '#8b93a1');
+    d.style.setProperty('--panel', mix(t.bg, toward, .055));
+    d.style.setProperty('--panel2', mix(t.bg, toward, .10));
+    d.style.setProperty('--line', mix(t.bg, toward, .22));
+    d.innerHTML = '<div class="card"><div class="tag"><span>' + T.tagSessionPrev + '</span></div>'
+      + '<div class="wl"><span class="w">8</span><span class="sep">–</span><span class="l">4</span></div>'
+      + '<div class="plabel">67 % ' + T.prevWinrate + '</div></div>';
+    return d;
+  }
+
+  function lookCard(look, opts) {
+    var o = opts || {};
+    var el = document.createElement('div');
+    el.className = 'look-item' + (o.active ? ' on' : '');
+    el.appendChild(lookThumb(look));
+    var body = document.createElement('div');
+    body.className = 'look-body';
+    var name = document.createElement('div');
+    name.className = 'look-name';
+    name.textContent = o.name || skinById(look.skin).name;
+    if (o.active) {
+      var b = document.createElement('span');
+      b.className = 'badge-on';
+      b.textContent = T.lookOn;
+      name.appendChild(b);
+    }
+    body.appendChild(name);
+    var desc = document.createElement('div');
+    desc.className = 'look-desc';
+    desc.textContent = o.desc || '';
+    body.appendChild(desc);
+    var btns = document.createElement('div');
+    btns.className = 'look-btns';
+    var main = document.createElement('button');
+    main.className = 'ghost';
+    main.textContent = o.active ? T.bLookTweak : T.bLookTry;
+    main.onclick = function () {
+      if (o.active) { showSection('display'); return; }
+      startTry(look, o.name || skinById(look.skin).name);
+    };
+    btns.appendChild(main);
+    if (o.onDelete) {
+      var del = document.createElement('button');
+      del.className = 'ghost danger';
+      del.textContent = T.bLookDel;
+      del.onclick = o.onDelete;
+      btns.appendChild(del);
+    }
+    body.appendChild(btns);
+    el.appendChild(body);
+    return el;
+  }
+
+  function renderLooks() {
+    if (!cur) return;
+    var cfg = cur.config || {};
+    var live = tryLook || currentLook();
+    var activeName = skinById(live.skin).name;
+    var la = $('lookActive');
+    la.textContent = T.lookActiveLbl + ' ';
+    var strong = document.createElement('b');
+    strong.textContent = activeName;
+    la.appendChild(strong);
+    if (isTweaked(live)) la.appendChild(document.createTextNode(' (' + T.lookTweaked + ')'));
+
+    // Filtres
+    var fbox = $('lookFilters');
+    fbox.innerHTML = '';
+    [['all', T.famAll], ['sobre', T.famSobre], ['broadcast', T.famBroadcast], ['stream', T.famStream]]
+      .forEach(function (f) {
+        var b = document.createElement('button');
+        b.className = 'chip' + (lookFilter === f[0] ? ' on' : '');
+        var sp = document.createElement('span');
+        sp.textContent = f[1];
+        b.appendChild(sp);
+        b.onclick = function () { lookFilter = f[0]; renderLooks(); };
+        fbox.appendChild(b);
+      });
+
+    // Habillages livrés
+    var grid = $('lookGrid');
+    grid.innerHTML = '';
+    SKINS.forEach(function (sk) {
+      var meta = SKIN_META[sk.id] || { fam: [], desc: '' };
+      if (lookFilter !== 'all' && meta.fam.indexOf(lookFilter) === -1) return;
+      var isOn = live.skin === sk.id && !tryLook;
+      // La vignette montre l'habillage avec SA palette, sauf pour celui qui
+      // est actif : là on montre les couleurs réelles, retouches comprises.
+      var shown = isOn ? live : { skin: sk.id, theme: sk.t };
+      grid.appendChild(lookCard(shown, { active: isOn, desc: T[meta.desc] || '' }));
+    });
+
+    // Looks enregistrés
+    var mine = $('myLookGrid');
+    mine.innerHTML = '';
+    (cfg.looks || []).forEach(function (l) {
+      var look = { skin: skinById(l.skin).id, theme: Object.assign({}, THEME_DEFAULT, l.theme || {}) };
+      mine.appendChild(lookCard(look, {
+        name: l.name,
+        desc: skinById(l.skin).name + (isTweaked(look) ? ' · ' + T.lookTweaked : ''),
+        onDelete: function () {
+          var next = (cur.config.looks || []).filter(function (x) { return x.id !== l.id; });
+          api.setConfig && api.setConfig({ looks: next });
+        },
+      }));
+    });
+    if (!(cfg.looks || []).length) {
+      var empty = document.createElement('div');
+      empty.className = 'hint';
+      empty.textContent = T.myLooksEmpty;
+      mine.appendChild(empty);
+    }
+  }
+
+  // ── Essayage : appliqué partout, enregistré nulle part.
+  function startTry(look, name) {
+    tryLook = { skin: look.skin, theme: look.theme };
+    applySkin(look.skin);
+    applyTheme(look.theme);
+    api.previewLook && api.previewLook(tryLook);
+    $('tryName').textContent = name;
+    $('tryBar').classList.add('on');
+    renderLooks();
+  }
+  function endTry(apply) {
+    if (!tryLook) return;
+    var look = tryLook;
+    tryLook = null;
+    $('tryBar').classList.remove('on');
+    api.previewLook && api.previewLook(null);
+    if (apply) {
+      api.setConfig && api.setConfig({ skin: look.skin, theme: look.theme });
+    } else if (cur && cur.config) {
+      applySkin(cur.config.skin);
+      applyTheme(cur.config.theme);
+    }
+    renderLooks();
+  }
+  $('tryApply').onclick = function () { endTry(true); };
+  $('tryCancel').onclick = function () { endTry(false); };
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && tryLook) { e.preventDefault(); endTry(false); }
+  });
+
+  // ── Codes de partage : un look tient dans une chaîne collable.
+  function lookToCode(look) {
+    var payload = JSON.stringify({ v: 1, s: look.skin, t: look.theme });
+    return 'RLST-' + btoa(unescape(encodeURIComponent(payload)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function codeToLook(code) {
+    var raw = String(code || '').trim().replace(/^RLST-/i, '')
+      .replace(/-/g, '+').replace(/_/g, '/');
+    var json = decodeURIComponent(escape(atob(raw)));
+    var d = JSON.parse(json);
+    if (!d || !d.s || !d.t) throw new Error('bad');
+    var theme = {};
+    ['win', 'loss', 'bg', 'gold'].forEach(function (k) {
+      if (!/^#[0-9a-f]{6}$/i.test(String(d.t[k]))) throw new Error('bad');
+      theme[k] = String(d.t[k]).toLowerCase();
+    });
+    return { skin: skinById(d.s).id, theme: theme };
+  }
+  $('lookCopy').onclick = function () {
+    var el = $('lookCode');
+    el.value = lookToCode(tryLook || currentLook());
+    el.select();
+    try { document.execCommand('copy'); } catch (e) {}
+  };
+  $('lookPaste').onclick = function () {
+    var err = $('lookErr');
+    err.style.display = 'none';
+    try {
+      var look = codeToLook($('lookCode').value);
+      startTry(look, T.lookFromCode);
+    } catch (e) {
+      err.textContent = T.lookBadCode;
+      err.style.display = 'block';
+    }
+  };
+  $('lookSave').onclick = function () {
+    var live = tryLook || currentLook();
+    var name = window.prompt(T.lookNamePrompt, skinById(live.skin).name);
+    if (!name) return;
+    var looks = ((cur && cur.config && cur.config.looks) || []).slice(0, 23);
+    looks.push({ id: 'l' + Date.now().toString(36), name: String(name).slice(0, 40),
+      skin: live.skin, theme: live.theme });
+    api.setConfig && api.setConfig({ looks: looks });
+  };
+
   // Pastilles d'habillage : chaque clic pose le skin ET sa palette. La
   // sélection courante est marquée par render(), pas ici.
   SKINS.forEach(function (sk) {
@@ -1610,12 +2015,18 @@
     renderHotkey(s.hotkey);
 
     // Apparence + mini-overlay (sans écraser une saisie en cours).
-    applySkin(cfg.skin);
-    applyTheme(cfg.theme);
-    var cur = skinById(cfg.skin).id;
+    // Un aperçu en cours l'emporte sur la configuration enregistrée : c'est
+    // tout l'intérêt d'essayer avant d'appliquer.
+    if (lookPreview) { applySkin(lookPreview.skin); applyTheme(lookPreview.theme); }
+    else { applySkin(cfg.skin); applyTheme(cfg.theme); }
+    // NE PAS nommer cette variable `cur` : `var` est hissé à la portée de la
+    // fonction, donc `cur = s` en tête de render() alimentait CETTE variable
+    // locale et l'état global restait nul pour tout le reste du fichier.
+    var curSkin = skinById(cfg.skin).id;
     Array.prototype.forEach.call(document.querySelectorAll('.skin-chip'), function (b) {
-      b.classList.toggle('on', b.dataset.skin === cur);
+      b.classList.toggle('on', b.dataset.skin === curSkin);
     });
+    renderLooks();
     var th = Object.assign({}, THEME_DEFAULT, cfg.theme || {});
     [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
       .forEach(function (pair) {
@@ -2733,9 +3144,14 @@
   };
 
   // ─── État live ───
+  if (api.onLookPreview) {
+    api.onLookPreview(function (l) {
+      lookPreview = l;
+      if (cur) render(cur);
+    });
+  }
   if (api.onState) api.onState(render);
   if (api.getState) api.getState().then(render);
 })();
-</script>
-</body>
+</script></body>
 </html>

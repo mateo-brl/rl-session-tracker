@@ -22,6 +22,10 @@ contextBridge.exposeInMainWorld('rl', {
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   openControl: (section) => ipcRenderer.send('open-control', section),
+  // Essayage d'un habillage : appliqué dans toutes les fenêtres, enregistré
+  // nulle part. `null` remet la configuration réelle.
+  previewLook: (look) => ipcRenderer.send('preview-look', look),
+  onLookPreview: (cb) => ipcRenderer.on('look-preview', (_e, l) => cb(l)),
   onGotoSection: (cb) => ipcRenderer.on('goto-section', (_e, s) => cb(s)),
   openOverlayComposer: () => ipcRenderer.send('open-overlay-composer'),
   closeDashboard: () => ipcRenderer.send('close-dashboard'),
