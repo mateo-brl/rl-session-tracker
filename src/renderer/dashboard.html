@@ -284,20 +284,20 @@
      déplacée / redimensionnée / masquée en mode « Personnaliser ». */
   main { flex:1; min-height:0; padding:18px 26px 22px; }
   #canvas { position:relative; width:100%; height:100%; }
-  #canvas .card { position:absolute; }
+  #canvas .card { position:absolute; overflow:hidden; }
 
   /* Repli en colonne dès que la fenêtre est plus haute que large, ou trop
      étroite pour deux colonnes. Les hauteurs en pourcentage n'ont plus de sens
      ici : chaque bloc prend la hauteur de son contenu, dans l'ordre de la
      disposition (haut vers le bas, puis gauche vers la droite). */
-  @media (max-aspect-ratio: 1/1), (max-width: 900px) {
+  @media (max-aspect-ratio: 4/3), (max-width: 1000px), (max-height: 700px) {
     main { overflow-y:auto; }
     #canvas {
       display:flex; flex-direction:column; gap:14px;
       height:auto; min-height:100%; padding-bottom:14px;
     }
     #canvas .card {
-      position:static !important;
+      position:static !important; overflow:visible;
       left:auto !important; top:auto !important;
       width:100% !important; height:auto !important;
       min-height:var(--stack-min, 128px);
@@ -384,6 +384,45 @@
   }
   .ghost-chip > span { display:inline-block; transform:skewX(14deg); }
   .ghost-chip:hover { border-color:var(--blue); color:var(--text); }
+
+  /* ─── En écoute ───
+     Pochette à gauche, titre et télécommande à droite. Les boutons restent
+     gros : on les vise depuis le canapé, souvent sans lâcher la manette. */
+  .music-wrap { display:flex; gap:14px; align-items:center; min-height:0; flex:1; }
+  .music-art {
+    width:92px; height:92px; flex:0 0 auto; background:var(--panel2) center/cover no-repeat;
+    border:1px solid var(--line);
+  }
+  .music-meta { min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; }
+  .music-title {
+    font-size:19px; font-weight:800; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .music-artist {
+    font-size:13px; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .music-bar { height:5px; background:var(--panel2); margin-top:5px; overflow:hidden; }
+  .music-bar i { display:block; height:100%; width:0; background:var(--blue); }
+  .music-time {
+    display:flex; justify-content:space-between;
+    font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;
+  }
+  .music-ctl { display:flex; align-items:center; gap:8px; margin-top:7px; }
+  .music-ctl button {
+    font:inherit; font-size:17px; line-height:1; cursor:pointer;
+    color:var(--text); background:var(--panel2);
+    border:1px solid var(--line); padding:5px 11px;
+  }
+  .music-ctl button:hover { border-color:var(--blue); }
+  .music-vol { display:flex; align-items:center; gap:6px; margin-left:auto; }
+  .music-vol .vico { font-size:13px; color:var(--muted); }
+  .music-vol input { width:96px; accent-color:var(--blue); cursor:pointer; }
+  .music-err { font-size:11.5px; color:var(--orange); min-height:14px; }
+  .music-off {
+    display:none; flex:1; align-items:center; justify-content:center;
+    color:var(--muted); font-size:15px;
+  }
 
   /* ─── Bilan de session ─── */
   .hero { }
@@ -1130,6 +1169,32 @@
       <div class="streak-banner" id="unknownBadge"><span id="unknownTxt"></span></div>
     </section>
 
+    <!-- En écoute (Spotify) : le son sort de TON Spotify, ce bloc le lit et
+         le pilote. Masqué tant qu'aucun compte n'est connecté. -->
+    <section class="card music">
+      <div class="tag"><span data-i18n="tagMusic">En écoute</span></div>
+      <div class="music-wrap" id="musicWrap">
+        <div class="music-art" id="musicArt"></div>
+        <div class="music-meta">
+          <div class="music-title" id="musicTitle"></div>
+          <div class="music-artist" id="musicArtist"></div>
+          <div class="music-bar"><i id="musicProg"></i></div>
+          <div class="music-time"><span id="musicPos"></span><span id="musicDur"></span></div>
+          <div class="music-ctl">
+            <button id="musPrev" title="Précédent">⏮</button>
+            <button id="musPlay" title="Lecture / pause">⏯</button>
+            <button id="musNext" title="Suivant">⏭</button>
+            <span class="music-vol">
+              <span class="vico">🔊</span>
+              <input type="range" id="musVol" min="0" max="100" step="5" />
+            </span>
+          </div>
+          <div class="music-err" id="musicErr"></div>
+        </div>
+      </div>
+      <div class="music-off" id="musicOff" data-i18n="musicOff">Rien en lecture.</div>
+    </section>
+
     <!-- Par mode -->
     <section class="card modes">
       <div class="tag"><span data-i18n="tagModes">Par mode</span></div>
@@ -1377,6 +1442,8 @@
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Buts', assists: 'Passes', saves: 'Arrêts', shots: 'Tirs', mvps: 'MVP' },
       settings: 'Réglages',
       kvMmrNet: 'MMR sur la session',
+      tagMusic: 'En écoute',
+      musicOff: 'Rien en lecture.',
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
@@ -1433,7 +1500,8 @@
       goalReached: 'Objectif atteint !', goalNeg: 'Remonte la pente…',
       goalLeft: function (n) { return 'Encore +' + n; },
       widgets: { hero: 'Session', modes: 'Par mode', live: 'Match', evo: 'Évolution',
-        totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif' },
+        totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif',
+        music: 'En écoute' },
       h2h: function (w, l) { return w + 'V – ' + l + 'D'; },
       h2hTip: 'Déjà croisé — ton bilan contre ce joueur',
       // Lettres des pastilles de résultat (historique + boutons de
@@ -1461,6 +1529,8 @@
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Goals', assists: 'Assists', saves: 'Saves', shots: 'Shots', mvps: 'MVP' },
       settings: 'Settings',
       kvMmrNet: 'MMR this session',
+      tagMusic: 'Now playing',
+      musicOff: 'Nothing playing.',
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
@@ -1506,7 +1576,8 @@
       goalReached: 'Goal reached!', goalNeg: 'Climb back up…',
       goalLeft: function (n) { return '+' + n + ' to go'; },
       widgets: { hero: 'Session', modes: 'Modes', live: 'Match', evo: 'Evolution',
-        totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal' },
+        totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal',
+        music: 'Now playing' },
       h2h: function (w, l) { return w + 'W – ' + l + 'L'; },
       h2hTip: 'Seen before — your record against this player',
       resW: 'W', resL: 'L',
@@ -1645,7 +1716,7 @@
 
   // ─── Widgets : disposition libre, mémorisée ───
   var WIDGET_LABELS = {
-    hero: 'Session', modes: 'Par mode', live: 'Match',
+    hero: 'Session', modes: 'Par mode', live: 'Match', music: 'En écoute',
     evo: 'Évolution', totals: 'Stats', history: 'Historique',
     clockw: 'Horloge', goalw: 'Objectif',
   };
@@ -1660,6 +1731,7 @@
     totals: { x: 0, y: 85, w: 55, h: 15 },
     history: { x: 56, y: 42, w: 44, h: 58 },
     // Widgets bonus : masqués par défaut, à activer via « Personnaliser ».
+    music: { x: 56, y: 76, w: 44, h: 24 },
     clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
     goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
   };
@@ -1674,6 +1746,7 @@
     evo: { x: 0, y: 57, w: 100, h: 16 },
     history: { x: 0, y: 74, w: 100, h: 18 },
     totals: { x: 0, y: 93, w: 100, h: 7 },
+    music: { x: 0, y: 86, w: 100, h: 14 },
     clockw: { x: 0, y: 93, w: 40, h: 7, hidden: true },
     goalw: { x: 60, y: 93, w: 40, h: 7, hidden: true },
   };
@@ -1687,6 +1760,7 @@
     evo: { x: 47, y: 34, w: 53, h: 32, hidden: true },
     totals: { x: 0, y: 90, w: 100, h: 10, hidden: true },
     history: { x: 0, y: 24, w: 46, h: 50, hidden: true },
+    music: { x: 0, y: 74, w: 46, h: 24 },
     clockw: { x: 0, y: 76, w: 20, h: 22, hidden: true },
     goalw: { x: 22, y: 76, w: 24, h: 22, hidden: true },
   };
@@ -2233,6 +2307,7 @@
       : net > 0 ? 'var(--blue)' : net < 0 ? 'var(--orange)' : 'var(--text)';
     if (wantRing) renderWinrateRing(ses);
     renderPips(wantPips ? (s.history || []) : []);
+    renderMusic(s.spotify);
     renderEvolution(s);
     renderGoal(ses, cfg);
 
@@ -2403,6 +2478,61 @@
       + '<path class="fill" d="' + fill + '"></path>'
       + '<path class="ln" d="' + d + '"></path></svg>';
   }
+
+  // ─── En écoute ───
+  // L'état vient du processus principal (sondage Spotify). La barre de
+  // progression avance toute seule entre deux sondages : sans ça, elle
+  // sauterait de quatre secondes en quatre secondes.
+  var musicLocal = null;
+  function fmtMs(ms) {
+    var t = Math.max(0, Math.round(Number(ms) / 1000));
+    return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0');
+  }
+  function renderMusic(sp) {
+    var card = widgetEl('music');
+    if (!card) return;
+    var on = !!(sp && sp.connected);
+    // Bloc jamais montré tant que Spotify n'est pas connecté : un bloc vide
+    // sur un dashboard n'apprend rien.
+    if (!on) { card.style.display = 'none'; return; }
+    if (layout.music && layout.music.hidden) { card.style.display = 'none'; return; }
+    card.style.display = 'flex';
+    var n = sp.now;
+    musicLocal = n ? Object.assign({}, n) : null;
+    $('musicWrap').style.display = n ? 'flex' : 'none';
+    $('musicOff').style.display = n ? 'none' : 'flex';
+    $('musicErr').textContent = sp.error || '';
+    if (!n) return;
+    $('musicArt').style.backgroundImage = n.art ? 'url("' + n.art + '")' : 'none';
+    $('musicTitle').textContent = n.title || '';
+    $('musicArtist').textContent = n.artist || '';
+    $('musPlay').textContent = n.playing ? '⏸' : '▶';
+    var vol = $('musVol');
+    if (n.volume != null && document.activeElement !== vol) vol.value = n.volume;
+    vol.style.display = n.volume == null ? 'none' : '';
+    tickMusic();
+  }
+  function tickMusic() {
+    var n = musicLocal;
+    if (!n || !n.durationMs) return;
+    var pos = n.progressMs + (n.playing ? Date.now() - n.at : 0);
+    pos = Math.min(pos, n.durationMs);
+    $('musicProg').style.width = (pos / n.durationMs * 100) + '%';
+    $('musicPos').textContent = fmtMs(pos);
+    $('musicDur').textContent = fmtMs(n.durationMs);
+  }
+  setInterval(tickMusic, 500);
+  function musCmd(cmd, value) {
+    if (!api.spotifyCommand) return;
+    api.spotifyCommand(cmd, value).then(function (r) {
+      $('musicErr').textContent = (r && r.ok === false && r.error) ? r.error : '';
+    });
+  }
+  $('musPrev').onclick = function () { musCmd('previous'); };
+  $('musNext').onclick = function () { musCmd('next'); };
+  $('musPlay').onclick = function () { musCmd('toggle'); };
+  $('musVol').oninput = function () { $('musicErr').textContent = ''; };
+  $('musVol').onchange = function () { musCmd('volume', Number($('musVol').value)); };
 
   function renderEvolution(s) {
     var evo = s.evolution || {};

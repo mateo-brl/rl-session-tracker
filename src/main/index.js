@@ -19,6 +19,7 @@ const discord = require('./discord-rpc');
 const obs = require('./obs-server');
 const sos = require('./sos-bridge');
 const SessionStore = require('./session');
+const Spotify = require('./spotify');
 const { MMR_STEP_MIN, MMR_STEP_MAX } = SessionStore;
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
@@ -44,6 +45,7 @@ process.on('unhandledRejection', (e) => log('unhandledRejection : ' + (e && (e.m
 
 // ───────── État partagé, poussé aux fenêtres ─────────
 let store = null;
+let spotify = null;
 let tray = null;
 let cosmetics = null;   // swaps cosmétiques (seul module qui touche aux fichiers du jeu)
 
@@ -192,6 +194,7 @@ function pushState() {
   state.config = config.get();
   state.lang = resolveLang();
   state.sos = sos.status();   // le serveur démarre en asynchrone : on relit
+  state.spotify = spotify ? spotify.status() : null;
   refreshCosmetics();
 
   refreshH2h();
@@ -885,6 +888,15 @@ ipcMain.on('preview-look', (_e, look) => {
   windows.broadcast('look-preview', clean);
 });
 
+ipcMain.handle('spotify-set-client', (_e, id) =>
+  (spotify ? spotify.setClientId(id) : { ok: false, error: 'indisponible' }));
+ipcMain.handle('spotify-connect', () =>
+  (spotify ? spotify.connect() : { ok: false, error: 'indisponible' }));
+ipcMain.handle('spotify-disconnect', () =>
+  (spotify ? spotify.disconnect() : { ok: false, error: 'indisponible' }));
+ipcMain.handle('spotify-command', (_e, cmd, value) =>
+  (spotify ? spotify.command(String(cmd || ''), value) : { ok: false, error: 'indisponible' }));
+
 ipcMain.on('open-control', (_e, section) => {
   windows.showControl();
   const w = windows.getControl();
@@ -980,6 +992,15 @@ if (!gotLock) {
     const firstRun = !configExists();
     config.init(app.getPath('userData'));
     store = new SessionStore(app.getPath('userData'));
+    // Télécommande Spotify : le son sort de l'application Spotify de
+    // l'utilisateur, celle-ci le lit et le pilote. Rien ne démarre tant
+    // qu'aucun compte n'est connecté.
+    spotify = new Spotify(app.getPath('userData'), {
+      log,
+      openExternal: (url) => { try { shell.openExternal(url); } catch (e) {} },
+      onUpdate: () => { state.spotify = spotify.status(); pushState(); },
+    });
+    spotify.start();
     cosmetics = new Cosmetics(app.getPath('userData'), {
       detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
       isGameRunning: () => !!state.game.processRunning,

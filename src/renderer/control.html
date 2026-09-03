@@ -903,6 +903,30 @@
             uniquement : rien n'est exposé à internet.</div>
         </details>
 
+        <!-- Spotify : télécommande, pas lecteur. L'API Web de Spotify ne
+             diffuse pas d'audio vers une application tierce ; le son continue
+             de sortir de l'application Spotify de l'utilisateur. -->
+        <div class="card">
+          <h2 data-i18n="hSpotify">Spotify</h2>
+          <div class="hint" data-i18n="hintSpotify">Le bloc « En écoute » du dashboard et de l'overlay affiche le morceau en cours et le pilote : précédent, lecture/pause, suivant, volume. Le son reste joué par ton application Spotify — aucune API ne permet de le diffuser ici.</div>
+          <div id="spoOff">
+            <label class="field"><span data-i18n="lSpoClient">Identifiant client</span>
+              <input type="text" id="spoClient" placeholder="32 caractères" /></label>
+            <div class="hint" data-i18n="hintSpoSetup">Crée une application sur developer.spotify.com (gratuit), colle son « Client ID » ici, et ajoute exactement cette adresse de redirection dans ses réglages :</div>
+            <div class="duo">
+              <input type="text" id="spoRedirect" readonly />
+              <button class="ghost" style="margin-top:0" id="spoCopyRedirect" data-i18n="bCopy">Copier l'URL</button>
+            </div>
+            <button class="primary" id="spoConnect" data-i18n="bSpoConnect">Connecter mon compte Spotify</button>
+          </div>
+          <div id="spoOn" style="display:none">
+            <div class="hint" id="spoNow"></div>
+            <button class="ghost danger" id="spoDisconnect" data-i18n="bSpoDisconnect">Déconnecter</button>
+          </div>
+          <div class="hint warn" id="spoErr" style="display:none"></div>
+          <div class="hint" data-i18n="hintSpoPremium">Précédent, pause, suivant et volume passent par l'API de contrôle, réservée aux comptes Premium. L'affichage du morceau en cours fonctionne aussi en gratuit.</div>
+        </div>
+
         <!-- Pont compatible SOS : fonctionnalité de niche pour streamers dont
              l'overlay de diffusion a été écrit avant l'arrivée d'Easy
              Anti-Cheat (avril 2026) pour le défunt plugin SOS. Le pont
@@ -1359,6 +1383,15 @@
       bTuneReset: 'Réinitialiser',
       tuneTrying: 'Atelier',
       hColors: 'Couleurs',
+      hSpotify: 'Spotify',
+      hintSpotify: 'Le bloc « En écoute » du dashboard et de l’overlay affiche le morceau en cours et le pilote : précédent, lecture/pause, suivant, volume. Le son reste joué par ton application Spotify — aucune API ne permet de le diffuser ici.',
+      lSpoClient: 'Identifiant client',
+      hintSpoSetup: 'Crée une application sur developer.spotify.com (gratuit), colle son « Client ID » ici, et ajoute exactement cette adresse de redirection dans ses réglages :',
+      bSpoConnect: 'Connecter mon compte Spotify',
+      bSpoDisconnect: 'Déconnecter',
+      hintSpoPremium: 'Précédent, pause, suivant et volume passent par l’API de contrôle, réservée aux comptes Premium. L’affichage du morceau en cours fonctionne aussi en gratuit.',
+      spoIdle: 'Connecté. Rien en lecture pour l’instant.',
+      spoPlaying: function (t, a, d) { return 'En lecture : ' + t + ' — ' + a + (d ? ' (' + d + ')' : ''); },
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1603,6 +1636,15 @@
       bTuneReset: 'Reset',
       tuneTrying: 'Workshop',
       hColors: 'Colours',
+      hSpotify: 'Spotify',
+      hintSpotify: 'The dashboard and overlay “Now playing” block shows the current track and controls it: previous, play/pause, next, volume. Sound keeps coming from your Spotify app — no API can stream it here.',
+      lSpoClient: 'Client ID',
+      hintSpoSetup: 'Create an app on developer.spotify.com (free), paste its Client ID here, and add exactly this redirect URI in its settings:',
+      bSpoConnect: 'Connect my Spotify account',
+      bSpoDisconnect: 'Disconnect',
+      hintSpoPremium: 'Previous, pause, next and volume go through the control API, which requires Premium. Showing the current track works on free accounts too.',
+      spoIdle: 'Connected. Nothing playing right now.',
+      spoPlaying: function (t, a, d) { return 'Playing: ' + t + ' — ' + a + (d ? ' (' + d + ')' : ''); },
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -2174,6 +2216,7 @@
       applyTune(cfg.tune);
     }
     renderLooks();
+    renderSpotify(s.spotify);
     tuneToUI(tryLook ? tryLook.tune : cfg.tune);
     var th = Object.assign({}, THEME_DEFAULT, cfg.theme || {});
     [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
@@ -3113,6 +3156,50 @@
     var el = $('obsUrlClassic');
     el.select();
     try { document.execCommand('copy'); } catch (e) {}
+  };
+
+  // ─── Spotify ───
+  function renderSpotify(sp) {
+    if (!sp) return;
+    $('spoOff').style.display = sp.connected ? 'none' : 'block';
+    $('spoOn').style.display = sp.connected ? 'block' : 'none';
+    $('spoRedirect').value = sp.redirectUri || '';
+    if (document.activeElement !== $('spoClient') && !$('spoClient').value && sp.configured) {
+      $('spoClient').placeholder = '••••••••';
+    }
+    var err = $('spoErr');
+    err.style.display = sp.error ? 'block' : 'none';
+    err.textContent = sp.error || '';
+    if (sp.connected) {
+      var n = sp.now;
+      $('spoNow').textContent = n
+        ? T.spoPlaying(n.title, n.artist, n.device)
+        : T.spoIdle;
+    }
+  }
+  $('spoCopyRedirect').onclick = function () {
+    var el = $('spoRedirect');
+    el.select();
+    try { document.execCommand('copy'); } catch (e) {}
+  };
+  $('spoConnect').onclick = function () {
+    var b = $('spoConnect');
+    b.disabled = true;
+    var err = $('spoErr');
+    err.style.display = 'none';
+    Promise.resolve(api.spotifySetClient ? api.spotifySetClient($('spoClient').value) : null)
+      .then(function (r) {
+        if (r && r.ok === false) throw new Error(r.error);
+        return api.spotifyConnect();
+      })
+      .then(function (r) {
+        if (r && r.ok === false) { err.textContent = r.error; err.style.display = 'block'; }
+      })
+      .catch(function (e) { err.textContent = e.message; err.style.display = 'block'; })
+      .then(function () { b.disabled = false; });
+  };
+  $('spoDisconnect').onclick = function () {
+    api.spotifyDisconnect && api.spotifyDisconnect();
   };
 
   $('obsCompose').onclick = function () {
