@@ -1,0 +1,280 @@
+/* skins.css — Habillages complets de l'interface.
+ *
+ * Un « thème » de l'application ne changeait jusqu'ici que quatre couleurs.
+ * Un SKIN change la forme : police, découpe des cartes, biseaux, filets,
+ * ombres, casse et fond de page. Il s'applique par un attribut sur la racine
+ * (data-skin) et vaut pour le dashboard ET la fenêtre de configuration, qui
+ * partagent les mêmes classes (.card, .tag, .chip, header…).
+ *
+ * Ce fichier est chargé APRÈS le <style> de chaque fenêtre, et chaque règle
+ * est préfixée par [data-skin="…"] : elle l'emporte donc sans qu'aucune règle
+ * existante n'ait à être touchée. Le skin par défaut, « arena », n'a aucune
+ * règle ici — c'est l'habillage d'origine, intact.
+ *
+ * Les COULEURS restent pilotées par applyTheme() (variables --bg, --blue,
+ * --orange, --gold posées en style inline sur <html>) : choisir un skin
+ * applique sa palette par ce même chemin, et l'utilisateur garde la main
+ * dessus ensuite. Ici, uniquement de la forme.
+ */
+
+/* ─────────── CONSOLE : terminal à phosphore ───────────
+   Tout en chasse fixe, aucun biseau, cadres d'un pixel, balayage de
+   scanlines sur le fond. Les titres deviennent des invites « > ». */
+[data-skin="console"] body {
+  font-family: 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', ui-monospace, monospace;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 3px),
+    var(--bg);
+}
+[data-skin="console"] .cond { font-family: inherit; }
+[data-skin="console"] .card {
+  clip-path: none; border-radius: 0;
+  border: 1px solid var(--blue);
+  background: var(--panel);
+  box-shadow: none;
+}
+[data-skin="console"] .card::after { display: none; }
+[data-skin="console"] .mode { clip-path: none; border-radius: 0; }
+[data-skin="console"] .card::before { height: 1px; background: var(--blue); }
+[data-skin="console"] .tag {
+  transform: none; background: none; border-left: 0;
+  padding: 0 0 8px; margin-bottom: 10px;
+}
+[data-skin="console"] .tag > span {
+  transform: none; font-style: normal; font-family: inherit;
+  font-size: 12px; letter-spacing: .2em;
+}
+[data-skin="console"] .tag > span::before { content: '> '; color: var(--blue); }
+[data-skin="console"] header { background: var(--panel); }
+[data-skin="console"] header::after { height: 1px; }
+[data-skin="console"] .logo,
+[data-skin="console"] .wl .w, [data-skin="console"] .wl .l,
+[data-skin="console"] .mode .mmr-val, [data-skin="console"] .clock,
+[data-skin="console"] .live-score .s0, [data-skin="console"] .live-score .s1 {
+  font-family: inherit; font-style: normal;
+  text-shadow: 0 0 14px currentColor;
+}
+/* Toutes les pastilles inclinées redeviennent des rectangles nets. */
+[data-skin="console"] .logo-plate, [data-skin="console"] .chip,
+[data-skin="console"] .rank-pill, [data-skin="console"] .res-chip,
+[data-skin="console"] .hd-streak, [data-skin="console"] .streak-banner,
+[data-skin="console"] .h2h-chip, [data-skin="console"] .evo-tab,
+[data-skin="console"] .hdr-btn, [data-skin="console"] .ghost-chip,
+[data-skin="console"] .upd-pill, [data-skin="console"] .me-tag {
+  transform: none; border-radius: 0;
+}
+[data-skin="console"] .logo-plate > span, [data-skin="console"] .chip > *,
+[data-skin="console"] .rank-pill > span, [data-skin="console"] .res-chip > span,
+[data-skin="console"] .hd-streak > span, [data-skin="console"] .streak-banner > span,
+[data-skin="console"] .evo-tab > span, [data-skin="console"] .hdr-btn > span,
+[data-skin="console"] .ghost-chip > span, [data-skin="console"] .upd-pill > * {
+  transform: none;
+}
+
+/* ─────────── PAPIER : imprimé clair ───────────
+   Fond crème, texte noir, empattements, filets fins. Aucun aplat de couleur,
+   aucun dégradé : une page de rapport, pas un habillage télé. */
+[data-skin="papier"] body {
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  background: var(--bg);
+}
+[data-skin="papier"] .cond { font-family: inherit; }
+[data-skin="papier"] .card {
+  clip-path: none; border-radius: 2px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  padding: 20px 24px;
+}
+[data-skin="papier"] .card::after { display: none; }
+[data-skin="papier"] .mode { clip-path: none; border-radius: 2px; }
+[data-skin="papier"] .card::before { display: none; }
+[data-skin="papier"] .tag {
+  transform: none; background: none; border-left: 0;
+  border-bottom: 2px solid var(--text);
+  padding: 0 0 6px; margin-bottom: 16px;
+}
+[data-skin="papier"] .tag::after { display: none; }
+[data-skin="papier"] .tag > span {
+  transform: none; font-style: normal; font-weight: 700;
+  font-size: 15px; letter-spacing: .04em; text-transform: none;
+}
+[data-skin="papier"] header {
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+[data-skin="papier"] header::after { height: 2px; }
+[data-skin="papier"] .logo, [data-skin="papier"] .wl .w, [data-skin="papier"] .wl .l,
+[data-skin="papier"] .mode .mmr-val, [data-skin="papier"] .clock,
+[data-skin="papier"] .live-score .s0, [data-skin="papier"] .live-score .s1 {
+  font-family: inherit; font-style: normal; text-shadow: none;
+}
+[data-skin="papier"] .logo-plate, [data-skin="papier"] .chip,
+[data-skin="papier"] .rank-pill, [data-skin="papier"] .res-chip,
+[data-skin="papier"] .hd-streak, [data-skin="papier"] .streak-banner,
+[data-skin="papier"] .h2h-chip, [data-skin="papier"] .evo-tab,
+[data-skin="papier"] .hdr-btn, [data-skin="papier"] .ghost-chip,
+[data-skin="papier"] .upd-pill, [data-skin="papier"] .me-tag {
+  transform: none; border-radius: 2px;
+}
+[data-skin="papier"] .logo-plate > span, [data-skin="papier"] .chip > *,
+[data-skin="papier"] .rank-pill > span, [data-skin="papier"] .res-chip > span,
+[data-skin="papier"] .hd-streak > span, [data-skin="papier"] .streak-banner > span,
+[data-skin="papier"] .evo-tab > span, [data-skin="papier"] .hdr-btn > span,
+[data-skin="papier"] .ghost-chip > span, [data-skin="papier"] .upd-pill > * {
+  transform: none;
+}
+[data-skin="papier"] .tot::before { display: none; }
+
+/* ─────────── NÉON : verre et enseignes ───────────
+   Coins très arrondis, panneaux translucides floutés, halos colorés autour
+   des bordures et des chiffres. */
+[data-skin="neon"] body {
+  background:
+    radial-gradient(90% 70% at 15% -10%, color-mix(in srgb, var(--blue) 26%, transparent), transparent 60%),
+    radial-gradient(80% 60% at 90% 110%, color-mix(in srgb, var(--orange) 24%, transparent), transparent 60%),
+    var(--bg);
+}
+[data-skin="neon"] .card {
+  clip-path: none; border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--blue) 35%, transparent);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45),
+              inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+}
+[data-skin="neon"] .card::after {
+  width: 10px; height: 10px; border-radius: 50%;
+  top: 14px; right: 14px;
+  box-shadow: 0 0 18px 3px var(--blue);
+}
+[data-skin="neon"] .card::before {
+  left: 18px; right: 18px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--orange));
+  filter: blur(.3px);
+}
+[data-skin="neon"] .tag {
+  transform: none; border-radius: 999px; border-left: 0;
+  background: color-mix(in srgb, var(--blue) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
+  padding: 4px 16px;
+}
+[data-skin="neon"] .tag > span { transform: none; letter-spacing: .14em; }
+[data-skin="neon"] header {
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+  backdrop-filter: blur(14px);
+}
+[data-skin="neon"] .wl .w, [data-skin="neon"] .wl .l,
+[data-skin="neon"] .mode .mmr-val, [data-skin="neon"] .live-score .s0,
+[data-skin="neon"] .live-score .s1 {
+  text-shadow: 0 0 26px currentColor, 0 0 6px currentColor;
+}
+[data-skin="neon"] .logo-plate, [data-skin="neon"] .chip,
+[data-skin="neon"] .rank-pill, [data-skin="neon"] .res-chip,
+[data-skin="neon"] .hd-streak, [data-skin="neon"] .streak-banner,
+[data-skin="neon"] .h2h-chip, [data-skin="neon"] .evo-tab,
+[data-skin="neon"] .hdr-btn, [data-skin="neon"] .ghost-chip,
+[data-skin="neon"] .upd-pill, [data-skin="neon"] .me-tag {
+  transform: none; border-radius: 999px;
+}
+[data-skin="neon"] .logo-plate > span, [data-skin="neon"] .chip > *,
+[data-skin="neon"] .rank-pill > span, [data-skin="neon"] .res-chip > span,
+[data-skin="neon"] .hd-streak > span, [data-skin="neon"] .streak-banner > span,
+[data-skin="neon"] .evo-tab > span, [data-skin="neon"] .hdr-btn > span,
+[data-skin="neon"] .ghost-chip > span, [data-skin="neon"] .upd-pill > * {
+  transform: none;
+}
+[data-skin="neon"] .mode { clip-path: none; border-radius: 12px; }
+
+/* ─────────── BRUT : brutaliste ───────────
+   Noir et blanc, cadres de trois pixels, ombres portées franches et
+   décalées, aucune transparence, typographie énorme. */
+[data-skin="brut"] body { background: var(--bg); }
+[data-skin="brut"] .card {
+  clip-path: none; border-radius: 0;
+  border: 3px solid var(--text);
+  background: var(--panel);
+  box-shadow: 7px 7px 0 var(--blue);
+  margin-right: 7px; margin-bottom: 7px;
+}
+[data-skin="brut"] .card::after { display: none; }
+[data-skin="brut"] .card::before { display: none; }
+[data-skin="brut"] .tag {
+  transform: none; border-left: 0; border-radius: 0;
+  background: var(--text); padding: 6px 14px;
+}
+[data-skin="brut"] .tag::after { display: none; }
+[data-skin="brut"] .tag > span {
+  transform: none; color: var(--bg); letter-spacing: .1em; font-size: 15px;
+}
+[data-skin="brut"] header {
+  background: var(--bg); border-bottom: 3px solid var(--text);
+}
+[data-skin="brut"] header::after { display: none; }
+/* La plaque « RL » est peinte en couleur d'accent dans l'habillage d'origine ;
+   ici l'accent EST le blanc du texte, donc on inverse pour rester lisible. */
+[data-skin="brut"] .logo-plate { background: var(--text); border: 0; }
+[data-skin="brut"] .logo-plate > span { color: var(--bg); }
+[data-skin="brut"] .wl .w, [data-skin="brut"] .wl .l {
+  text-shadow: 5px 5px 0 var(--text);
+}
+[data-skin="brut"] .logo-plate, [data-skin="brut"] .chip,
+[data-skin="brut"] .rank-pill, [data-skin="brut"] .res-chip,
+[data-skin="brut"] .hd-streak, [data-skin="brut"] .streak-banner,
+[data-skin="brut"] .h2h-chip, [data-skin="brut"] .evo-tab,
+[data-skin="brut"] .hdr-btn, [data-skin="brut"] .ghost-chip,
+[data-skin="brut"] .upd-pill, [data-skin="brut"] .me-tag {
+  transform: none; border-radius: 0; border: 2px solid var(--text);
+}
+[data-skin="brut"] .logo-plate > span, [data-skin="brut"] .chip > *,
+[data-skin="brut"] .rank-pill > span, [data-skin="brut"] .res-chip > span,
+[data-skin="brut"] .hd-streak > span, [data-skin="brut"] .streak-banner > span,
+[data-skin="brut"] .evo-tab > span, [data-skin="brut"] .hdr-btn > span,
+[data-skin="brut"] .ghost-chip > span, [data-skin="brut"] .upd-pill > * {
+  transform: none;
+}
+[data-skin="brut"] .mode { clip-path: none; border-radius: 0; border: 2px solid var(--text); }
+
+/* ─────────── CALME : rien que le contenu ───────────
+   Ni cadre, ni biseau, ni dégradé. De l'air, des filets d'un pixel, une
+   graisse légère. L'inverse exact de l'habillage d'origine. */
+[data-skin="calme"] body { background: var(--bg); }
+[data-skin="calme"] .card {
+  clip-path: none; border: 0; border-radius: 0;
+  background: transparent; box-shadow: none;
+  padding: 18px 22px;
+  border-top: 1px solid var(--line);
+}
+[data-skin="calme"] .card::after { display: none; }
+[data-skin="calme"] .card::before { display: none; }
+[data-skin="calme"] .tag {
+  transform: none; background: none; border-left: 0;
+  padding: 0; margin-bottom: 18px;
+}
+[data-skin="calme"] .tag::after { display: none; }
+[data-skin="calme"] .tag > span {
+  transform: none; font-style: normal; font-weight: 600;
+  font-size: 12px; letter-spacing: .24em; color: var(--muted);
+}
+[data-skin="calme"] header { background: transparent; }
+[data-skin="calme"] header::after { height: 1px; background: var(--line); }
+[data-skin="calme"] .wl .w, [data-skin="calme"] .wl .l,
+[data-skin="calme"] .mode .mmr-val {
+  font-style: normal; font-weight: 300; text-shadow: none;
+}
+[data-skin="calme"] .logo-plate, [data-skin="calme"] .chip,
+[data-skin="calme"] .rank-pill, [data-skin="calme"] .res-chip,
+[data-skin="calme"] .hd-streak, [data-skin="calme"] .streak-banner,
+[data-skin="calme"] .h2h-chip, [data-skin="calme"] .evo-tab,
+[data-skin="calme"] .hdr-btn, [data-skin="calme"] .ghost-chip,
+[data-skin="calme"] .upd-pill, [data-skin="calme"] .me-tag {
+  transform: none; border-radius: 4px;
+}
+[data-skin="calme"] .logo-plate > span, [data-skin="calme"] .chip > *,
+[data-skin="calme"] .rank-pill > span, [data-skin="calme"] .res-chip > span,
+[data-skin="calme"] .hd-streak > span, [data-skin="calme"] .streak-banner > span,
+[data-skin="calme"] .evo-tab > span, [data-skin="calme"] .hdr-btn > span,
+[data-skin="calme"] .ghost-chip > span, [data-skin="calme"] .upd-pill > * {
+  transform: none;
+}
+[data-skin="calme"] .mode { clip-path: none; border-radius: 6px; }
+[data-skin="calme"] .tot::before { display: none; }
