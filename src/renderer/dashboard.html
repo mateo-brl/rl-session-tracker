@@ -226,7 +226,31 @@
     font-size:12px; line-height:1; cursor:pointer; font-family:inherit;
   }
   .hidebtn:hover { color:var(--orange); border-color:var(--orange); }
-  body.editing .rsz, body.editing .hidebtn { display:block; }
+  /* Réglages du bloc : même famille que la croix, à sa gauche. Ouvre un
+     panneau propre au widget — c'est là que se choisissent, par exemple, les
+     modes affichés par « Par mode ». */
+  .optbtn {
+    display:none; position:absolute; top:4px; right:48px; width:22px; height:22px;
+    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    font-size:12px; line-height:1; cursor:pointer; font-family:inherit;
+  }
+  .optbtn:hover { color:var(--blue); border-color:var(--blue); }
+  body.editing .rsz, body.editing .hidebtn, body.editing .optbtn { display:block; }
+  .optbox {
+    position:absolute; top:30px; right:4px; z-index:30; min-width:172px;
+    background:var(--panel); border:1px solid var(--blue); padding:10px 12px;
+    display:none;
+  }
+  .optbox.open { display:block; }
+  .optbox h4 {
+    font-size:10.5px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:8px;
+  }
+  .optbox label {
+    display:flex; align-items:center; gap:8px; padding:3px 0;
+    font-size:13px; cursor:pointer;
+  }
+  .optbox input { accent-color:var(--blue); }
 
   .hdr-btn {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
@@ -323,6 +347,13 @@
   /* ─── Modes ─── */
   .modes { }
   .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  /* Mode unique : la tuile n'est plus une vignette parmi trois, elle porte le
+     bloc. Chiffres et rang montent en conséquence. */
+  .modes-grid.solo .mode { padding:16px 20px; }
+  .modes-grid.solo .mode .rec { font-size:44px; }
+  .modes-grid.solo .mode .mmr-val { font-size:27px; }
+  .modes-grid.solo .mode .name { font-size:16px; }
+  .modes-grid.solo .spark { height:60px; }
   .mode {
     background:linear-gradient(168deg, var(--panel2), var(--panel) 80%);
     border:1px solid var(--line); border-left:4px solid var(--line);
@@ -1033,12 +1064,12 @@
     <!-- Totaux -->
     <section class="card totals">
       <div class="tag"><span data-i18n="tagTotals">Mes stats de la session</span></div>
-      <div class="totals-grid">
-        <div class="tot"><b id="tGoals">0</b><span data-i18n="ttGoals">Buts</span></div>
-        <div class="tot"><b id="tAssists">0</b><span data-i18n="ttAssists">Passes</span></div>
-        <div class="tot"><b id="tSaves">0</b><span data-i18n="ttSaves">Arrêts</span></div>
-        <div class="tot"><b id="tShots">0</b><span data-i18n="ttShots">Tirs</span></div>
-        <div class="tot"><b id="tMvps">0</b><span>MVP</span></div>
+      <div class="totals-grid" id="totalsGrid">
+        <div class="tot" data-k="goals"><b id="tGoals">0</b><span data-i18n="ttGoals">Buts</span></div>
+        <div class="tot" data-k="assists"><b id="tAssists">0</b><span data-i18n="ttAssists">Passes</span></div>
+        <div class="tot" data-k="saves"><b id="tSaves">0</b><span data-i18n="ttSaves">Arrêts</span></div>
+        <div class="tot" data-k="shots"><b id="tShots">0</b><span data-i18n="ttShots">Tirs</span></div>
+        <div class="tot" data-k="mvps"><b id="tMvps">0</b><span>MVP</span></div>
       </div>
     </section>
 
@@ -1161,6 +1192,11 @@
   }
 
   var MODES = ['1v1', '2v2', '3v3'];
+  // Compteurs du bloc « Mes stats de la session », dans l'ordre d'affichage.
+  var TOTAL_KEYS = ['goals', 'assists', 'saves', 'shots', 'mvps'];
+  // Dernier état reçu : un réglage de widget doit pouvoir redessiner sans
+  // attendre la prochaine poussée du processus principal.
+  var lastState = null;
 
   // ─── Langue (FR / EN) ───
   var I18N = {
@@ -1168,6 +1204,14 @@
       bSessReset: 'Nouvelle session', confirmSessReset: 'Remettre les compteurs de session à zéro ? Les matchs restent au journal.',
       toNext: function (r) { return 'pts avant ' + r; },
       wrTip: function (w, l) { return w + ' victoires, ' + l + ' défaites'; },
+      widgetOpts: 'Réglages du bloc',
+      optModes: 'Modes',
+      optRows: 'lignes',
+      optStats: 'Colonnes de stats',
+      optRing: 'Anneau de winrate',
+      optPips: 'Suite des résultats',
+      optTotals: 'Compteurs',
+      optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Buts', assists: 'Passes', saves: 'Arrêts', shots: 'Tirs', mvps: 'MVP' },
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
@@ -1242,6 +1286,14 @@
       bSessReset: 'New session', confirmSessReset: 'Reset the session counters? Matches stay in the log.',
       toNext: function (r) { return 'pts to ' + r; },
       wrTip: function (w, l) { return w + ' wins, ' + l + ' losses'; },
+      widgetOpts: 'Block settings',
+      optModes: 'Modes',
+      optRows: 'rows',
+      optStats: 'Stat columns',
+      optRing: 'Win-rate ring',
+      optPips: 'Result run',
+      optTotals: 'Counters',
+      optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Goals', assists: 'Assists', saves: 'Saves', shots: 'Shots', mvps: 'MVP' },
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
@@ -1526,6 +1578,97 @@
       box.appendChild(b);
     });
   }
+  // Réglages proposés par widget. Chaque entrée décrit des champs simples ;
+  // le panneau est construit à partir de ça, sans balisage à maintenir en
+  // double. `modes` répond au cas le plus courant : un joueur qui ne fait que
+  // du 1v1 ne veut pas deux tuiles vides à côté.
+  var WIDGET_OPTS = {
+    modes: [{ key: 'modes', type: 'set', values: MODES, label: 'optModes' }],
+    evo: [{ key: 'modes', type: 'set', values: MODES, label: 'optModes' }],
+    history: [
+      { key: 'rows', type: 'num', min: 3, max: 20, label: 'optRows' },
+      { key: 'stats', type: 'bool', label: 'optStats' },
+    ],
+    hero: [
+      { key: 'ring', type: 'bool', label: 'optRing' },
+      { key: 'pips', type: 'bool', label: 'optPips' },
+    ],
+    totals: [{ key: 'stats', type: 'set', values: TOTAL_KEYS, label: 'optTotals' }],
+  };
+  // Valeur d'une option, avec repli sur « tout affiché ».
+  function wopt(id, key, fallback) {
+    var w = layout[id] || {};
+    var o = w.opts || {};
+    return o[key] === undefined ? fallback : o[key];
+  }
+  function setWopt(id, key, value) {
+    if (!layout[id]) return;
+    if (!layout[id].opts) layout[id].opts = {};
+    layout[id].opts[key] = value;
+    saveLayout();
+    if (lastState) render(lastState);
+  }
+  function closeAllOptBoxes() {
+    Array.prototype.forEach.call(document.querySelectorAll('.optbox'), function (b) {
+      b.classList.remove('open');
+    });
+  }
+  document.addEventListener('pointerdown', function () { closeAllOptBoxes(); });
+
+  function buildOptBox(id, box) {
+    var fields = WIDGET_OPTS[id] || [];
+    box.innerHTML = '';
+    var h = document.createElement('h4');
+    h.textContent = T.widgets[id] || WIDGET_LABELS[id] || id;
+    box.appendChild(h);
+    fields.forEach(function (f) {
+      if (f.type === 'set') {
+        var cur = wopt(id, f.key, f.values.slice());
+        f.values.forEach(function (v) {
+          var lab = document.createElement('label');
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = cur.indexOf(v) !== -1;
+          cb.onchange = function () {
+            var next = (wopt(id, f.key, f.values.slice()) || []).slice();
+            var i = next.indexOf(v);
+            if (cb.checked && i === -1) next.push(v);
+            if (!cb.checked && i !== -1) next.splice(i, 1);
+            // Jamais vide : décocher le dernier n'aurait aucun sens, le bloc
+            // deviendrait une carte vide sans moyen d'y revenir.
+            if (!next.length) { cb.checked = true; return; }
+            setWopt(id, f.key, f.values.filter(function (x) { return next.indexOf(x) !== -1; }));
+          };
+          lab.appendChild(cb);
+          lab.appendChild(document.createTextNode(T.optLabels[v] || v));
+          box.appendChild(lab);
+        });
+      } else if (f.type === 'bool') {
+        var lb = document.createElement('label');
+        var b2 = document.createElement('input');
+        b2.type = 'checkbox';
+        b2.checked = wopt(id, f.key, true) !== false;
+        b2.onchange = function () { setWopt(id, f.key, b2.checked); };
+        lb.appendChild(b2);
+        lb.appendChild(document.createTextNode(T[f.label] || f.key));
+        box.appendChild(lb);
+      } else if (f.type === 'num') {
+        var ln = document.createElement('label');
+        var n = document.createElement('input');
+        n.type = 'number'; n.min = f.min; n.max = f.max; n.style.width = '58px';
+        n.value = wopt(id, f.key, f.max);
+        n.onchange = function () {
+          var v = Math.max(f.min, Math.min(f.max, Number(n.value) || f.max));
+          n.value = v;
+          setWopt(id, f.key, v);
+        };
+        ln.appendChild(n);
+        ln.appendChild(document.createTextNode(T[f.label] || f.key));
+        box.appendChild(ln);
+      }
+    });
+  }
+
   function saveLayout() { if (api.setConfig) api.setConfig({ layout: layout }); }
   function snap(v) { return Math.round(v); }
 
@@ -1543,6 +1686,25 @@
       applyLayout();
       saveLayout();
     };
+    // Réglages du widget, quand il en a. Le panneau est construit à
+    // l'ouverture : il reflète toujours l'état courant.
+    if (WIDGET_OPTS[id]) {
+      var gear = document.createElement('button');
+      gear.className = 'optbtn';
+      gear.textContent = '⚙';
+      gear.title = T.widgetOpts;
+      gear.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      var box = document.createElement('div');
+      box.className = 'optbox';
+      box.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+      gear.onclick = function () {
+        var open = box.classList.contains('open');
+        closeAllOptBoxes();
+        if (!open) { buildOptBox(id, box); box.classList.add('open'); }
+      };
+      el.appendChild(gear);
+      el.appendChild(box);
+    }
     var rsz = document.createElement('div');
     rsz.className = 'rsz';
     rsz.title = 'Redimensionner';
@@ -1594,6 +1756,7 @@
   };
 
   function render(s) {
+    lastState = s;
     if (!s) return;
     cur = s;
     var cfg = s.config || {};
@@ -1682,9 +1845,19 @@
     // Modes.
     var pm = ses.perMode || {};
     var mmr = ses.mmr || {};
-    var keys = MODES.concat(Object.keys(pm).filter(function (k) {
-      return MODES.indexOf(k) === -1;
-    }));
+    // Modes retenus pour ce bloc. Un joueur qui ne fait que du 1v1 n'a aucune
+    // raison de garder deux tuiles vides : il coche ce qu'il veut voir, et la
+    // grille s'adapte au nombre choisi.
+    var keepModes = wopt('modes', 'modes', MODES);
+    var keys = MODES.filter(function (k) { return keepModes.indexOf(k) !== -1; })
+      .concat(Object.keys(pm).filter(function (k) {
+        return MODES.indexOf(k) === -1 && keepModes.indexOf(k) !== -1;
+      }));
+    if (!keys.length) keys = MODES.slice();
+    $('modesGrid').style.gridTemplateColumns = 'repeat(' + keys.length + ',1fr)';
+    // Un seul mode : la tuile occupe toute la largeur, les chiffres montent
+    // d'un cran — c'est alors la carte principale du joueur, pas une vignette.
+    $('modesGrid').classList.toggle('solo', keys.length === 1);
     var html = '';
     keys.forEach(function (k) {
       var m = pm[k];
@@ -1790,13 +1963,26 @@
       renderLivePlayers(live, cfg.pseudo, s.h2h);
     }
 
-    renderWinrateRing(ses);
-    renderPips(s.history || []);
+    var wantRing = wopt('hero', 'ring', true) !== false;
+    var wantPips = wopt('hero', 'pips', true) !== false;
+    $('wrRing').style.display = wantRing ? '' : 'none';
+    $('pips').style.display = wantPips ? '' : 'none';
+    if (wantRing) renderWinrateRing(ses);
+    renderPips(wantPips ? (s.history || []) : []);
     renderEvolution(s);
     renderGoal(ses, cfg);
 
     // Totaux.
     var t = ses.totals || {};
+    // Compteurs retenus pour ce bloc, et la grille se resserre en conséquence.
+    var keepTot = wopt('totals', 'stats', TOTAL_KEYS);
+    var shown = 0;
+    Array.prototype.forEach.call(document.querySelectorAll('#totalsGrid .tot'), function (el) {
+      var on = keepTot.indexOf(el.dataset.k) !== -1;
+      el.style.display = on ? '' : 'none';
+      if (on) shown++;
+    });
+    $('totalsGrid').style.gridTemplateColumns = 'repeat(' + Math.max(1, shown) + ',1fr)';
     $('tGoals').textContent = t.goals || 0;
     $('tAssists').textContent = t.assists || 0;
     $('tSaves').textContent = t.saves || 0;
@@ -1804,7 +1990,8 @@
     $('tMvps').textContent = t.mvps || 0;
 
     // Historique.
-    var hist = s.history || [];
+    var hist = (s.history || []).slice(0, wopt('history', 'rows', 20));
+    var histStats = wopt('history', 'stats', true) !== false;
     $('histScroll').style.display = hist.length ? 'block' : 'none';
     $('histEmpty').style.display = hist.length ? 'none' : 'flex';
     // Les boutons de correction ne sont construits que si le pont expose
@@ -1849,7 +2036,7 @@
         + '<td class="hmode">' + esc(m.mode) + '</td>'
         + '<td class="hscore">' + sc + marks + '</td>'
         + '<td class="htime">' + fmtHour(m.endedAt) + '</td>'
-        + '<td class="hstats">' + stats + '</td>'
+        + (histStats ? '<td class="hstats">' + stats + '</td>' : '')
         + '<td class="hfix">' + fix + '</td>'
         + '</tr>';
     });
@@ -1955,8 +2142,11 @@
 
   function renderEvolution(s) {
     var evo = s.evolution || {};
+    // Même réglage que le bloc « Par mode » : celui qui ne joue qu'un mode ne
+    // veut pas trois onglets.
+    var keepEvo = wopt('evo', 'modes', MODES);
     var modes = Object.keys(evo).filter(function (k) {
-      return evo[k] && evo[k].length;
+      return evo[k] && evo[k].length && keepEvo.indexOf(k) !== -1;
     });
     if (!modes.length) {
       $('evoTabs').innerHTML = '';
