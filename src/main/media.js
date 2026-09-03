@@ -29,7 +29,7 @@ const { spawn } = require('child_process');
 // BOM UTF-8 obligatoire, sinon PowerShell 5.1 lit les accents en latin-1.
 const BOM = '﻿';
 
-const PS = `$ErrorActionPreference = 'SilentlyContinue'
+const PS = `$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
 # Touches multimedia : c'est ce que Windows declenche depuis un clavier de
@@ -44,6 +44,7 @@ function Send-Key([byte]$k) {
 }
 
 # Les API WinRT sont asynchrones : ce passe-plat attend le resultat.
+trap { [Console]::Error.WriteLine($_.Exception.Message); continue }
 $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
   $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
   $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
@@ -53,10 +54,17 @@ function Await($op, $type) {
   $t.Result
 }
 
-$null = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime]
+# La syntaxe du littéral de type WinRT n'accepte aucun espace autour du « = ».
+[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null
 $mgrType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]
-$mgr = Await ($mgrType::RequestAsync()) ($mgrType)
+if ($null -eq $mgrType) { [Console]::Error.WriteLine('type SMTC introuvable'); Write-Output '{"err":"type"}'; exit 1 }
+try {
+  $mgr = Await ($mgrType::RequestAsync()) ($mgrType)
+} catch {
+  [Console]::Error.WriteLine('RequestAsync: ' + $_.Exception.Message)
+}
 if ($null -eq $mgr) { Write-Output '{"err":"smtc"}'; exit 1 }
+Write-Output '{"ready":true}'
 
 $propType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]
 $last = ''
@@ -100,7 +108,8 @@ while ($true) {
     $stdin = [System.Threading.Tasks.Task]::Run([Func[string]] { $reader.ReadLine() })
     Start-Sleep -Milliseconds 120
   }
-  $n = Get-Now
+  $n = $null
+  try { $n = Get-Now } catch { [Console]::Error.WriteLine('lecture: ' + $_.Exception.Message) }
   $json = if ($null -eq $n) { '{"none":true}' } else { $n | ConvertTo-Json -Compress }
   # On n'ecrit que ce qui change : la position bouge sans arret, donc elle est
   # comparee arrondie a la seconde.
@@ -123,6 +132,7 @@ class MediaControl {
     this.error = null;
     this.available = this.platform === 'win32';
     this._buf = '';
+    this._stderr = '';
     this._restarts = 0;
   }
 
@@ -153,7 +163,13 @@ class MediaControl {
     }
     this.proc.stdout.setEncoding('utf8');
     this.proc.stdout.on('data', (chunk) => this._onData(chunk));
-    this.proc.stderr.on('data', () => { /* bruit de PowerShell : sans intérêt */ });
+    this.proc.stderr.setEncoding('utf8');
+    this.proc.stderr.on('data', (chunk) => {
+      const msg = String(chunk).replace(/\s+/g, ' ').trim().slice(0, 300);
+      if (!msg) return;
+      this._stderr = msg;
+      this.log('média : ' + msg);
+    });
     this.proc.on('error', () => { this.error = 'PowerShell indisponible'; this.proc = null; });
     this.proc.on('exit', () => {
       this.proc = null;
@@ -163,7 +179,10 @@ class MediaControl {
         this._restarts++;
         setTimeout(() => this.start(), 5000).unref?.();
       } else {
-        this.error = 'Contrôleur média indisponible sur cette machine.';
+        // Le message de PowerShell vaut mieux qu'un « indisponible » sec :
+        // c'est lui qui dit si c'est le type WinRT, les droits ou autre chose.
+        this.error = 'Contrôleur média indisponible'
+          + (this._stderr ? ' : ' + this._stderr : ' sur cette machine.');
         this.onUpdate(this.status());
       }
     });
@@ -190,8 +209,14 @@ class MediaControl {
   }
 
   _apply(d) {
+    if (d.ready) {
+      // Le script a résolu SMTC : tout ce qui suivra est fiable.
+      this.error = null;
+      return;
+    }
     if (d.err) {
-      this.error = 'Contrôleur média indisponible sur cette machine.';
+      this.error = 'Contrôleur média indisponible'
+        + (this._stderr ? ' : ' + this._stderr : ' (' + d.err + ')');
       this.now = null;
     } else if (d.none) {
       this.error = null;

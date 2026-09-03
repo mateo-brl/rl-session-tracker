@@ -20,6 +20,7 @@ function fakeProc() {
   p.stdout = new EventEmitter();
   p.stdout.setEncoding = () => {};
   p.stderr = new EventEmitter();
+  p.stderr.setEncoding = () => {};
   p.written = [];
   p.stdin = { writable: true, write: (s) => { p.written.push(s); return true; } };
   p.kill = () => { p.killed = true; };
@@ -138,4 +139,31 @@ test('le script PowerShell n’écrit rien hors de son flux, et se ferme proprem
   assert.ok(ps.includes('GlobalSystemMediaTransportControlsSessionManager'));
   assert.ok(ps.includes('TrySkipNextAsync'));
   assert.ok(ps.includes('keybd_event'));
+});
+
+test('erreur PowerShell : remontée telle quelle, pas noyée dans « indisponible »', () => {
+  let spawned = 0;
+  const procs = [];
+  const seen = [];
+  const m = new MediaControl(dir(), {
+    platform: 'win32',
+    spawn: () => { spawned++; const p = fakeProc(); procs.push(p); return p; },
+    onUpdate: (st) => seen.push(st),
+  });
+  m.start();
+  const p = procs[0];
+  p.stderr.emit('data', 'Impossible de trouver le type [Windows.Media.Control...]\n');
+  // Trois relances, puis on renonce — en disant CE QUE PowerShell a dit.
+  m._restarts = 3;
+  p.emit('exit', 1);
+  assert.match(m.status().error, /Impossible de trouver le type/);
+});
+
+test('ligne « prêt » : l’erreur précédente est effacée', () => {
+  const { m, proc } = make();
+  m.start();
+  m.error = 'vieille erreur';
+  proc.stdout.emit('data', '{"ready":true}\n');
+  assert.equal(m.status().error, null);
+  assert.equal(m.now, null);          // « prêt » n'invente pas de lecture
 });
