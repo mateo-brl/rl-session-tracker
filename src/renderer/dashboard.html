@@ -42,6 +42,17 @@
     --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
     --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
     --edge:rgba(0, 0, 0, .62);
+    /* ─── Ingrédients réglables (atelier) ───
+       Trois variables traversent tous les habillages. Elles ont pour valeur
+       par défaut exactement ce que faisait le code avant leur introduction :
+       une installation qui n'y touche jamais ne voit aucune différence. */
+    --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
+    --num-style:italic;          /* chiffres penchés, ADN des scores RL */
+    --cut:18px;                  /* taille du chanfrein des cartes */
+    --cut-sm:12px;               /* idem, sur les tuiles */
+    --skew:-14deg;               /* inclinaison des plaques et pastilles */
+    --dens:1;                    /* densité : 1 confortable, .8 dense, 1.15 canapé */
+
   }
   /* ─── Mode overlay (source « Navigateur » d'OBS) ───
      Fond entièrement transparent, aucun chrome d'application : il ne reste
@@ -119,11 +130,11 @@
       repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
       var(--bg);
     color:var(--text);
-    font-family:'Barlow Condensed','Segoe UI',sans-serif;
+    font-family:var(--ui-font);
     -webkit-user-select:none; user-select:none; overflow:hidden;
     display:flex; flex-direction:column;
   }
-  .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
+  .cond { font-family:var(--ui-font); }
   /* Bouton discret logé dans l'étiquette de la carte : remet les compteurs de
      session à zéro sans quitter le dashboard, là où on lit justement ces
      compteurs — c'est le moment où on veut repartir de zéro. */
@@ -141,10 +152,12 @@
      (Pas de drop-shadow : le clip-path la rognerait de toute façon.) */
   .card {
     background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
-    border:1px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 18px) 0, 100% 18px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+    border:1px solid var(--line); border-radius:var(--card-radius, 0);
+    clip-path:polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%,
+      calc(var(--cut) - 4px) 100%, 0 calc(100% - var(--cut) + 4px));
     box-shadow:inset 0 -3px 0 var(--edge);
-    padding:16px 20px; min-height:0; display:flex; flex-direction:column;
+    padding:calc(16px * var(--dens)) calc(20px * var(--dens));
+    min-height:0; display:flex; flex-direction:column;
   }
   /* Liseré d'accent en tête de carte, qui s'éteint vers la droite. */
   .card::before {
@@ -155,14 +168,14 @@
   /* Coin biseauté rempli : le clip-path de la carte taille ce carré en
      triangle d'accent — la signature visuelle des plaques du dashboard. */
   .card::after {
-    content:''; position:absolute; top:0; right:0; width:18px; height:18px;
+    content:''; position:absolute; top:0; right:0; width:var(--cut); height:var(--cut);
     background:var(--blue); pointer-events:none;
   }
   /* Étiquette de section : plaque inclinée pleine (l'ancien ruban discret
      est devenu un vrai cartouche broadcast), prolongée d'un filet qui court
      jusqu'au bord de la carte — le clip-path arrête la ligne proprement. */
   .tag {
-    display:inline-block; transform:skewX(-14deg); position:relative;
+    display:inline-block; transform:skewX(var(--skew)); position:relative;
     background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 135%);
     border-left:4px solid var(--blue);
     padding:5px 14px 5px 11px; margin-bottom:14px; width:max-content;
@@ -173,8 +186,8 @@
     pointer-events:none;
   }
   .tag > span {
-    display:inline-block; transform:skewX(14deg);
-    font-style:italic; font-weight:800; font-size:14px;
+    display:inline-block; transform:skewX(calc(-1 * var(--skew)));
+    font-style:var(--num-style); font-weight:800; font-size:14px;
     letter-spacing:.18em; text-transform:uppercase; color:var(--text);
   }
 
@@ -273,6 +286,40 @@
   #canvas { position:relative; width:100%; height:100%; }
   #canvas .card { position:absolute; }
 
+  /* Repli en colonne dès que la fenêtre est plus haute que large, ou trop
+     étroite pour deux colonnes. Les hauteurs en pourcentage n'ont plus de sens
+     ici : chaque bloc prend la hauteur de son contenu, dans l'ordre de la
+     disposition (haut vers le bas, puis gauche vers la droite). */
+  @media (max-aspect-ratio: 1/1), (max-width: 900px) {
+    main { overflow-y:auto; }
+    #canvas {
+      display:flex; flex-direction:column; gap:14px;
+      height:auto; min-height:100%; padding-bottom:14px;
+    }
+    #canvas .card {
+      position:static !important;
+      left:auto !important; top:auto !important;
+      width:100% !important; height:auto !important;
+      min-height:var(--stack-min, 128px);
+    }
+    /* Les blocs qui vivent d'une hauteur (courbe, historique) en gardent une. */
+    #canvas .card.evo { --stack-min:210px; }
+    #canvas .card.history { --stack-min:260px; }
+    #canvas .card.live { --stack-min:200px; }
+    #canvas .card.totals { --stack-min:104px; }
+    .modes-grid { grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)) !important; }
+    /* Le bandeau doit tenir sur une ligne : à 1080 px de large, « EN DIRECT »
+       passait sur deux lignes et l'horloge sortait de l'écran. */
+    header { padding:10px 14px; gap:9px; }
+    .logo { font-size:17px; }
+    .logo-plate { padding:1px 7px; }
+    .chip { font-size:10px; padding:3px 8px; }
+    .hd-score { font-size:19px; gap:7px; }
+    .clock { font-size:19px; }
+    .hdr-btn { padding:4px 9px; font-size:10px; }
+    .fs-btn { display:none; }
+  }
+
   body.editing #canvas .card {
     outline:1px dashed var(--blue); cursor:move;
   }
@@ -345,7 +392,7 @@
     font-variant-numeric:tabular-nums; }
   /* Chiffres-clés : condensé italique lourd + ombre portée FRANCHE
      (décalage net, zéro flou) — l'ADN visuel des scores Rocket League. */
-  .wl .w { font-size:96px; font-weight:800; font-style:italic;
+  .wl .w { font-size:96px; font-weight:800; font-style:var(--num-style);
     color:var(--blue); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
   /* Le tiret devient une barre inclinée bleu → orange : un vrai séparateur
      d'équipes de tableau d'affichage (le « – » du HTML est réduit à néant
@@ -353,7 +400,7 @@
   .wl .sep { font-size:0; width:7px; height:58px; align-self:center;
     background:linear-gradient(180deg, var(--blue), var(--orange));
     transform:skewX(-14deg); }
-  .wl .l { font-size:96px; font-weight:800; font-style:italic;
+  .wl .l { font-size:96px; font-weight:800; font-style:var(--num-style);
     color:var(--orange); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
   .wl-cap { display:flex; gap:52px; margin-top:8px; }
   .wl-cap span { font-size:12px; font-weight:700; color:var(--muted);
@@ -414,19 +461,20 @@
 
   /* ─── Modes ─── */
   .modes { }
-  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:calc(14px * var(--dens)); }
   /* Mode unique : la tuile n'est plus une vignette parmi trois, elle porte le
      bloc. Chiffres et rang montent en conséquence. */
   .modes-grid.solo .mode { padding:16px 20px; }
   .modes-grid.solo .mode .rec { font-size:44px; }
   .modes-grid.solo .mode .mmr-val { font-size:27px; }
   .modes-grid.solo .mode .name { font-size:16px; }
-  .modes-grid.solo .spark { height:60px; }
+  .modes-grid.solo .spark { height:40px; opacity:.24; }
   .mode {
     background:linear-gradient(168deg, var(--panel2), var(--panel) 80%);
     border:1px solid var(--line); border-left:4px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-    padding:10px 15px 11px;
+    clip-path:polygon(0 0, calc(100% - var(--cut-sm)) 0, 100% var(--cut-sm), 100% 100%,
+      calc(var(--cut-sm) - 4px) 100%, 0 calc(100% - var(--cut-sm) + 4px));
+    padding:10px 15px 26px;
     position:relative; overflow:hidden;
   }
   /* Tout le contenu passe DEVANT la courbe de fond. */
@@ -489,9 +537,12 @@
      mesure ; le graphique complet reste dans sa carte. */
   /* La courbe occupe le bas de la tuile, en fond : elle ne prend aucune
      hauteur au contenu, et se lit quand même comme une tendance. */
+  /* La courbe occupe une bande RÉSERVÉE en bas de tuile : elle ne passe plus
+     ni sous le texte ni sous la barre de rang, qu'elle rendait illisibles en
+     les croisant dans la même couleur. */
   .spark {
     position:absolute; left:0; right:0; bottom:0; z-index:0;
-    display:block; width:100%; height:42px; opacity:.55; pointer-events:none;
+    display:block; width:100%; height:26px; opacity:.2; pointer-events:none;
   }
   .spark path.ln { fill:none; stroke:var(--blue); stroke-width:2; }
   .spark.down path.ln { stroke:var(--orange); }
@@ -1531,6 +1582,46 @@
   }
   // Habillage essayé depuis la vitrine, poussé par le processus principal.
   var lookPreview = null;
+  // ─────────── Atelier : les ingrédients d'un habillage ───────────
+  // Trois familles de police, trois découpes, trois densités. Les valeurs
+  // « auto » laissent l'habillage décider — c'est le comportement d'avant,
+  // et donc le défaut.
+  var TUNE_FONTS = {
+    auto: null,
+    cond: "'Barlow Condensed','Segoe UI',sans-serif",
+    mono: "'Cascadia Mono','Consolas','DejaVu Sans Mono',ui-monospace,monospace",
+    serif: "Georgia,'Iowan Old Style','Times New Roman',serif",
+    sans: "'Segoe UI',ui-sans-serif,system-ui,sans-serif",
+  };
+  var TUNE_CUTS = {
+    auto: null,
+    bevel: { cut: '18px', cutSm: '12px', radius: '0px' },
+    square: { cut: '0px', cutSm: '0px', radius: '0px' },
+    round: { cut: '0px', cutSm: '0px', radius: '14px' },
+  };
+  var TUNE_DENS = { auto: null, cosy: 1, dense: .82, couch: 1.18 };
+  var TUNE_DEFAULT = { font: 'auto', cut: 'auto', density: 'auto', skew: null, italic: null };
+
+  function applyTune(t) {
+    t = Object.assign({}, TUNE_DEFAULT, t || {});
+    var s = document.documentElement.style;
+    var f = TUNE_FONTS[t.font];
+    if (f) s.setProperty('--ui-font', f); else s.removeProperty('--ui-font');
+    var c = TUNE_CUTS[t.cut];
+    if (c) {
+      s.setProperty('--cut', c.cut);
+      s.setProperty('--cut-sm', c.cutSm);
+      s.setProperty('--card-radius', c.radius);
+    } else {
+      ['--cut', '--cut-sm', '--card-radius'].forEach(function (k) { s.removeProperty(k); });
+    }
+    var d = TUNE_DENS[t.density];
+    if (d) s.setProperty('--dens', String(d)); else s.removeProperty('--dens');
+    if (t.skew === null || t.skew === undefined) s.removeProperty('--skew');
+    else s.setProperty('--skew', Number(t.skew) + 'deg');
+    if (t.italic === null || t.italic === undefined) s.removeProperty('--num-style');
+    else s.setProperty('--num-style', t.italic ? 'italic' : 'normal');
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1687,6 +1778,10 @@
       var el = widgetEl(id);
       if (!el) return;
       var w = layout[id];
+      // Ordre du repli en colonne : de haut en bas, puis de gauche à droite.
+      // Sans ça, la pile suivrait l'ordre du balisage, qui n'a rien à voir
+      // avec ce que l'utilisateur a composé.
+      el.style.order = Math.round(w.y * 10 + w.x / 10);
       el.style.left = w.x + '%';
       el.style.top = w.y + '%';
       el.style.width = w.w + '%';
@@ -1910,8 +2005,15 @@
     applyLang(s.lang);
     // Un aperçu en cours l'emporte sur la configuration enregistrée : c'est
     // tout l'intérêt d'essayer avant d'appliquer.
-    if (lookPreview) { applySkin(lookPreview.skin); applyTheme(lookPreview.theme); }
-    else { applySkin(cfg.skin); applyTheme(cfg.theme); }
+    if (lookPreview) {
+      applySkin(lookPreview.skin);
+      applyTheme(lookPreview.theme);
+      applyTune(lookPreview.tune);
+    } else {
+      applySkin(cfg.skin);
+      applyTheme(cfg.theme);
+      applyTune(cfg.tune);
+    }
     document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
     // La disposition vient de la config — sauf pendant qu'on la modifie
     // (un changement de profil force quand même l'adoption).
@@ -2028,7 +2130,9 @@
         : '';
       var mmrLine = '';
       if (r && r.value != null) {
-        var hasDelta = r.delta != null;
+        // Pas de variation affichée pour un mode où l'on n'a rien joué : « 0 »
+        // à côté du reste à parcourir faisait deux nombres sans libellé.
+        var hasDelta = r.delta != null && !!(m && m.played);
         var deltaCls = !hasDelta ? '' : r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : 'flat';
         var deltaTxt = hasDelta ? (r.delta > 0 ? '+' : '') + r.delta : '';
         // Pastille « estimation » : deltaReal=false → ce gain/perte n'est
@@ -2046,7 +2150,7 @@
           rankBar = '<div class="rank-bar" title="' + esc(full) + '"><i style="width:'
             + Math.round(r.progress * 100) + '%"></i></div>';
           if (r.toNext != null) {
-            toNext = '<span class="rank-next" title="' + esc(full) + '">+'
+            toNext = '<span class="rank-next" title="' + esc(full) + '">↗ '
               + r.toNext + '</span>';
           }
         }

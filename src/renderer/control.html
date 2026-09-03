@@ -34,6 +34,17 @@
     --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
     --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
     --edge:rgba(0, 0, 0, .62);
+    /* ─── Ingrédients réglables (atelier) ───
+       Trois variables traversent tous les habillages. Elles ont pour valeur
+       par défaut exactement ce que faisait le code avant leur introduction :
+       une installation qui n'y touche jamais ne voit aucune différence. */
+    --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
+    --num-style:italic;          /* chiffres penchés, ADN des scores RL */
+    --cut:18px;                  /* taille du chanfrein des cartes */
+    --cut-sm:12px;               /* idem, sur les tuiles */
+    --skew:-14deg;               /* inclinaison des plaques et pastilles */
+    --dens:1;                    /* densité : 1 confortable, .8 dense, 1.15 canapé */
+
     /* Fond du volet de contenu : l'habillage peut le remplacer par un aplat.
        Sans cette variable, la trame et les halos de l'Arène restaient visibles
        sous « Papier » ou « Console », qui annoncent l'inverse. */
@@ -50,7 +61,7 @@
     font-family:'Segoe UI',ui-sans-serif,system-ui,sans-serif;
     -webkit-user-select:none; user-select:none; overflow:hidden;
   }
-  .cond { font-family:'Barlow Condensed','Segoe UI',sans-serif; }
+  .cond { font-family:var(--ui-font); }
   /* Habillage sélectionné : la pastille est remplie, pour qu'on voie d'un
      coup d'œil lequel est actif parmi les six. */
   /* ─── Vitrine des habillages ─── */
@@ -245,7 +256,8 @@
     position:relative;
     background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
     border:1px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+    clip-path:polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%,
+      calc(var(--cut) - 4px) 100%, 0 calc(100% - var(--cut) + 4px));
     box-shadow:inset 0 -3px 0 var(--edge);
     padding:15px 18px 17px; margin-bottom:14px;
   }
@@ -533,7 +545,7 @@
         </button>
         <button class="nav" data-sec="display">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>
-          <span data-i18n="navDisplay">Dashboard &amp; overlay</span><i class="badge"></i>
+          <span data-i18n="navDisplay">Dashboard</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="stream">
           <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="1"/><path d="M16 10l5-3v10l-5-3z"/></svg>
@@ -665,8 +677,8 @@
       <!-- ── Dashboard & overlay ── -->
       <section class="sec" data-sec="display">
         <div class="sec-head">
-          <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard &amp; overlay</span></div></div>
-          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations, mini-overlay, thème et son Alpha Boost.</div>
+          <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard</span></div></div>
+          <div class="sec-sub" data-i18n="subDisplay">Dashboard, animations et mini-overlay. L’apparence est dans Habillages.</div>
         </div>
 
         <div class="grid2">
@@ -732,56 +744,6 @@
             <div class="hint" data-i18n="hintTest">Le test ouvre le dashboard et joue l'animation avec le style et le thème choisis.</div>
           </div>
 
-          <div class="card">
-            <h2 data-i18n="hLook">Apparence</h2>
-            <div class="field" data-i18n="lSkin">Habillage</div>
-            <div class="chips" id="skinPresets"></div>
-            <div class="hint" data-i18n="hintSkin">Un habillage change la forme de l'interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.</div>
-            <div class="gap"></div>
-            <div class="field" data-i18n="lThemeColors">Couleurs</div>
-            <div class="chips" id="themePresets"></div>
-            <div class="gap"></div>
-            <div class="color-grid">
-              <label><span data-i18n="kWin">Victoire</span><input type="color" id="cWin" /></label>
-              <label><span data-i18n="kLoss">Défaite</span><input type="color" id="cLoss" /></label>
-              <label><span data-i18n="kBg">Fond</span><input type="color" id="cBg" /></label>
-              <label>MVP<input type="color" id="cGold" /></label>
-            </div>
-            <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
-          </div>
-        </div>
-
-        <!-- Son Alpha Boost : le son est joué par l'application (fenêtre
-             audio dédiée), pilotée par la télémétrie de la Stats API —
-             aucun fichier du jeu n'est touché. Le visuel de l'Alpha Boost,
-             lui, relève de la section Cosmétiques. Pleine largeur, comme
-             « Mon MMR » ou « Version & mise à jour ». -->
-        <div class="card">
-          <h2 data-i18n="hAlpha">Son Alpha Boost</h2>
-          <label class="check"><input type="checkbox" id="abOn" /><span data-i18n="cAlpha">Jouer le son Alpha Boost quand je booste</span></label>
-          <div class="duo">
-            <label class="field"><span data-i18n="lAbSound">Sonorité</span>
-              <select id="abProfile">
-                <option value="quality" data-i18n="oAbQuality">Dynamique — suit la vitesse</option>
-                <option value="classic" data-i18n="oAbClassic">Classique — son fixe</option>
-              </select></label>
-            <label class="field"><span data-i18n="lAbVolume">Volume</span>
-              <select id="abVolume">
-                <option value="0.1" data-i18n="oVol1">Très doux</option>
-                <option value="0.25" data-i18n="oVol2">Doux</option>
-                <option value="0.45" data-i18n="oVol3">Normal</option>
-                <option value="0.7" data-i18n="oVol4">Fort</option>
-                <option value="1" data-i18n="oVol5">Maximum</option>
-              </select></label>
-          </div>
-          <button class="ghost" id="abTest" data-i18n="bAbTest">Écouter un essai</button>
-          <div class="hint" data-i18n="hintAlpha">Le son est joué par l'application
-            elle-même, à partir de la Stats API : aucun fichier du jeu n'est touché,
-            rien d'injecté — compatible anti-triche. Adapté du projet communautaire
-            trznx/Rocket_League-Alpha_Boost (MIT).</div>
-          <div class="hint" data-i18n="hintAlphaApi">Nécessite 120 paquets/s de la
-            Stats API : l'appli règle ça toute seule, mais il faut redémarrer
-            Rocket League après la première activation.</div>
         </div>
       </section>
 
@@ -802,6 +764,64 @@
           <div class="look-grid" id="lookGrid"></div>
         </div>
 
+        <!-- Atelier : on n'y choisit pas un look, on l'assemble. Chaque
+             ingrédient se pose en variable CSS par-dessus l'habillage, donc
+             il traverse les six sans en casser aucun. -->
+        <div class="card">
+          <h2 data-i18n="hAtelier">Atelier</h2>
+          <div class="hint" data-i18n="hintAtelier">Pars d'un habillage et change ce qui te gêne. « Auto » laisse l'habillage décider, c'est le réglage d'origine.</div>
+          <div class="duo">
+            <label class="field"><span data-i18n="lTuneFont">Typographie</span>
+              <select id="tuneFont">
+                <option value="auto" data-i18n="oAuto">Auto (habillage)</option>
+                <option value="cond" data-i18n="oFontCond">Condensée</option>
+                <option value="sans" data-i18n="oFontSans">Sans empattement</option>
+                <option value="mono" data-i18n="oFontMono">Chasse fixe</option>
+                <option value="serif" data-i18n="oFontSerif">Empattements</option>
+              </select></label>
+            <label class="field"><span data-i18n="lTuneCut">Découpe des cartes</span>
+              <select id="tuneCut">
+                <option value="auto" data-i18n="oAuto">Auto (habillage)</option>
+                <option value="bevel" data-i18n="oCutBevel">Biseautée</option>
+                <option value="square" data-i18n="oCutSquare">Droite</option>
+                <option value="round" data-i18n="oCutRound">Arrondie</option>
+              </select></label>
+          </div>
+          <div class="duo">
+            <label class="field"><span data-i18n="lTuneDens">Densité</span>
+              <select id="tuneDens">
+                <option value="auto" data-i18n="oAuto">Auto (habillage)</option>
+                <option value="cosy" data-i18n="oDensCosy">Confortable</option>
+                <option value="dense" data-i18n="oDensDense">Dense</option>
+                <option value="couch" data-i18n="oDensCouch">Canapé — tout plus grand</option>
+              </select></label>
+            <label class="field"><span data-i18n="lTuneSkew">Inclinaison des plaques</span>
+              <select id="tuneSkew">
+                <option value="auto" data-i18n="oAuto">Auto (habillage)</option>
+                <option value="-14">−14°</option>
+                <option value="-7">−7°</option>
+                <option value="0" data-i18n="oSkewNone">Aucune</option>
+              </select></label>
+          </div>
+          <label class="check"><input type="checkbox" id="tuneItalic" /><span data-i18n="cTuneItalic">Chiffres penchés</span></label>
+          <div class="duo">
+            <button class="ghost" style="margin-top:0" id="tuneApply" data-i18n="bTuneApply">Appliquer partout</button>
+            <button class="ghost" style="margin-top:0" id="tuneReset" data-i18n="bTuneReset">Réinitialiser</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 data-i18n="hColors">Couleurs</h2>
+          <div class="chips" id="themePresets"></div>
+          <div class="gap"></div>
+          <div class="color-grid">
+            <label><span data-i18n="kWin">Victoire</span><input type="color" id="cWin" /></label>
+            <label><span data-i18n="kLoss">Défaite</span><input type="color" id="cLoss" /></label>
+            <label><span data-i18n="kBg">Fond</span><input type="color" id="cBg" /></label>
+            <label>MVP<input type="color" id="cGold" /></label>
+        </div>
+          <div class="hint" data-i18n="hintLook">Les couleurs s'appliquent partout : dashboard, mini-overlay et cette fenêtre. Et sur le dashboard, le bouton « Personnaliser » permet de déplacer, redimensionner et masquer chaque bloc.</div>
+        </div>
         <div class="card">
           <h2 data-i18n="hMyLooks">Mes looks</h2>
           <div class="hint" data-i18n="hintMyLooks">Un look garde l'habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation — c'est comme ça qu'un look se partage.</div>
@@ -1110,12 +1130,12 @@
       // Panneau de configuration : barre de titre, navigation, sections.
       tMin: 'R\u00e9duire', tMax: 'Agrandir / restaurer', tClose: 'Fermer',
       navHome: 'Accueil', navAccount: 'Compte & MMR',
-      navDisplay: 'Dashboard & overlay', navStream: 'Streaming',
+      navDisplay: 'Dashboard', navStream: 'Overlay & streaming',
       navApp: 'Application',
       subHome: '\u00c9tat du jeu et de la session en direct.',
       subAccount: 'Pseudo, MMR par mode et matchs class\u00e9s.',
-      subDisplay: 'Dashboard, animations, mini-overlay, th\u00e8me et son Alpha Boost.',
-      subStream: 'Overlay OBS et pont compatible SOS.',
+      subDisplay: 'Dashboard, animations and the game bar. Appearance lives in Skins.',
+      subStream: 'Composable OBS overlay, legacy bar and SOS-compatible bridge.',
       subApp: 'D\u00e9marrage, langue, fen\u00eatre et donn\u00e9es.',
       hStatus: '\u00c9tat', hUnknown: 'Matchs non attribu\u00e9s',
       hPseudo: 'Pseudo', hRanked: 'Class\u00e9 / occasionnel',
@@ -1181,14 +1201,8 @@
       lSize: 'Taille', oSmall: 'Petit', oNormal: 'Normal', oBig: 'Grand',
       lOpacity: 'Opacit\u00e9',
       hintOverlay: 'Important : mets l\u2019affichage de Rocket League en \u00ab\u00a0Fen\u00eatr\u00e9 sans bordure\u00a0\u00bb (Param\u00e8tres \u2192 Vid\u00e9o). En \u00ab\u00a0Plein \u00e9cran\u00a0\u00bb exclusif, Windows ne laisse aucune fen\u00eatre passer devant le jeu \u2014 c\u2019est pareil pour tous les overlays.',
-      hAlpha: 'Son Alpha Boost',
-      cAlpha: 'Jouer le son Alpha Boost quand je booste',
       lAbSound: 'Sonorit\u00e9', lAbVolume: 'Volume',
-      oAbQuality: 'Dynamique \u2014 suit la vitesse',
-      oAbClassic: 'Classique \u2014 son fixe',
       oVol1: 'Tr\u00e8s doux', oVol2: 'Doux', oVol3: 'Normal', oVol4: 'Fort', oVol5: 'Maximum',
-      bAbTest: '\u00c9couter un essai',
-      hintAlpha: 'Le son est jou\u00e9 par l\u2019application elle-m\u00eame, \u00e0 partir de la Stats API : aucun fichier du jeu n\u2019est touch\u00e9, rien d\u2019inject\u00e9 \u2014 compatible anti-triche. Adapt\u00e9 du projet communautaire trznx/Rocket_League-Alpha_Boost (MIT).',
       hintAlphaApi: 'N\u00e9cessite 120 paquets/s de la Stats API : l\u2019appli r\u00e8gle \u00e7a toute seule, mais il faut red\u00e9marrer Rocket League apr\u00e8s la premi\u00e8re activation.',
       hObs: 'Mode streamer (OBS)',
       cObs: 'Servir l\u2019overlay de stream en local',
@@ -1322,6 +1336,29 @@
       lookFromCode: 'Look collé',
       lookBadCode: 'Code illisible. Colle le code entier, il commence par RLST-.',
       lookNamePrompt: 'Nom du look ?',
+      hAtelier: 'Atelier',
+      hintAtelier: 'Pars d’un habillage et change ce qui te gêne. « Auto » laisse l’habillage décider, c’est le réglage d’origine.',
+      lTuneFont: 'Typographie',
+      lTuneCut: 'Découpe des cartes',
+      lTuneDens: 'Densité',
+      lTuneSkew: 'Inclinaison des plaques',
+      cTuneItalic: 'Chiffres penchés',
+      oAuto: 'Auto (habillage)',
+      oFontCond: 'Condensée',
+      oFontSans: 'Sans empattement',
+      oFontMono: 'Chasse fixe',
+      oFontSerif: 'Empattements',
+      oCutBevel: 'Biseautée',
+      oCutSquare: 'Droite',
+      oCutRound: 'Arrondie',
+      oDensCosy: 'Confortable',
+      oDensDense: 'Dense',
+      oDensCouch: 'Canapé — tout plus grand',
+      oSkewNone: 'Aucune',
+      bTuneApply: 'Appliquer partout',
+      bTuneReset: 'Réinitialiser',
+      tuneTrying: 'Atelier',
+      hColors: 'Couleurs',
       bCosCheck: 'Vérifier tous les boosts',
       cosCheckCompat: 'boosts compatibles sur',
       cosCheckNone: 'Aucun boost compatible trouvé.',
@@ -1337,7 +1374,7 @@
       // Settings panel: title bar, navigation, sections.
       tMin: 'Minimize', tMax: 'Maximize / restore', tClose: 'Close',
       navHome: 'Home', navAccount: 'Account & MMR',
-      navDisplay: 'Dashboard & overlay', navStream: 'Streaming',
+      navDisplay: 'Dashboard', navStream: 'Overlay & streaming',
       navApp: 'Application',
       subHome: 'Live game and session status.',
       subAccount: 'Name, per-mode MMR and ranked matches.',
@@ -1408,14 +1445,8 @@
       lSize: 'Size', oSmall: 'Small', oNormal: 'Normal', oBig: 'Large',
       lOpacity: 'Opacity',
       hintOverlay: 'Important: set Rocket League\u2019s display mode to \u201cBorderless Windowed\u201d (Settings \u2192 Video). In exclusive \u201cFullscreen\u201d, Windows lets no window appear above the game \u2014 the same goes for every overlay.',
-      hAlpha: 'Alpha Boost sound',
-      cAlpha: 'Play the Alpha Boost sound when I boost',
       lAbSound: 'Sound', lAbVolume: 'Volume',
-      oAbQuality: 'Dynamic \u2014 follows your speed',
-      oAbClassic: 'Classic \u2014 static sound',
       oVol1: 'Very soft', oVol2: 'Soft', oVol3: 'Normal', oVol4: 'Loud', oVol5: 'Maximum',
-      bAbTest: 'Play a sample',
-      hintAlpha: 'The sound is played by the app itself, from the Stats API: no game file is touched, nothing is injected \u2014 anti-cheat safe. Adapted from the community project trznx/Rocket_League-Alpha_Boost (MIT).',
       hintAlphaApi: 'Needs 120 packets/s from the Stats API: the app sets that up on its own, but Rocket League must be restarted after the first activation.',
       hObs: 'Streamer mode (OBS)',
       cObs: 'Serve the stream overlay locally',
@@ -1549,6 +1580,29 @@
       lookFromCode: 'Pasted look',
       lookBadCode: 'Unreadable code. Paste the whole thing, it starts with RLST-.',
       lookNamePrompt: 'Look name?',
+      hAtelier: 'Workshop',
+      hintAtelier: 'Start from a skin and change what bothers you. “Auto” lets the skin decide — that is the original setting.',
+      lTuneFont: 'Typography',
+      lTuneCut: 'Card cut',
+      lTuneDens: 'Density',
+      lTuneSkew: 'Plate slant',
+      cTuneItalic: 'Slanted numbers',
+      oAuto: 'Auto (skin)',
+      oFontCond: 'Condensed',
+      oFontSans: 'Sans serif',
+      oFontMono: 'Monospace',
+      oFontSerif: 'Serif',
+      oCutBevel: 'Chamfered',
+      oCutSquare: 'Square',
+      oCutRound: 'Rounded',
+      oDensCosy: 'Comfortable',
+      oDensDense: 'Dense',
+      oDensCouch: 'Couch — everything bigger',
+      oSkewNone: 'None',
+      bTuneApply: 'Apply everywhere',
+      bTuneReset: 'Reset',
+      tuneTrying: 'Workshop',
+      hColors: 'Colours',
       bCosCheck: 'Check every boost',
       cosCheckCompat: 'compatible boosts out of',
       cosCheckNone: 'No compatible boost found.',
@@ -1643,6 +1697,46 @@
   }
   // Habillage essayé depuis la vitrine, poussé par le processus principal.
   var lookPreview = null;
+  // ─────────── Atelier : les ingrédients d'un habillage ───────────
+  // Trois familles de police, trois découpes, trois densités. Les valeurs
+  // « auto » laissent l'habillage décider — c'est le comportement d'avant,
+  // et donc le défaut.
+  var TUNE_FONTS = {
+    auto: null,
+    cond: "'Barlow Condensed','Segoe UI',sans-serif",
+    mono: "'Cascadia Mono','Consolas','DejaVu Sans Mono',ui-monospace,monospace",
+    serif: "Georgia,'Iowan Old Style','Times New Roman',serif",
+    sans: "'Segoe UI',ui-sans-serif,system-ui,sans-serif",
+  };
+  var TUNE_CUTS = {
+    auto: null,
+    bevel: { cut: '18px', cutSm: '12px', radius: '0px' },
+    square: { cut: '0px', cutSm: '0px', radius: '0px' },
+    round: { cut: '0px', cutSm: '0px', radius: '14px' },
+  };
+  var TUNE_DENS = { auto: null, cosy: 1, dense: .82, couch: 1.18 };
+  var TUNE_DEFAULT = { font: 'auto', cut: 'auto', density: 'auto', skew: null, italic: null };
+
+  function applyTune(t) {
+    t = Object.assign({}, TUNE_DEFAULT, t || {});
+    var s = document.documentElement.style;
+    var f = TUNE_FONTS[t.font];
+    if (f) s.setProperty('--ui-font', f); else s.removeProperty('--ui-font');
+    var c = TUNE_CUTS[t.cut];
+    if (c) {
+      s.setProperty('--cut', c.cut);
+      s.setProperty('--cut-sm', c.cutSm);
+      s.setProperty('--card-radius', c.radius);
+    } else {
+      ['--cut', '--cut-sm', '--card-radius'].forEach(function (k) { s.removeProperty(k); });
+    }
+    var d = TUNE_DENS[t.density];
+    if (d) s.setProperty('--dens', String(d)); else s.removeProperty('--dens');
+    if (t.skew === null || t.skew === undefined) s.removeProperty('--skew');
+    else s.setProperty('--skew', Number(t.skew) + 'deg');
+    if (t.italic === null || t.italic === undefined) s.removeProperty('--num-style');
+    else s.setProperty('--num-style', t.italic ? 'italic' : 'normal');
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1672,7 +1766,9 @@
 
   function currentLook() {
     var cfg = (cur && cur.config) || {};
-    return { skin: skinById(cfg.skin).id, theme: Object.assign({}, THEME_DEFAULT, cfg.theme || {}) };
+    return { skin: skinById(cfg.skin).id,
+      theme: Object.assign({}, THEME_DEFAULT, cfg.theme || {}),
+      tune: Object.assign({}, TUNE_DEFAULT, cfg.tune || {}) };
   }
   // « Retouché » : la palette ne correspond plus à celle de l'habillage.
   function isTweaked(look) {
@@ -1792,7 +1888,8 @@
     var mine = $('myLookGrid');
     mine.innerHTML = '';
     (cfg.looks || []).forEach(function (l) {
-      var look = { skin: skinById(l.skin).id, theme: Object.assign({}, THEME_DEFAULT, l.theme || {}) };
+      var look = { skin: skinById(l.skin).id,
+        theme: Object.assign({}, THEME_DEFAULT, l.theme || {}), tune: l.tune || null };
       mine.appendChild(lookCard(look, {
         name: l.name,
         desc: skinById(l.skin).name + (isTweaked(look) ? ' · ' + T.lookTweaked : ''),
@@ -1812,9 +1909,10 @@
 
   // ── Essayage : appliqué partout, enregistré nulle part.
   function startTry(look, name) {
-    tryLook = { skin: look.skin, theme: look.theme };
+    tryLook = { skin: look.skin, theme: look.theme, tune: look.tune || null };
     applySkin(look.skin);
     applyTheme(look.theme);
+    applyTune(look.tune);
     api.previewLook && api.previewLook(tryLook);
     $('tryName').textContent = name;
     $('tryBar').classList.add('on');
@@ -1827,10 +1925,12 @@
     $('tryBar').classList.remove('on');
     api.previewLook && api.previewLook(null);
     if (apply) {
-      api.setConfig && api.setConfig({ skin: look.skin, theme: look.theme });
+      api.setConfig && api.setConfig({ skin: look.skin, theme: look.theme,
+        tune: look.tune || null });
     } else if (cur && cur.config) {
       applySkin(cur.config.skin);
       applyTheme(cur.config.theme);
+      applyTune(cur.config.tune);
     }
     renderLooks();
   }
@@ -1840,9 +1940,61 @@
     if (e.key === 'Escape' && tryLook) { e.preventDefault(); endTry(false); }
   });
 
+  // ── Atelier : chaque changement passe par l'aperçu, donc se voit partout
+  // (dashboard et overlay compris) avant d'être enregistré.
+  function tuneFromUI() {
+    var sk = $('tuneSkew').value;
+    return {
+      font: $('tuneFont').value,
+      cut: $('tuneCut').value,
+      density: $('tuneDens').value,
+      skew: sk === 'auto' ? null : Number(sk),
+      italic: $('tuneItalic').indeterminate ? null : $('tuneItalic').checked,
+    };
+  }
+  function tuneToUI(t) {
+    t = Object.assign({}, TUNE_DEFAULT, t || {});
+    if (document.activeElement && document.activeElement.id &&
+        document.activeElement.id.indexOf('tune') === 0) return;
+    $('tuneFont').value = TUNE_FONTS[t.font] !== undefined ? t.font : 'auto';
+    $('tuneCut').value = TUNE_CUTS[t.cut] !== undefined ? t.cut : 'auto';
+    $('tuneDens').value = TUNE_DENS[t.density] !== undefined ? t.density : 'auto';
+    $('tuneSkew').value = t.skew === null || t.skew === undefined ? 'auto' : String(t.skew);
+    var it = $('tuneItalic');
+    it.indeterminate = (t.italic === null || t.italic === undefined);
+    it.checked = t.italic !== false;
+  }
+  function tunePreview() {
+    var live = tryLook || currentLook();
+    var next = { skin: live.skin, theme: live.theme, tune: tuneFromUI() };
+    tryLook = next;
+    applySkin(next.skin);
+    applyTheme(next.theme);
+    applyTune(next.tune);
+    api.previewLook && api.previewLook(next);
+    $('tryName').textContent = T.tuneTrying;
+    $('tryBar').classList.add('on');
+  }
+  ['tuneFont', 'tuneCut', 'tuneDens', 'tuneSkew'].forEach(function (id) {
+    $(id).onchange = tunePreview;
+  });
+  $('tuneItalic').onchange = function () { $('tuneItalic').indeterminate = false; tunePreview(); };
+  $('tuneApply').onclick = function () {
+    var live = tryLook || currentLook();
+    api.setConfig && api.setConfig({ skin: live.skin, theme: live.theme, tune: tuneFromUI() });
+    tryLook = null;
+    $('tryBar').classList.remove('on');
+    api.previewLook && api.previewLook(null);
+  };
+  $('tuneReset').onclick = function () {
+    tuneToUI(TUNE_DEFAULT);
+    $('tuneItalic').indeterminate = true;
+    tunePreview();
+  };
+
   // ── Codes de partage : un look tient dans une chaîne collable.
   function lookToCode(look) {
-    var payload = JSON.stringify({ v: 1, s: look.skin, t: look.theme });
+    var payload = JSON.stringify({ v: 1, s: look.skin, t: look.theme, u: look.tune || null });
     return 'RLST-' + btoa(unescape(encodeURIComponent(payload)))
       .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -1857,7 +2009,17 @@
       if (!/^#[0-9a-f]{6}$/i.test(String(d.t[k]))) throw new Error('bad');
       theme[k] = String(d.t[k]).toLowerCase();
     });
-    return { skin: skinById(d.s).id, theme: theme };
+    var tune = null;
+    if (d.u && typeof d.u === 'object') {
+      tune = {
+        font: TUNE_FONTS[d.u.font] !== undefined ? d.u.font : 'auto',
+        cut: TUNE_CUTS[d.u.cut] !== undefined ? d.u.cut : 'auto',
+        density: TUNE_DENS[d.u.density] !== undefined ? d.u.density : 'auto',
+        skew: typeof d.u.skew === 'number' && Math.abs(d.u.skew) <= 30 ? d.u.skew : null,
+        italic: typeof d.u.italic === 'boolean' ? d.u.italic : null,
+      };
+    }
+    return { skin: skinById(d.s).id, theme: theme, tune: tune };
   }
   $('lookCopy').onclick = function () {
     var el = $('lookCode');
@@ -1882,25 +2044,10 @@
     if (!name) return;
     var looks = ((cur && cur.config && cur.config.looks) || []).slice(0, 23);
     looks.push({ id: 'l' + Date.now().toString(36), name: String(name).slice(0, 40),
-      skin: live.skin, theme: live.theme });
+      skin: live.skin, theme: live.theme, tune: live.tune || null });
     api.setConfig && api.setConfig({ looks: looks });
   };
 
-  // Pastilles d'habillage : chaque clic pose le skin ET sa palette. La
-  // sélection courante est marquée par render(), pas ici.
-  SKINS.forEach(function (sk) {
-    var b = document.createElement('button');
-    b.className = 'chip skin-chip';
-    b.dataset.skin = sk.id;
-    var inner = document.createElement('span');
-    inner.textContent = sk.name;
-    b.appendChild(inner);
-    b.onclick = function () {
-      applySkin(sk.id);                       // retour immédiat, sans attendre l'état
-      api.setConfig && api.setConfig({ skin: sk.id, theme: sk.t });
-    };
-    document.getElementById('skinPresets').appendChild(b);
-  });
   // Pastilles de thèmes prédéfinis (construites une fois).
   PRESETS.forEach(function (p) {
     var b = document.createElement('button');
@@ -2017,16 +2164,17 @@
     // Apparence + mini-overlay (sans écraser une saisie en cours).
     // Un aperçu en cours l'emporte sur la configuration enregistrée : c'est
     // tout l'intérêt d'essayer avant d'appliquer.
-    if (lookPreview) { applySkin(lookPreview.skin); applyTheme(lookPreview.theme); }
-    else { applySkin(cfg.skin); applyTheme(cfg.theme); }
-    // NE PAS nommer cette variable `cur` : `var` est hissé à la portée de la
-    // fonction, donc `cur = s` en tête de render() alimentait CETTE variable
-    // locale et l'état global restait nul pour tout le reste du fichier.
-    var curSkin = skinById(cfg.skin).id;
-    Array.prototype.forEach.call(document.querySelectorAll('.skin-chip'), function (b) {
-      b.classList.toggle('on', b.dataset.skin === curSkin);
-    });
+    if (lookPreview) {
+      applySkin(lookPreview.skin);
+      applyTheme(lookPreview.theme);
+      applyTune(lookPreview.tune);
+    } else {
+      applySkin(cfg.skin);
+      applyTheme(cfg.theme);
+      applyTune(cfg.tune);
+    }
     renderLooks();
+    tuneToUI(tryLook ? tryLook.tune : cfg.tune);
     var th = Object.assign({}, THEME_DEFAULT, cfg.theme || {});
     [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
       .forEach(function (pair) {
@@ -2048,28 +2196,6 @@
     }
     $('animEnd').checked = an.endMatch !== false;
     $('animGoal').checked = an.goal !== false;
-
-    // Son Alpha Boost. Réglage absent (config d'avant la réinstallation du
-    // moteur, ancien processus principal) → mêmes valeurs par défaut que
-    // config.js : désactivé, sonorité dynamique, volume 0.45.
-    var ab = cfg.alphaBoost || {};
-    $('abOn').checked = !!ab.enabled;
-    if (document.activeElement !== $('abProfile')) {
-      $('abProfile').value = ab.profile === 'classic' ? 'classic' : 'quality';
-    }
-    var abVol = $('abVolume');
-    if (document.activeElement !== abVol) {
-      // Volume hors des cinq paliers du menu (valeur retouchée à la main
-      // dans le JSON) : on retient le palier le plus proche — un <select>
-      // sans option correspondante renverrait '' et donc un volume 0 à la
-      // prochaine sauvegarde.
-      var vol = ab.volume != null && isFinite(Number(ab.volume)) ? Number(ab.volume) : 0.45;
-      var nearest = '0.45';
-      Array.prototype.forEach.call(abVol.options, function (o) {
-        if (Math.abs(Number(o.value) - vol) < Math.abs(Number(nearest) - vol)) nearest = o.value;
-      });
-      abVol.value = nearest;
-    }
 
     // Mode streamer : URL à copier quand le serveur tourne, erreur sinon.
     var oc2 = cfg.obs || {};
@@ -2956,20 +3082,6 @@
     api.previewAnimation && api.previewAnimation('L');
   };
 
-  // ─── Son Alpha Boost ───
-  // Le processus principal relaie la config à la fenêtre audio (alpha-cfg)
-  // et règle lui-même la cadence de la Stats API : rien d'autre à appeler.
-  function saveAlpha() {
-    return api.setConfig && api.setConfig({ alphaBoost: {
-      enabled: $('abOn').checked,
-      volume: Number($('abVolume').value),
-      profile: $('abProfile').value,
-    } });
-  }
-  ['abOn', 'abProfile', 'abVolume'].forEach(function (id) {
-    $(id).addEventListener('change', saveAlpha);
-  });
-  // L'essai joue avec les réglages affichés, même pas encore sauvegardés :
   // on sauvegarde d'abord, l'essai part une fois la config relayée.
   $('cosAlphaCheck').onclick = function () {
     var out = $('cosAlphaCheckOut');
@@ -3007,11 +3119,6 @@
     api.openOverlayComposer && api.openOverlayComposer();
   };
 
-  $('abTest').onclick = function () {
-    Promise.resolve(saveAlpha()).then(function () {
-      if (api.alphaTest) api.alphaTest();
-    });
-  };
 
   // ─── Mode streamer (OBS) ───
   // Tous les réglages s'appliquent en direct dans OBS, sans recharger la
