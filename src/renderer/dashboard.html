@@ -43,6 +43,33 @@
     --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
     --edge:color-mix(in srgb, #000 30%, transparent);
   }
+  /* ─── Mode overlay (source « Navigateur » d'OBS) ───
+     Fond entièrement transparent, aucun chrome d'application : il ne reste
+     que les blocs, exactement ceux qu'on a laissés visibles. Le compositeur
+     (?edit=1) pose un damier pour qu'on voie ce qui est transparent. */
+  html.obs, html.obs body { background:transparent !important; overflow:hidden; }
+  html.obs header, html.obs .esc-hint, html.obs #editTools,
+  html.obs #editBtn, html.obs .fs-btn { display:none !important; }
+  html.obs main { padding:0; }
+  html.obs .card { backdrop-filter:none; }
+  html.obs-edit body {
+    background:
+      repeating-conic-gradient(#1b1f26 0 25%, #12161b 0 50%) 0 0 / 26px 26px !important;
+  }
+  html.obs-edit header { display:flex !important; }
+  html.obs-edit #editTools { display:flex !important; }
+  /* « Terminé » sort du mode édition et donne l'aperçu exact de ce que verra
+     OBS ; « Personnaliser » y ramène. Sans ce bouton, l'aperçu serait sans
+     retour. */
+  html.obs-edit #editBtn { display:inline-flex !important; }
+  html.obs-edit .fs-btn { display:none !important; }
+  /* Rappel de ce qu'on est en train de composer, pour ne pas confondre avec
+     le dashboard quand les deux fenêtres sont ouvertes côte à côte. */
+  html.obs-edit header::before {
+    content:'OVERLAY'; position:absolute; left:26px; bottom:-1px;
+    font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--orange);
+  }
+
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
   body {
@@ -1123,7 +1150,41 @@
 (function () {
   'use strict';
   function $(id) { return document.getElementById(id); }
+
+  // Cette page sert DEUX contextes : la fenêtre du dashboard (pont `rl` fourni
+  // par le preload) et la source « Navigateur » d'OBS, où la même page est
+  // servie en HTTP par obs-server.js. Dans ce second cas il n'y a pas de
+  // preload : l'état arrive par Server-Sent Events, et rien n'est
+  // enregistrable. Un seul jeu de modules, donc — pas de seconde page overlay
+  // à maintenir en parallèle.
+  var Q = new URLSearchParams(location.search);
+  var OBS = Q.get('obs') === '1';
+  var OBS_EDIT = OBS && Q.get('edit') === '1';
   var api = window.rl || {};
+  if (!window.rl && OBS) {
+    var handlers = { state: [], goal: [], match: [] };
+    var es = new EventSource('/events');
+    ['state', 'goal', 'result'].forEach(function (ev) {
+      var key = ev === 'result' ? 'match' : ev;
+      es.addEventListener(ev, function (e) {
+        var d = null;
+        try { d = JSON.parse(e.data); } catch (err) { return; }
+        handlers[key].forEach(function (fn) { fn(d); });
+      });
+    });
+    api = {
+      getState: function () {
+        return fetch('/state').then(function (r) { return r.json(); });
+      },
+      onState: function (cb) { handlers.state.push(cb); },
+      onGoal: function (cb) { handlers.goal.push(cb); },
+      onMatchResult: function (cb) { handlers.match.push(cb); },
+    };
+  }
+  if (OBS) {
+    document.documentElement.classList.add('obs');
+    if (OBS_EDIT) document.documentElement.classList.add('obs-edit');
+  }
   var cur = null;
 
   // ─── Horloge (en-tête + widget) ───
@@ -1468,7 +1529,21 @@
     clockw: { x: 0, y: 93, w: 40, h: 7, hidden: true },
     goalw: { x: 60, y: 93, w: 40, h: 7, hidden: true },
   };
+  // Défaut de l'overlay : une bande haute et large, le reste masqué. Sur un
+  // stream la place est comptée et le spectateur ne regarde que deux
+  // secondes — tout est déplaçable ensuite dans le compositeur.
+  var LAYOUT_OBS = {
+    hero: { x: 0, y: 0, w: 46, h: 32, opts: { ring: true, pips: true } },
+    modes: { x: 47, y: 0, w: 53, h: 32 },
+    live: { x: 0, y: 34, w: 46, h: 40, hidden: true },
+    evo: { x: 47, y: 34, w: 53, h: 32, hidden: true },
+    totals: { x: 0, y: 90, w: 100, h: 10, hidden: true },
+    history: { x: 0, y: 24, w: 46, h: 50, hidden: true },
+    clockw: { x: 0, y: 76, w: 20, h: 22, hidden: true },
+    goalw: { x: 22, y: 76, w: 24, h: 22, hidden: true },
+  };
   function baseLayout() {
+    if (OBS) return LAYOUT_OBS;
     return window.innerHeight > window.innerWidth ? LAYOUT_PORTRAIT : LAYOUT_DEFAULT;
   }
   // Dispositions d'avant la v3.22.0 : si l'utilisateur n'a JAMAIS touché à
@@ -1484,7 +1559,7 @@
     return a && b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
   }
   function migrateLayout(saved) {
-    if (!saved) return saved;
+    if (!saved || OBS) return saved;
     var out = Object.assign({}, saved);
     Object.keys(LEGACY).forEach(function (id) {
       if (sameRect(out[id], LEGACY[id])) {
@@ -1521,6 +1596,9 @@
 
   // Disposition active : profil 1/2/3 (l'ancien champ unique sert de secours).
   function cfgLayout(cfg) {
+    // L'overlay a sa PROPRE disposition : ce qu'on montre au spectateur n'a
+    // rien à voir avec ce qu'on garde sur un second écran.
+    if (OBS) return (cfg && cfg.obsLayout) || null;
     var slot = (cfg && cfg.layoutSlot) || '1';
     var slots = (cfg && cfg.layouts) || {};
     return slots[slot] || (slot === '1' ? cfg && cfg.layout : null) || null;
@@ -1669,7 +1747,10 @@
     });
   }
 
-  function saveLayout() { if (api.setConfig) api.setConfig({ layout: layout }); }
+  function saveLayout() {
+    if (!api.setConfig) return;
+    api.setConfig(OBS ? { obsLayout: layout } : { layout: layout });
+  }
   function snap(v) { return Math.round(v); }
 
   // Poignées (masquer + redimensionner) et déplacement de chaque widget.
@@ -2476,6 +2557,12 @@
     });
   }
 
+  // Compositeur d'overlay : on entre directement en édition, il n'y a rien
+  // d'autre à faire dans cette fenêtre.
+  if (OBS_EDIT) {
+    document.body.classList.add('editing');
+    editing = true;
+  }
   if (api.onState) api.onState(render);
   if (api.getState) api.getState().then(render);
 })();

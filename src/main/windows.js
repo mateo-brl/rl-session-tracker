@@ -163,6 +163,45 @@ function pickDisplay() {
   return external || primary;
 }
 
+// Compositeur d'overlay : la MÊME page que le dashboard, en mode overlay et
+// en édition. On y compose ce que verra le spectateur, sur un damier qui
+// montre ce qui est transparent. Une fenêtre ordinaire, pas un plein écran :
+// on la garde à côté d'OBS pendant qu'on règle.
+let composer = null;
+function openOverlayComposer() {
+  if (composer && !composer.isDestroyed()) {
+    composer.show();
+    composer.focus();
+    return composer;
+  }
+  const display = pickDisplay();
+  const { width, height } = display.bounds;
+  composer = new BrowserWindow({
+    width: Math.min(1280, width - 120),
+    height: Math.min(760, height - 140),
+    backgroundColor: '#12161b',
+    show: false,
+    icon: ICON,
+    autoHideMenuBar: true,
+    title: 'RL Session Tracker — Compositeur d’overlay',
+    webPreferences: {
+      preload: PRELOAD,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  hardenWindow(composer);
+  composer.loadFile(path.join(RENDERER, 'dashboard.html'), {
+    query: { obs: '1', edit: '1' },
+  });
+  composer.once('ready-to-show', () => composer.show());
+  composer.on('closed', () => { composer = null; });
+  return composer;
+}
+function getComposer() {
+  return composer && !composer.isDestroyed() ? composer : null;
+}
+
 function openDashboard(opts, onReady) {
   const fullscreen = !opts || opts.fullscreen !== false;
   if (dashboard && !dashboard.isDestroyed()) {
@@ -361,7 +400,7 @@ function getAlphaAudio() {
 
 // Pousse l'état vers toutes les fenêtres ouvertes.
 function broadcast(channel, payload) {
-  for (const w of [getControl(), getDashboard(), getOverlay()]) {
+  for (const w of [getControl(), getDashboard(), getOverlay(), getComposer()]) {
     if (w && w.webContents) {
       try { w.webContents.send(channel, payload); } catch (e) {}
     }
@@ -373,6 +412,7 @@ module.exports = {
   setTrayOnly,
   openAlphaAudio, closeAlphaAudio, getAlphaAudio,
   openDashboard, closeDashboard, getDashboard,
+  openOverlayComposer, getComposer,
   setDashboardFullscreen,
   openOverlay, closeOverlay, getOverlay, applyOverlayCfg,
   broadcast,
