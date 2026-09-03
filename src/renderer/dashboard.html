@@ -270,6 +270,41 @@
   .wl-cap { display:flex; gap:52px; margin-top:8px; }
   .wl-cap span { font-size:12px; font-weight:700; color:var(--muted);
     text-transform:uppercase; letter-spacing:.16em; }
+  /* Anneau de winrate : piste sombre + arc coloré, chiffre au centre. La
+     couleur suit le sens de la session (au-dessus de 50 % = couleur de
+     victoire), sans introduire de teinte nouvelle. */
+  .wr-ring { position:relative; width:118px; height:118px; flex:0 0 auto; }
+  .wr-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
+  .wr-ring circle { fill:none; stroke-width:9; }
+  .wr-ring .trk { stroke:var(--panel2); }
+  .wr-ring .arc {
+    stroke:var(--blue); stroke-linecap:butt;
+    transition:stroke-dashoffset .5s ease, stroke .3s ease;
+  }
+  .wr-ring.down .arc { stroke:var(--orange); }
+  .wr-num {
+    position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:1px;
+  }
+  .wr-num b {
+    font-size:30px; font-weight:800; font-style:italic; line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .wr-num span {
+    font-size:9.5px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted);
+  }
+  /* Suite de résultats : une pastille par match, la plus récente à droite. */
+  .pips { display:flex; gap:5px; margin-top:14px; flex-wrap:wrap; }
+  .pips i {
+    width:15px; height:15px; display:block; font-style:normal;
+    transform:skewX(-14deg); background:var(--panel2);
+  }
+  .pips i.W { background:var(--blue); }
+  .pips i.L { background:var(--orange); }
+  .pips i.last { outline:2px solid var(--text); outline-offset:2px; }
+  .pips:empty { display:none; }
+
   .hero-side { display:flex; flex-direction:column; gap:10px; }
   .kv { display:flex; align-items:baseline; gap:10px; }
   .kv b { font-size:33px; font-weight:800; font-style:italic;
@@ -292,8 +327,11 @@
     background:linear-gradient(168deg, var(--panel2), var(--panel) 80%);
     border:1px solid var(--line); border-left:4px solid var(--line);
     clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
-    padding:13px 15px;
+    padding:10px 15px 11px;
+    position:relative; overflow:hidden;
   }
+  /* Tout le contenu passe DEVANT la courbe de fond. */
+  .mode > * { position:relative; z-index:1; }
   /* Liseré gauche coloré par palier : identité de rang au premier regard,
      sans pavé de couleur — reste sobre (cf demande utilisateur). */
   .mode.rk1 { border-left-color:var(--tier-1); }
@@ -324,6 +362,43 @@
     font-style:italic; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
   /* Récap « ce que j'ai gagné cette session » : le delta est la ligne la
      plus voyante du bloc — c'est la question posée par l'utilisateur. */
+  /* Progression DANS le palier : on sait enfin où l'on se situe entre deux
+     rangs, et combien de points il reste. La barre est inclinée comme le
+     reste du langage visuel. */
+  .mode .mmr-d {
+    font-size:13px; font-weight:800; font-style:italic;
+    font-variant-numeric:tabular-nums;
+  }
+  .mode .mmr-d.up { color:var(--blue); }
+  .mode .mmr-d.down { color:var(--orange); }
+  .mode .mmr-d.flat { color:var(--muted); }
+  .rank-bar {
+    margin-top:6px; height:6px; background:var(--panel2);
+    box-shadow:inset 0 0 0 1px var(--line);
+    transform:skewX(-14deg); overflow:hidden;
+  }
+  .rank-bar i { display:block; height:100%; background:var(--blue); }
+  /* Reste avant le rang suivant : forme courte sur la ligne du MMR, le
+     libellé complet est dans l'infobulle de la barre. Une ligne de texte de
+     plus ne tenait pas dans la tuile, et la barre seule suffit à situer. */
+  .rank-next {
+    font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted);
+  }
+  .rank-next b { color:var(--text); font-style:italic; }
+  /* Courbe miniature du mode : la forme des dernières parties, sans quitter
+     la tuile. Trait seul, aucune échelle — c'est une tendance, pas une
+     mesure ; le graphique complet reste dans sa carte. */
+  /* La courbe occupe le bas de la tuile, en fond : elle ne prend aucune
+     hauteur au contenu, et se lit quand même comme une tendance. */
+  .spark {
+    position:absolute; left:0; right:0; bottom:0; z-index:0;
+    display:block; width:100%; height:42px; opacity:.55; pointer-events:none;
+  }
+  .spark path.ln { fill:none; stroke:var(--blue); stroke-width:2; }
+  .spark.down path.ln { stroke:var(--orange); }
+  .spark path.fill { stroke:none; fill:var(--blue-soft); }
+  .spark.down path.fill { fill:var(--orange-soft); }
+
   .mode .mmr-delta { margin-top:6px; display:flex; align-items:center; gap:7px;
     font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
   .mode .mmr-delta .flat { color:var(--muted); }
@@ -869,12 +944,28 @@
           </div>
           <div class="wl-cap"><span data-i18n="wins">Victoires</span><span data-i18n="losses">Défaites</span></div>
         </div>
+        <!-- Anneau de winrate : la même valeur que « 71 % » mais lisible d'un
+             coup d'œil de loin, et qui se remplit à mesure que la session
+             avance. L'arc est dessiné en SVG (stroke-dasharray), sans
+             dépendance ni image. -->
+        <div class="wr-ring" id="wrRing" title="">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="trk" cx="60" cy="60" r="52"></circle>
+            <circle class="arc" cx="60" cy="60" r="52" id="wrArc"></circle>
+          </svg>
+          <div class="wr-num"><b id="wrPct">—</b><span id="wrSub"></span></div>
+        </div>
         <div class="hero-side">
           <div class="kv"><b id="winrate">—</b><span data-i18n="kvWinrate">de victoires</span></div>
           <div class="kv"><b id="played">0</b><span data-i18n="kvPlayed">matchs joués</span></div>
           <div class="kv"><b id="bestStreak">—</b><span data-i18n="kvBest">meilleure série</span></div>
         </div>
       </div>
+      <!-- Suite de résultats : les derniers matchs de la session, du plus
+           ancien au plus récent. Une session se lit d'abord comme une
+           ALTERNANCE (deux gagnés, trois perdus…), ce qu'aucun compteur ne
+           montre. Le dernier match est cerclé. -->
+      <div class="pips" id="pips"></div>
       <div class="streak-banner" id="streakBadge"><span id="streakTxt"></span></div>
       <!-- Matchs non attribués : avertissement simple (pas de réglage ici,
            voir control.html pour corriger le pseudo). Réutilise le style
@@ -1075,6 +1166,8 @@
   var I18N = {
     fr: {
       bSessReset: 'Nouvelle session', confirmSessReset: 'Remettre les compteurs de session à zéro ? Les matchs restent au journal.',
+      toNext: function (r) { return 'pts avant ' + r; },
+      wrTip: function (w, l) { return w + ' victoires, ' + l + ' défaites'; },
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
@@ -1147,6 +1240,8 @@
     },
     en: {
       bSessReset: 'New session', confirmSessReset: 'Reset the session counters? Matches stay in the log.',
+      toNext: function (r) { return 'pts to ' + r; },
+      wrTip: function (w, l) { return w + ' wins, ' + l + ' losses'; },
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
@@ -1294,10 +1389,13 @@
     clockw: 'Horloge', goalw: 'Objectif',
   };
   var LAYOUT_DEFAULT = {
-    hero: { x: 0, y: 0, w: 55, h: 29 },
-    modes: { x: 0, y: 31, w: 55, h: 24 },
+    hero: { x: 0, y: 0, w: 55, h: 27 },
+    // Hauteur montée de 24 à 33 en v3.22.0 : les tuiles portent désormais la
+    // barre de progression de rang et sa courbe de fond, rognées par
+    // l'ancienne hauteur.
+    modes: { x: 0, y: 29, w: 55, h: 33 },
     live: { x: 56, y: 0, w: 44, h: 58 },
-    evo: { x: 0, y: 57, w: 55, h: 27 },
+    evo: { x: 0, y: 63, w: 55, h: 21 },
     totals: { x: 0, y: 86, w: 55, h: 14 },
     history: { x: 56, y: 60, w: 44, h: 40 },
     // Widgets bonus : masqués par défaut, à activer via « Personnaliser ».
@@ -1321,7 +1419,32 @@
   function baseLayout() {
     return window.innerHeight > window.innerWidth ? LAYOUT_PORTRAIT : LAYOUT_DEFAULT;
   }
+  // Dispositions d'avant la v3.22.0 : si l'utilisateur n'a JAMAIS touché à
+  // ces deux widgets, ils suivent le nouveau défaut (sinon sa barre de rang
+  // resterait rognée pour toujours). Une disposition personnalisée, elle,
+  // n'est jamais réécrite — c'est son choix.
+  var LEGACY = {
+    hero: { x: 0, y: 0, w: 55, h: 29 },
+    modes: { x: 0, y: 31, w: 55, h: 24 },
+    evo: { x: 0, y: 57, w: 55, h: 27 },
+  };
+  function sameRect(a, b) {
+    return a && b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  }
+  function migrateLayout(saved) {
+    if (!saved) return saved;
+    var out = Object.assign({}, saved);
+    Object.keys(LEGACY).forEach(function (id) {
+      if (sameRect(out[id], LEGACY[id])) {
+        out[id] = Object.assign({}, LAYOUT_DEFAULT[id],
+          out[id] && out[id].hidden ? { hidden: true } : {});
+      }
+    });
+    return out;
+  }
+
   function mergeLayout(cfgLayout) {
+    cfgLayout = migrateLayout(cfgLayout);
     var base = baseLayout();
     var out = {};
     Object.keys(base).forEach(function (id) {
@@ -1592,13 +1715,30 @@
         // — un simple point, pas un pavé de texte (cf consigne).
         var estDot = (hasDelta && r.deltaReal === false)
           ? '<span class="est-dot" title="' + T.mmrEstTip + '"></span>' : '';
+        // Progression dans le palier : la barre dit OÙ l'on est entre deux
+        // rangs, la ligne dessous combien de points restent. Absent tant
+        // qu'aucun relevé fiable ne donne un rang.
+        var rankBar = '', toNext = '';
+        if (r.progress != null) {
+          var full = (r.toNext != null && r.range && r.range.next)
+            ? r.toNext + ' ' + T.toNext(r.range.next) : '';
+          rankBar = '<div class="rank-bar" title="' + esc(full) + '"><i style="width:'
+            + Math.round(r.progress * 100) + '%"></i></div>';
+          if (r.toNext != null) {
+            toNext = '<span class="rank-next" title="' + esc(full) + '">+'
+              + r.toNext + '</span>';
+          }
+        }
+        // Tout sur une ligne : rang, MMR, variation de session, reste avant
+        // le rang suivant. Une ligne de moins, c'est ce qui permet à la barre
+        // de progression de tenir dans la tuile sans la faire grandir.
         mmrLine = '<div class="mmr">'
           + '<div class="mmr-top">' + rankPill
-            + '<b class="mmr-val">' + r.value + '</b>' + fromLogTag + '</div>'
-          + (hasDelta
-            ? '<div class="mmr-delta"><span class="' + deltaCls + '">' + deltaTxt
-              + '</span>' + estDot + '</div>'
-            : '') + '</div>';
+            + '<b class="mmr-val">' + r.value + '</b>' + fromLogTag
+            + (hasDelta ? '<span class="mmr-d ' + deltaCls + '">' + deltaTxt + '</span>' : '')
+            + estDot + toNext + '</div>'
+          + rankBar
+          + sparkSvg((s.evolution || {})[k]) + '</div>';
       }
       if (m) {
         var stm;
@@ -1650,6 +1790,8 @@
       renderLivePlayers(live, cfg.pseudo, s.h2h);
     }
 
+    renderWinrateRing(ses);
+    renderPips(s.history || []);
     renderEvolution(s);
     renderGoal(ses, cfg);
 
@@ -1755,6 +1897,62 @@
   var evoMode = null;       // mode affiché ; choix de l'utilisateur conservé
   var evoLastPoints = null; // dernier jeu de points dessiné, pour redessiner
                              // proprement sur un simple redimensionnement.
+  // Anneau de winrate. Le périmètre du cercle sert de longueur de trait :
+  // stroke-dasharray fixe la portion pleine, stroke-dashoffset l'anime.
+  var WR_R = 52, WR_C = 2 * Math.PI * WR_R;
+  function renderWinrateRing(ses) {
+    var arc = $('wrArc'), ring = $('wrRing');
+    if (!arc) return;
+    var wr = ses.winrate;
+    var has = wr !== null && wr !== undefined;
+    arc.style.strokeDasharray = WR_C;
+    arc.style.strokeDashoffset = WR_C * (1 - (has ? wr : 0) / 100);
+    ring.classList.toggle('down', has && wr < 50);
+    $('wrPct').textContent = has ? wr + ' %' : '—';
+    $('wrPct').style.color = has ? (wr < 50 ? 'var(--orange)' : 'var(--blue)') : 'var(--muted)';
+    $('wrSub').textContent = T.kvWinrate;
+    ring.title = has ? T.wrTip(ses.wins || 0, ses.losses || 0) : '';
+  }
+
+  // Suite de résultats : du plus ancien au plus récent, donc l'ordre INVERSE
+  // de l'historique (qui arrive du plus récent au plus ancien).
+  var PIPS_MAX = 20;
+  function renderPips(hist) {
+    var box = $('pips');
+    if (!box) return;
+    var list = hist.slice(0, PIPS_MAX).reverse();
+    var html = '';
+    list.forEach(function (m, i) {
+      var cls = m.result === 'W' ? 'W' : m.result === 'L' ? 'L' : '';
+      var last = i === list.length - 1 ? ' last' : '';
+      html += '<i class="' + cls + last + '" title="' + esc(m.mode || '')
+        + (Array.isArray(m.score) ? ' ' + m.score[0] + ' – ' + m.score[1] : '') + '"></i>';
+    });
+    box.innerHTML = html;
+  }
+
+  // Courbe miniature d'un mode : tracé normalisé sur ses propres extrêmes,
+  // avec un aplat sous la ligne. Rien en dessous de deux points.
+  function sparkSvg(points) {
+    if (!points || points.length < 2) return '';
+    var vals = points.map(function (p) { return p.v; });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    var span = (hi - lo) || 1;
+    var W = 100, H = 26, pad = 3;
+    var d = '', fill = '';
+    points.forEach(function (p, i) {
+      var x = (i / (points.length - 1)) * W;
+      var y = pad + (1 - (p.v - lo) / span) * (H - pad * 2);
+      d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    });
+    fill = d + 'L' + W + ' ' + H + ' L0 ' + H + ' Z';
+    var down = vals[vals.length - 1] < vals[0];
+    return '<svg class="spark' + (down ? ' down' : '') + '" viewBox="0 0 100 26" '
+      + 'preserveAspectRatio="none" aria-hidden="true">'
+      + '<path class="fill" d="' + fill + '"></path>'
+      + '<path class="ln" d="' + d + '"></path></svg>';
+  }
+
   function renderEvolution(s) {
     var evo = s.evolution || {};
     var modes = Object.keys(evo).filter(function (k) {

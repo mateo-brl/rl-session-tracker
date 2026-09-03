@@ -82,6 +82,18 @@ function tierFromMmr(mode, mmr) {
   return tier;
 }
 
+// Bornes du palier courant et marche jusqu'au suivant. Sert à montrer OÙ l'on
+// se situe dans son rang, et non seulement lequel : c'est la question que se
+// pose un joueur qui regarde son MMR entre deux matchs.
+function tierRange(mode, tier) {
+  const table = RANK_THRESHOLDS[mode];
+  if (!table || !tier || tier < 1) return null;
+  const min = table[tier - 1];
+  const max = tier < table.length ? table[tier] : null;   // dernier palier : ouvert
+  if (!Number.isFinite(min)) return null;
+  return { min, max, next: max === null ? null : tierName(tier + 1) };
+}
+
 function norm(s) {
   return String(s || '').trim().toLowerCase();
 }
@@ -671,7 +683,16 @@ class SessionStore {
         fromLog: !!entry.fromLog,
         tier: tier,
         rank: tierName(tier),
+        // Progression DANS le palier (0-1) et points restants avant le
+        // suivant. `null` tant qu'aucun relevé ne donne un rang fiable.
+        range: tier ? tierRange(mode, tier) : null,
       };
+      const r = agg.mmr[mode].range;
+      if (r && value !== null) {
+        agg.mmr[mode].progress = r.max === null ? 1
+          : Math.max(0, Math.min(1, (value - r.min) / (r.max - r.min)));
+        agg.mmr[mode].toNext = r.max === null ? null : Math.max(0, Math.round(r.max - value));
+      }
       evolution[mode] = this._evolutionForMode(mode, entry, pseudo, step);
     }
 
@@ -697,4 +718,5 @@ module.exports.MMR_STEP_MAX = MMR_STEP_MAX;
 module.exports.MMR_STEP = MMR_STEP;
 module.exports.tierName = tierName;
 module.exports.tierFromMmr = tierFromMmr;
+module.exports.tierRange = tierRange;
 module.exports.TIERS = TIERS;
