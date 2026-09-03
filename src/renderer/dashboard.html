@@ -416,8 +416,7 @@
   }
   .music-ctl button:hover { border-color:var(--blue); }
   .music-vol { display:flex; align-items:center; gap:6px; margin-left:auto; }
-  .music-vol .vico { font-size:13px; color:var(--muted); }
-  .music-vol input { width:96px; accent-color:var(--blue); cursor:pointer; }
+  .music-vol button { font-size:14px; padding:5px 9px; }
   .music-err { font-size:11.5px; color:var(--orange); min-height:14px; }
   .music-off {
     display:none; flex:1; align-items:center; justify-content:center;
@@ -1169,8 +1168,9 @@
       <div class="streak-banner" id="unknownBadge"><span id="unknownTxt"></span></div>
     </section>
 
-    <!-- En écoute (Spotify) : le son sort de TON Spotify, ce bloc le lit et
-         le pilote. Masqué tant qu'aucun compte n'est connecté. -->
+    <!-- En écoute : le contrôleur média de Windows, celui de la tuile du
+         volume. Il couvre tous les lecteurs — Spotify, navigateur, VLC — sans
+         clé ni compte. Le bloc disparaît si rien ne joue. -->
     <section class="card music">
       <div class="tag"><span data-i18n="tagMusic">En écoute</span></div>
       <div class="music-wrap" id="musicWrap">
@@ -1178,15 +1178,18 @@
         <div class="music-meta">
           <div class="music-title" id="musicTitle"></div>
           <div class="music-artist" id="musicArtist"></div>
-          <div class="music-bar"><i id="musicProg"></i></div>
-          <div class="music-time"><span id="musicPos"></span><span id="musicDur"></span></div>
+          <div id="musicBarWrap">
+            <div class="music-bar"><i id="musicProg"></i></div>
+            <div class="music-time"><span id="musicPos"></span><span id="musicDur"></span></div>
+          </div>
           <div class="music-ctl">
             <button id="musPrev" title="Précédent">⏮</button>
             <button id="musPlay" title="Lecture / pause">⏯</button>
             <button id="musNext" title="Suivant">⏭</button>
             <span class="music-vol">
-              <span class="vico">🔊</span>
-              <input type="range" id="musVol" min="0" max="100" step="5" />
+              <button id="musMute" title="Muet">🔇</button>
+              <button id="musVolDn" title="Baisser le son">🔉</button>
+              <button id="musVolUp" title="Monter le son">🔊</button>
             </span>
           </div>
           <div class="music-err" id="musicErr"></div>
@@ -2307,7 +2310,7 @@
       : net > 0 ? 'var(--blue)' : net < 0 ? 'var(--orange)' : 'var(--text)';
     if (wantRing) renderWinrateRing(ses);
     renderPips(wantPips ? (s.history || []) : []);
-    renderMusic(s.spotify);
+    renderMusic(s.media);
     renderEvolution(s);
     renderGoal(ses, cfg);
 
@@ -2491,9 +2494,9 @@
   function renderMusic(sp) {
     var card = widgetEl('music');
     if (!card) return;
-    var on = !!(sp && sp.connected);
-    // Bloc jamais montré tant que Spotify n'est pas connecté : un bloc vide
-    // sur un dashboard n'apprend rien.
+    // Rien ne joue, ou pas de contrôleur média (hors Windows) : le bloc
+    // disparaît. Un bloc vide sur un dashboard n'apprend rien.
+    var on = !!(sp && sp.available && (sp.now || sp.error));
     if (!on) { card.style.display = 'none'; return; }
     if (layout.music && layout.music.hidden) { card.style.display = 'none'; return; }
     card.style.display = 'flex';
@@ -2507,9 +2510,10 @@
     $('musicTitle').textContent = n.title || '';
     $('musicArtist').textContent = n.artist || '';
     $('musPlay').textContent = n.playing ? '⏸' : '▶';
-    var vol = $('musVol');
-    if (n.volume != null && document.activeElement !== vol) vol.value = n.volume;
-    vol.style.display = n.volume == null ? 'none' : '';
+    // Le lecteur qui a la main, en sous-titre : on sait d'où sort le son.
+    $('musicArtist').textContent = n.artist || n.app || '';
+    $('musicArt').style.display = n.art ? '' : 'none';
+    $('musicBarWrap').style.display = n.durationMs ? '' : 'none';
     tickMusic();
   }
   function tickMusic() {
@@ -2522,17 +2526,18 @@
     $('musicDur').textContent = fmtMs(n.durationMs);
   }
   setInterval(tickMusic, 500);
-  function musCmd(cmd, value) {
-    if (!api.spotifyCommand) return;
-    api.spotifyCommand(cmd, value).then(function (r) {
+  function musCmd(cmd) {
+    if (!api.mediaCommand) return;
+    api.mediaCommand(cmd).then(function (r) {
       $('musicErr').textContent = (r && r.ok === false && r.error) ? r.error : '';
     });
   }
-  $('musPrev').onclick = function () { musCmd('previous'); };
+  $('musPrev').onclick = function () { musCmd('prev'); };
   $('musNext').onclick = function () { musCmd('next'); };
-  $('musPlay').onclick = function () { musCmd('toggle'); };
-  $('musVol').oninput = function () { $('musicErr').textContent = ''; };
-  $('musVol').onchange = function () { musCmd('volume', Number($('musVol').value)); };
+  $('musPlay').onclick = function () { musCmd('playpause'); };
+  $('musMute').onclick = function () { musCmd('mute'); };
+  $('musVolDn').onclick = function () { musCmd('voldown'); };
+  $('musVolUp').onclick = function () { musCmd('volup'); };
 
   function renderEvolution(s) {
     var evo = s.evolution || {};

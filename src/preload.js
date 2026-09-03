@@ -22,12 +22,9 @@ contextBridge.exposeInMainWorld('rl', {
   enableStatsApi: () => ipcRenderer.invoke('enable-statsapi'),
   openDashboard: () => ipcRenderer.send('open-dashboard'),
   openControl: (section) => ipcRenderer.send('open-control', section),
-  // Télécommande Spotify. Le son ne transite pas par l'application : ces
-  // appels pilotent le lecteur Spotify de l'utilisateur.
-  spotifySetClient: (id) => ipcRenderer.invoke('spotify-set-client', id),
-  spotifyConnect: () => ipcRenderer.invoke('spotify-connect'),
-  spotifyDisconnect: () => ipcRenderer.invoke('spotify-disconnect'),
-  spotifyCommand: (cmd, value) => ipcRenderer.invoke('spotify-command', cmd, value),
+  // Télécommande média : passe par le contrôleur de Windows, donc pilote le
+  // lecteur qui a la main (Spotify, navigateur, VLC…).
+  mediaCommand: (cmd) => ipcRenderer.invoke('media-command', cmd),
   // Essayage d'un habillage : appliqué dans toutes les fenêtres, enregistré
   // nulle part. `null` remet la configuration réelle.
   previewLook: (look) => ipcRenderer.send('preview-look', look),
