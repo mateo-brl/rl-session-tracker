@@ -1529,6 +1529,8 @@
       document.documentElement.dataset.skin = s.id;
     }
   }
+  // Habillage essayé depuis la vitrine, poussé par le processus principal.
+  var lookPreview = null;
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1906,8 +1908,10 @@
     var ses = s.session || {};
 
     applyLang(s.lang);
-    applySkin(cfg.skin);
-    applyTheme(cfg.theme);
+    // Un aperçu en cours l'emporte sur la configuration enregistrée : c'est
+    // tout l'intérêt d'essayer avant d'appliquer.
+    if (lookPreview) { applySkin(lookPreview.skin); applyTheme(lookPreview.theme); }
+    else { applySkin(cfg.skin); applyTheme(cfg.theme); }
     document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
     // La disposition vient de la config — sauf pendant qu'on la modifie
     // (un changement de profil force quand même l'adoption).
@@ -2647,6 +2651,12 @@
   // Compositeur d'overlay : on entre directement en édition, il n'y a rien
   // d'autre à faire dans cette fenêtre.
   if (OBS_EDIT) setEditing(true);
+  if (api.onLookPreview) {
+    api.onLookPreview(function (l) {
+      lookPreview = l;
+      if (lastState) render(lastState);
+    });
+  }
   if (api.onState) api.onState(render);
   if (api.getState) api.getState().then(render);
 })();
