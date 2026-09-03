@@ -956,6 +956,14 @@ ipcMain.handle('cosmetics-add', async (_e, opts) => {
   }));
 });
 ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+ipcMain.on('open-control', (_e, section) => {
+  windows.showControl();
+  const w = windows.getControl();
+  if (w && typeof section === 'string') {
+    try { w.webContents.send('goto-section', section.slice(0, 24)); } catch (e) {}
+  }
+});
+
 ipcMain.on('open-overlay-composer', () => {
   const w = windows.openOverlayComposer();
   // La fenêtre reçoit l'état comme les autres (windows.broadcast la couvre

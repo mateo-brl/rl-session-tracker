@@ -22,10 +22,10 @@
 
   /* ─── Système : aplats francs, angles biseautés, bleu vs orange ─── */
   :root {
-    --bg:#0c0e11; --panel:#13161b; --panel2:#1a1e25; --line:#272d37;
-    --text:#eef1f5; --muted:#8b93a1;
-    --blue:#2f9bff; --blue-deep:#1466b8;
-    --orange:#ff8a1e; --orange-deep:#c45f00;
+    --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d; --line:#39414f;
+    --text:#e3e8ef; --muted:#8b93a1;
+    --blue:#4dabff; --blue-deep:#1466b8;
+    --orange:#e0741a; --orange-deep:#a34f00;
     --gold:#ffc233;
     /* Couleurs de palier de rang (Bronze → Supersonic Legend) : c'est une
        identité de jeu Rocket League, pas un accent d'interface — elle reste
@@ -41,7 +41,7 @@
     --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
     --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
     --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
-    --edge:color-mix(in srgb, #000 30%, transparent);
+    --edge:rgba(0, 0, 0, .62);
   }
   /* ─── Mode overlay (source « Navigateur » d'OBS) ───
      Fond entièrement transparent, aucun chrome d'application : il ne reste
@@ -51,7 +51,28 @@
   html.obs header, html.obs .esc-hint, html.obs #editTools,
   html.obs #editBtn, html.obs .fs-btn { display:none !important; }
   html.obs main { padding:0; }
-  html.obs .card { backdrop-filter:none; }
+  /* Sur une image de jeu, un fond de carte ne suffit pas : le texte porte sa
+     propre lisibilité. Le contour est peint SOUS le remplissage
+     (paint-order), donc les chiffres restent nets au lieu d'épaissir. */
+  html.obs .wl .w, html.obs .wl .l,
+  html.obs .live-score .s0, html.obs .live-score .s1,
+  html.obs .mode .rec, html.obs .mode .mmr-val, html.obs .tot b,
+  html.obs .wr-num b, html.obs .clock-big {
+    paint-order:stroke fill; -webkit-text-stroke:5px rgba(0, 0, 0, .72);
+    text-shadow:0 2px 10px rgba(0, 0, 0, .8);
+  }
+  html.obs .tag > span, html.obs .wl-cap span, html.obs .tot span,
+  html.obs .mode .name, html.obs .mode .sub {
+    text-shadow:0 1px 4px rgba(0, 0, 0, .92);
+  }
+  /* Plancher typographique : sous 15 px, un texte ne survit pas à un flux
+     réencodé en 4:2:0. Ce qui ne tient pas est retiré plutôt que rendu illisible. */
+  html.obs .mode .sub, html.obs td.hstats { font-size:15px; }
+  html.obs .rank-next, html.obs .est-dot, html.obs .h2h-chip { display:none; }
+  /* Les habillages translucides comptent sur un flou d'arrière-plan que la
+     source OBS ne garantit pas : on retombe sur un fond franc plutôt que sur
+     du gameplay qui bouge derrière le texte. */
+  html.obs .card { backdrop-filter:none; background-color:rgba(10, 12, 16, .84); }
   html.obs-edit body {
     background:
       repeating-conic-gradient(#1b1f26 0 25%, #12161b 0 50%) 0 0 / 26px 26px !important;
@@ -62,6 +83,7 @@
      OBS ; « Personnaliser » y ramène. Sans ce bouton, l'aperçu serait sans
      retour. */
   html.obs-edit #editBtn { display:inline-flex !important; }
+  html.obs #settingsBtn { display:none !important; }
   html.obs-edit .fs-btn { display:none !important; }
   /* Rappel de ce qu'on est en train de composer, pour ne pas confondre avec
      le dashboard quand les deux fenêtres sont ouvertes côte à côte. */
@@ -69,6 +91,21 @@
     content:'OVERLAY'; position:absolute; left:26px; bottom:-1px;
     font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--orange);
   }
+
+  /* Respect du réglage système : une animation de 6 s en plein écran sur un
+     second écran doit être négociable. */
+  @media (prefers-reduced-motion:reduce) {
+    *, *::before, *::after {
+      animation-duration:.01ms !important; animation-iteration-count:1 !important;
+      transition-duration:.01ms !important;
+    }
+    .confetti-piece, .result-stripes { display:none !important; }
+  }
+  /* Micro-mouvement là où il informe : une valeur qui change doit se voir
+     changer, sinon le mouvement ne sert que l'interruption. */
+  .card, .mode { transition:border-color .18s ease, background .18s ease; }
+  table.hist td { transition:background .12s ease; }
+  .wl .w, .wl .l, .tot b, .mode .mmr-val { transition:color .25s ease; }
 
   * { box-sizing:border-box; margin:0; padding:0; }
   html,body { height:100%; }
@@ -239,7 +276,7 @@
   body.editing #canvas .card {
     outline:1px dashed var(--blue); cursor:move;
   }
-  body.editing #canvas .card > *:not(.rsz):not(.hidebtn) {
+  body.editing #canvas .card > *:not(.rsz):not(.hidebtn):not(.optbtn):not(.optbox) {
     pointer-events:none;
   }
   .rsz {
@@ -346,14 +383,18 @@
     text-transform:uppercase; color:var(--muted);
   }
   /* Suite de résultats : une pastille par match, la plus récente à droite. */
-  .pips { display:flex; gap:5px; margin-top:14px; flex-wrap:wrap; }
+  .pips { display:flex; align-items:flex-end; gap:5px; margin-top:14px; flex-wrap:wrap; }
   .pips i {
-    width:15px; height:15px; display:block; font-style:normal;
+    width:10px; height:9px; display:block; font-style:normal;
     transform:skewX(-14deg); background:var(--panel2);
   }
-  .pips i.W { background:var(--blue); }
-  .pips i.L { background:var(--orange); }
-  .pips i.last { outline:2px solid var(--text); outline-offset:2px; }
+  /* Victoire pleine hauteur, défaite à mi-hauteur : la série se lit comme un
+     profil, sans dépendre de la teinte. */
+  .pips i.W { height:20px; background:var(--blue); }
+  .pips i.L { height:10px; background:var(--orange); }
+  /* Dernier match : un soulignement, pas un cadre vide — le contour se lisait
+     comme une case à cocher ou un artefact de compression. */
+  .pips i.last { box-shadow:0 4px 0 var(--text); }
   .pips:empty { display:none; }
 
   .hero-side { display:flex; flex-direction:column; gap:10px; }
@@ -652,6 +693,12 @@
   .history { }
   .hist-scroll { flex:1; overflow-y:auto; min-height:0; margin:0 -8px;
     padding:0 8px; }
+  /* Fondu bas : dit que ça continue, et évite qu'une ligne soit tranchée par
+     le chanfrein de la carte. */
+  .hist-scroll {
+    -webkit-mask-image:linear-gradient(to bottom, #000 calc(100% - 26px), transparent);
+    padding-bottom:10px;
+  }
   .hist-scroll::-webkit-scrollbar { width:8px; }
   .hist-scroll::-webkit-scrollbar-thumb { background:var(--line); }
   table.hist { width:100%; border-collapse:collapse; font-size:15px; }
@@ -983,6 +1030,7 @@
       <button class="hdr-btn" id="layoutResetBtn"><span data-i18n="reset">Réinitialiser</span></button>
       <button class="hdr-btn accent" id="editDoneBtn"><span data-i18n="done">Terminé</span></button>
     </div>
+    <button class="hdr-btn" id="settingsBtn"><span data-i18n="settings">Réglages</span></button>
     <button class="hdr-btn" id="editBtn"><span data-i18n="edit">Personnaliser</span></button>
     <button class="fs-btn" id="fsBtn" title="Plein écran (F11)">⛶</button>
     <div class="clock" id="clock"></div>
@@ -1014,7 +1062,7 @@
           <div class="wr-num"><b id="wrPct">—</b><span id="wrSub"></span></div>
         </div>
         <div class="hero-side">
-          <div class="kv"><b id="winrate">—</b><span data-i18n="kvWinrate">de victoires</span></div>
+          <div class="kv"><b id="mmrNet">—</b><span data-i18n="kvMmrNet">MMR sur la session</span></div>
           <div class="kv"><b id="played">0</b><span data-i18n="kvPlayed">matchs joués</span></div>
           <div class="kv"><b id="bestStreak">—</b><span data-i18n="kvBest">meilleure série</span></div>
         </div>
@@ -1158,7 +1206,10 @@
   // enregistrable. Un seul jeu de modules, donc — pas de seconde page overlay
   // à maintenir en parallèle.
   var Q = new URLSearchParams(location.search);
-  var OBS = Q.get('obs') === '1';
+  // ?obs=1 dans l'URL, ou marquage posé par le serveur sur la page servie :
+  // le mode overlay ne doit pas dépendre de ce que l'utilisateur a recopié.
+  var OBS = Q.get('obs') === '1' || document.documentElement.dataset.obsPage === '1'
+    || (document.body && document.body.dataset.obs === '1');
   var OBS_EDIT = OBS && Q.get('edit') === '1';
   var api = window.rl || {};
   if (!window.rl && OBS) {
@@ -1273,6 +1324,8 @@
       optPips: 'Suite des résultats',
       optTotals: 'Compteurs',
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Buts', assists: 'Passes', saves: 'Arrêts', shots: 'Tirs', mvps: 'MVP' },
+      settings: 'Réglages',
+      kvMmrNet: 'MMR sur la session',
       tagSession: 'Session', tagModes: 'Par mode', tagLive: 'Match en cours',
       tagEvo: 'Évolution MMR', tagTotals: 'Mes stats de la session',
       tagHistory: 'Derniers matchs', tagClock: 'Horloge',
@@ -1355,6 +1408,8 @@
       optPips: 'Result run',
       optTotals: 'Counters',
       optLabels: { '1v1': '1v1', '2v2': '2v2', '3v3': '3v3', goals: 'Goals', assists: 'Assists', saves: 'Saves', shots: 'Shots', mvps: 'MVP' },
+      settings: 'Settings',
+      kvMmrNet: 'MMR this session',
       tagSession: 'Session', tagModes: 'Per mode', tagLive: 'Live match',
       tagEvo: 'MMR evolution', tagTotals: 'My session stats',
       tagHistory: 'Recent matches', tagClock: 'Clock',
@@ -1426,7 +1481,7 @@
   }
 
   // ─── Thème : 4 couleurs, le reste est dérivé (panneaux, liserés) ───
-  var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
+  var THEME_DEFAULT = { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' };
   function mix(a, b, f) {
     var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
     var c = [16, 8, 0].map(function (sh) {
@@ -1457,11 +1512,11 @@
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
   // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
   var SKINS = [
-    { id: 'arena',   name: 'Arène',    t: { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' } },
+    { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
     { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
-    { id: 'papier',  name: 'Papier',   t: { win: '#1f6feb', loss: '#c2410c', bg: '#f4f1ea', gold: '#a16207' } },
+    { id: 'papier',  name: 'Papier',   t: { win: '#1a5fd0', loss: '#a8350a', bg: '#f4f1ea', gold: '#8a5209' } },
     { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
-    { id: 'brut',    name: 'Brut',     t: { win: '#ffffff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
+    { id: 'brut',    name: 'Brut',     t: { win: '#00e0ff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
     { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
   ];
   function skinById(id) {
@@ -1490,9 +1545,9 @@
     var toward = isLight(t.bg) ? '#000000' : '#ffffff';
     s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
     s.setProperty('--muted', isLight(t.bg) ? '#5b6472' : '#8b93a1');
-    s.setProperty('--panel', mix(t.bg, toward, .035));
-    s.setProperty('--panel2', mix(t.bg, toward, .07));
-    s.setProperty('--line', mix(t.bg, toward, .14));
+    s.setProperty('--panel', mix(t.bg, toward, .055));
+    s.setProperty('--panel2', mix(t.bg, toward, .10));
+    s.setProperty('--line', mix(t.bg, toward, .22));
   }
 
   // ─── Widgets : disposition libre, mémorisée ───
@@ -1507,10 +1562,10 @@
     // barre de progression de rang et sa courbe de fond, rognées par
     // l'ancienne hauteur.
     modes: { x: 0, y: 29, w: 55, h: 33 },
-    live: { x: 56, y: 0, w: 44, h: 58 },
+    live: { x: 56, y: 0, w: 44, h: 40 },
     evo: { x: 0, y: 63, w: 55, h: 21 },
-    totals: { x: 0, y: 86, w: 55, h: 14 },
-    history: { x: 56, y: 60, w: 44, h: 40 },
+    totals: { x: 0, y: 85, w: 55, h: 15 },
+    history: { x: 56, y: 42, w: 44, h: 58 },
     // Widgets bonus : masqués par défaut, à activer via « Personnaliser ».
     clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
     goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
@@ -1552,6 +1607,8 @@
   // n'est jamais réécrite — c'est son choix.
   var LEGACY = {
     hero: { x: 0, y: 0, w: 55, h: 29 },
+    live: { x: 56, y: 0, w: 44, h: 58 },
+    history: { x: 56, y: 60, w: 44, h: 40 },
     modes: { x: 0, y: 31, w: 55, h: 24 },
     evo: { x: 0, y: 57, w: 55, h: 27 },
   };
@@ -1606,7 +1663,7 @@
   function renderSlotChips() {
     var box = $('slotChips');
     box.innerHTML = '';
-    if (!editing) return;
+    if (!editing || OBS) return;
     var active = (cur && cur.config && cur.config.layoutSlot) || '1';
     ['1', '2', '3'].forEach(function (n) {
       var b = document.createElement('button');
@@ -1828,12 +1885,17 @@
     document.body.classList.toggle('editing', on);
     applyLayout();
   }
+  // Le dashboard est en plein écran sur un second écran : sans ce bouton, un
+  // état vide qui dit « renseigne ton MMR dans les réglages » est une impasse.
+  $('settingsBtn').onclick = function () { api.openControl && api.openControl('account'); };
   $('editBtn').onclick = function () { setEditing(true); };
   $('editDoneBtn').onclick = function () { setEditing(false); };
   $('layoutResetBtn').onclick = function () {
     layout = mergeLayout(null);
     applyLayout();
-    if (api.setConfig) api.setConfig({ layout: null });
+    // La surface éditée décide de la clé remise à zéro. Sans ça, réinitialiser
+    // l'overlay détruisait la disposition du dashboard.
+    if (api.setConfig) api.setConfig(OBS ? { obsLayout: null } : { layout: null });
   };
 
   function render(s) {
@@ -1873,7 +1935,8 @@
     $('wins').textContent = ses.wins || 0;
     $('losses').textContent = ses.losses || 0;
     $('played').textContent = ses.played || 0;
-    $('winrate').textContent = ses.winrate == null ? '—' : ses.winrate + ' %';
+    // Le winrate est porté par l'anneau : la ligne texte qui le répétait a
+    // laissé place au MMR net (voir plus bas).
     $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + T.vUnit : '—';
     $('sessionSince').textContent = ses.startedAt
       ? T.since + fmtHour(ses.startedAt) : '';
@@ -2048,6 +2111,18 @@
     var wantPips = wopt('hero', 'pips', true) !== false;
     $('wrRing').style.display = wantRing ? '' : 'none';
     $('pips').style.display = wantPips ? '' : 'none';
+    // MMR net : somme des variations de tous les modes calibrés. C'est la
+    // question de fin de session, et elle n'était nulle part — alors que le
+    // winrate était affiché trois fois.
+    var net = null;
+    Object.keys(ses.mmr || {}).forEach(function (k) {
+      var d = ses.mmr[k] && ses.mmr[k].delta;
+      if (typeof d === 'number') net = (net || 0) + d;
+    });
+    var netEl = $('mmrNet');
+    netEl.textContent = net === null ? '—' : (net > 0 ? '+' : '') + net;
+    netEl.style.color = net === null ? 'var(--muted)'
+      : net > 0 ? 'var(--blue)' : net < 0 ? 'var(--orange)' : 'var(--text)';
     if (wantRing) renderWinrateRing(ses);
     renderPips(wantPips ? (s.history || []) : []);
     renderEvolution(s);
@@ -2487,6 +2562,12 @@
     var anim = (cur && cur.config && cur.config.anim) || {};
     // Désactivée dans les réglages — sauf pour le bouton « Tester ».
     if (!m.preview && anim.endMatch === false) return;
+    // Dans une source OBS, cette bannière couvre TOUT le flux : elle suit son
+    // propre réglage (section Streaming), pas celui du dashboard.
+    if (OBS && !m.preview) {
+      var ocfg = (cur && cur.config && cur.config.obs) || {};
+      if (ocfg.banner === false) return;
+    }
     var preset = anim.preset || 'broadcast';
     hideResult();
     var win = m.result === 'W';
@@ -2498,7 +2579,9 @@
         + (m.isOT ? ' (OT)' : '')
         + (m.mode ? '  ·  ' + m.mode : '')
         + (m.me && m.me.mvp ? '  ·  MVP' : '');
-    if (!cur || !cur.config || cur.config.sounds !== false) playJingle(win);
+    // Jamais de son depuis l'overlay : OBS capte l'audio des sources
+    // navigateur, le jingle partirait dans le direct.
+    if (!OBS && (!cur || !cur.config || cur.config.sounds !== false)) playJingle(win);
     var st = cur && cur.session && cur.session.streak;
     $('resultStreak').textContent = (st && st.count >= 2)
       ? T.resStreak(st.count, st.type === 'W')
@@ -2550,6 +2633,10 @@
     api.onGoal(function () {
       var anim = (cur && cur.config && cur.config.anim) || {};
       if (anim.goal === false) return;
+      if (OBS) {
+        var og = (cur && cur.config && cur.config.obs) || {};
+        if (og.goalFlash === false) return;
+      }
       var c = $('liveCard');
       c.classList.remove('goal');
       void c.offsetWidth;
@@ -2559,10 +2646,7 @@
 
   // Compositeur d'overlay : on entre directement en édition, il n'y a rien
   // d'autre à faire dans cette fenêtre.
-  if (OBS_EDIT) {
-    document.body.classList.add('editing');
-    editing = true;
-  }
+  if (OBS_EDIT) setEditing(true);
   if (api.onState) api.onState(render);
   if (api.getState) api.getState().then(render);
 })();
