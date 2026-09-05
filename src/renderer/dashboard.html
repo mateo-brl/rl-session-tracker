@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
-<title>RL Session Tracker — Dashboard</title>
+<title>RL Session Tracker – Dashboard</title>
 <style>
   /* ─── Typographie broadcast (embarquée, licence OFL) ─── */
   @font-face { font-family:'Barlow Condensed'; font-weight:500; font-style:normal;
@@ -27,12 +27,22 @@
     --blue:#4dabff; --blue-deep:#1466b8;
     --orange:#e0741a; --orange-deep:#a34f00;
     --gold:#ffc233;
-    /* Couleurs de palier de rang (Bronze → Supersonic Legend) : c'est une
-       identité de jeu Rocket League, pas un accent d'interface — elle reste
+    /* Couleurs de palier de rang (Bronze → Supersonic Legend).
+       R-29 plafonne la palette à trois couleurs de base plus un accent, et
+       huit teintes de palier la dépassent. Elles restent, et voici pourquoi :
+       ce ne sont pas des choix de décoration mais une DONNÉE, l'échelle de
+       rang du jeu, que le joueur reconnaît au premier regard. Les réduire
+       supprimerait de l'information. Elles ne servent d'ailleurs plus de
+       couleur de texte depuis la reprise des pastilles : juste un filet.
+       C'est une identité de jeu Rocket League, pas un accent d'interface — elle reste
        FIXE quelle que soit la palette choisie par l'utilisateur (applyTheme
        ne touche jamais ces variables), contrairement à --blue/--orange/--gold. */
     --tier-1:#b07a4a; --tier-2:#a7b0bb; --tier-3:#dcae44; --tier-4:#43b8ae;
-    --tier-5:#5f8fe6; --tier-6:#a06bec; --tier-7:#e5602f; --tier-8:#ff9a3c;
+    /* Diamant et Champion étaient à 1,13:1 l'un de l'autre : à 11 px, deux
+       pastilles identiques. Le premier assombri, le second éclairci : ils
+       sont maintenant à 2,08:1 l'un de l'autre, donc distincts d'un coup
+       d'œil sur le filet de la pastille comme sur le liseré de la tuile. */
+    --tier-5:#3f6bd0; --tier-6:#c092ff; --tier-7:#e5602f; --tier-8:#ffd36e;
     /* Dérivées (color-mix sur les variables ci-dessus) : voiles translucides
        et arêtes, recalculés tout seuls quand applyTheme() repeint
        --blue/--orange/--bg — aucune couleur nouvelle en dur, les 8 thèmes
@@ -103,6 +113,9 @@
      retour. */
   html.obs-edit #editBtn { display:inline-flex !important; }
   html.obs #settingsBtn { display:none !important; }
+  /* Le compositeur n'est ni plein écran ni fermable par Échap : annoncer ces
+     raccourcis en bas de fenêtre, c'était promettre ce qui n'existe pas. */
+  html.obs-edit .esc-hint { display:none !important; }
   html.obs-edit .fs-btn { display:none !important; }
   /* L'heure n'a rien à faire dans un outil de composition, et elle prenait
      la place du dernier bouton de la barre. */
@@ -155,6 +168,26 @@
   .wl .w, .wl .l, .tot b, .mode .mmr-val { transition:color .25s ease; }
 
   * { box-sizing:border-box; margin:0; padding:0; }
+
+  /* ─── Navigation au clavier ───
+     Les éléments étaient bien atteignables au Tab (ce sont des <button> et
+     des <input> natifs), mais RIEN ne montrait où l'on se trouvait : le
+     contour du navigateur était retiré sur les champs et aucun état de focus
+     n'existait sur les boutons. Un contour franc, posé une fois pour toutes
+     sur ce qui reçoit le focus au clavier. :focus-visible et non :focus, pour
+     ne pas cercler ce qu'on vient de cliquer à la souris. */
+  :focus-visible {
+    outline:2px solid var(--blue);
+    outline-offset:2px;
+    border-radius:2px;
+  }
+  /* Les champs avaient outline:none sans remplacement digne de ce nom : la
+     bordure qui change de couleur ne se voit pas sur un fond déjà bordé. */
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline:2px solid var(--blue);
+    outline-offset:1px;
+  }
+
   html,body { height:100%; }
   body {
     /* Fond « arène » : deux halos aux couleurs des équipes (haut-droit bleu,
@@ -417,6 +450,10 @@
     font-size:13px; cursor:pointer;
   }
   .optbox input { accent-color:var(--blue); }
+  .optbox-note {
+    font-size:11px; line-height:1.4; color:var(--muted);
+    margin:-2px 0 8px; max-width:190px;
+  }
 
   .hdr-btn {
     border:1px solid var(--line); background:var(--panel2); color:var(--muted);
@@ -659,26 +696,34 @@
   /* Rang en clair, mis en avant devant le MMR brut (retour utilisateur :
      « j'ai juste mon MMR, pas mon rang »). Chip skewé, dans l'esprit des
      autres pastilles de l'appli (.tag/.chip/.res-chip…). */
+  /* La couleur de palier ne porte plus le TEXTE, elle porte un filet.
+     Mesuré sur l'habillage clair : Or à 1,65:1, Platine à 1,76:1, Diamant à
+     1,94:1 sur le panneau crème, très loin des 4,5:1 exigés pour du 11 px.
+     Ces teintes sont l'échelle de rang du jeu et restent figées ; c'est leur
+     USAGE qui change. Le libellé prend la couleur du texte, donc lisible sur
+     les six habillages, et l'identité de palier survit dans le filet. */
   .rank-pill {
     display:inline-block; transform:skewX(-14deg);
-    background:var(--panel2); border:1px solid currentColor;
-    padding:2px 9px; font-style:italic; font-weight:800; font-size:11px;
+    background:var(--panel2); border:1px solid var(--line);
+    box-shadow:inset 3px 0 0 var(--tier-c, var(--muted));
+    color:var(--text);
+    padding:2px 9px 2px 11px; font-style:italic; font-weight:800; font-size:11px;
     letter-spacing:.07em; text-transform:uppercase; line-height:1.5;
   }
   .rank-pill > span { display:inline-block; transform:skewX(14deg); }
   .rank-pill:empty { display:none; }
   .rank-pill.sm { font-size:9.5px; padding:1px 7px; }
-  .rank-pill.rk0 { color:var(--muted); }
-  .rank-pill.rk1 { color:var(--tier-1); }
-  .rank-pill.rk2 { color:var(--tier-2); }
-  .rank-pill.rk3 { color:var(--tier-3); }
-  .rank-pill.rk4 { color:var(--tier-4); }
-  .rank-pill.rk5 { color:var(--tier-5); }
-  .rank-pill.rk6 { color:var(--tier-6); }
-  .rank-pill.rk7 { color:var(--tier-7); }
+  .rank-pill.rk0 { --tier-c:var(--muted); }
+  .rank-pill.rk1 { --tier-c:var(--tier-1); }
+  .rank-pill.rk2 { --tier-c:var(--tier-2); }
+  .rank-pill.rk3 { --tier-c:var(--tier-3); }
+  .rank-pill.rk4 { --tier-c:var(--tier-4); }
+  .rank-pill.rk5 { --tier-c:var(--tier-5); }
+  .rank-pill.rk6 { --tier-c:var(--tier-6); }
+  .rank-pill.rk7 { --tier-c:var(--tier-7); }
   /* Supersonic Legend : seul palier à porter un soupçon de dégradé — le
      rang le plus rare de l'échelle, discret mais reconnaissable. */
-  .rank-pill.rk8 { color:var(--tier-8);
+  .rank-pill.rk8 { --tier-c:var(--tier-8);
     background:linear-gradient(135deg, rgba(255,154,60,.18), rgba(160,107,236,.18)); }
 
   /* ─── Match en cours ─── */
@@ -1036,8 +1081,10 @@
   .result-stripes::after { bottom:26%; animation:stripe-r .45s ease-out; }
   @keyframes stripe-l { from { transform:rotate(-7deg) translateX(-60%); } }
   @keyframes stripe-r { from { transform:rotate(-7deg) translateX(60%); } }
+  /* Ramené de min(15vw,170px) : sur un second écran, un mot de 170 px qui
+     déboule en tremblant, c'est une interruption, pas une célébration. */
   .result-text {
-    font-style:italic; font-weight:800; font-size:min(15vw,170px);
+    font-style:italic; font-weight:800; font-size:min(9vw,104px);
     letter-spacing:.04em; line-height:1; text-transform:uppercase;
     position:relative;
   }
@@ -1045,9 +1092,10 @@
     animation:slam .45s cubic-bezier(.2,1.4,.4,1); }
   .result-overlay.loss .result-text { color:var(--orange);
     animation:shake .5s ease-in-out; }
+  /* Course raccourcie : l'écrasement partait de 2,4 fois la taille finale. */
   @keyframes slam {
-    0% { transform:scale(2.4) skewX(-6deg); opacity:0; }
-    55% { transform:scale(.96); opacity:1; }
+    0% { transform:scale(1.6) skewX(-6deg); opacity:0; }
+    55% { transform:scale(.98); opacity:1; }
     100% { transform:scale(1); }
   }
   @keyframes shake {
@@ -1232,7 +1280,7 @@
       <span class="hd-bar"></span>
       <span class="hd-l" id="hdL">0</span>
       <span class="hd-bar"></span>
-      <span class="hd-wr" id="hdWr">—</span>
+      <span class="hd-wr" id="hdWr">–</span>
       <span class="hd-streak" id="hdStreak"><span id="hdStreakTxt"></span></span>
     </div>
     <div class="spacer"></div>
@@ -1278,12 +1326,12 @@
             <circle class="trk" cx="60" cy="60" r="52"></circle>
             <circle class="arc" cx="60" cy="60" r="52" id="wrArc"></circle>
           </svg>
-          <div class="wr-num"><b id="wrPct">—</b><span id="wrSub"></span></div>
+          <div class="wr-num"><b id="wrPct">–</b><span id="wrSub"></span></div>
         </div>
         <div class="hero-side">
-          <div class="kv"><b id="mmrNet">—</b><span data-i18n="kvMmrNet">MMR sur la session</span></div>
+          <div class="kv"><b id="mmrNet">–</b><span data-i18n="kvMmrNet">MMR sur la session</span></div>
           <div class="kv"><b id="played">0</b><span data-i18n="kvPlayed">matchs joués</span></div>
-          <div class="kv"><b id="bestStreak">—</b><span data-i18n="kvBest">meilleure série</span></div>
+          <div class="kv"><b id="bestStreak">–</b><span data-i18n="kvBest">meilleure série</span></div>
         </div>
       </div>
       <!-- Suite de résultats : les derniers matchs de la session, du plus
@@ -1340,7 +1388,7 @@
       <div class="live-off" id="liveOff" data-i18n="liveOff">En attente d'un match.<br/>Lance une partie : le score s'affiche ici en direct.</div>
       <div class="live-training" id="liveTraining">
         <div class="big" data-i18n="training">Entraînement</div>
-        <div class="sub" data-i18n="trainingSub">Piste libre détectée — rien n'est compté dans tes stats.</div>
+        <div class="sub" data-i18n="trainingSub">Piste libre détectée : rien n'est compté dans tes stats.</div>
       </div>
       <div class="live-on" id="liveOn" style="display:none">
         <div class="live-mode" id="liveMode"></div>
@@ -1379,9 +1427,9 @@
       </div>
       <div class="evo-empty" id="evoEmpty" data-i18n="evoEmpty">Renseigne ton MMR dans les réglages :<br/>la courbe se dessine ensuite match après match.</div>
       <div class="evo-foot">
-        <span><span data-i18n="f7">7 jours</span> <b id="wkLine">—</b></span>
-        <span><span data-i18n="fStreak">Record série</span> <b id="recStreak">—</b></span>
-        <span><span data-i18n="fDay">Record victoires / jour</span> <b id="recDay">—</b></span>
+        <span><span data-i18n="f7">7 jours</span> <b id="wkLine">–</b></span>
+        <span><span data-i18n="fStreak">Record série</span> <b id="recStreak">–</b></span>
+        <span><span data-i18n="fDay">Record victoires / jour</span> <b id="recDay">–</b></span>
       </div>
     </section>
 
@@ -1445,7 +1493,7 @@
     </section>
   </div></main>
 
-  <div class="esc-hint" data-i18n="escHint">F11 plein écran — Échap quitter / fermer</div>
+  <div class="esc-hint" data-i18n="escHint">F11 plein écran · Échap quitter / fermer</div>
 
   <div class="result-overlay" id="resultOverlay">
     <div class="result-stripes"></div>
@@ -1580,6 +1628,7 @@
       toNext: function (r) { return 'pts avant ' + r; },
       wrTip: function (w, l) { return w + ' victoires, ' + l + ' défaites'; },
       widgetOpts: 'Réglages du bloc',
+      optAlertsNote: 'S’ajoute au réglage général de la section Dashboard : les deux doivent être actifs.',
       optModes: 'Modes',
       optRows: 'lignes',
       optStats: 'Colonnes de stats',
@@ -1612,19 +1661,19 @@
       alRecDayT: function (n) { return n + ' victoires dans la journée'; },
       // Aperçu de fin de match, déclenché depuis la barre d'édition.
       simRun: 'Simuler', simStop: 'Arrêter',
-      simTip: 'Rejoue un match complet dans cette fenêtre — rien n’est enregistré.',
+      simTip: 'Rejoue un match complet dans cette fenêtre, rien n’est enregistré.',
       obsSizeTip: 'Taille à donner à la source « Navigateur » dans OBS.',
       wins: 'Victoires', losses: 'Défaites',
       kvWinrate: 'de victoires', kvPlayed: 'matchs joués', kvBest: 'meilleure série',
       liveOff: 'En attente d’un match.<br/>Lance une partie : le score s’affiche ici en direct.',
       training: 'Entraînement',
-      trainingSub: 'Piste libre détectée — rien n’est compté dans tes stats.',
+      trainingSub: 'Piste libre détectée : rien n’est compté dans tes stats.',
       ranked: 'Classé', casual: 'Casual',
       // Pastille « Auto » sur le match en cours : le classé/casual vient
       // d'être déduit automatiquement de la playlist relevée dans le
       // journal du jeu (state.currentRankedAuto), pas d'une préférence.
       rkAutoLbl: 'Auto',
-      rkAutoTip: 'Classé / Casual déduit automatiquement du journal du jeu — tu gardes la main pour le corriger.',
+      rkAutoTip: 'Classé / Casual déduit automatiquement du journal du jeu, tu gardes la main pour le corriger.',
       // Pastille « Jeu » sur la carte d'un mode : la base de calibrage du
       // MMR de ce mode vient d'un relevé automatique du journal du jeu
       // (Launch.log) et non d'une saisie manuelle dans les réglages.
@@ -1639,20 +1688,20 @@
       evoMinLbl: 'Min', evoCurLbl: 'Actuel', evoMaxLbl: 'Max',
       // Pastille discrète sur un delta de session (MMR gagné/perdu) : ce
       // n'est pas un vrai relevé, juste une reconstitution via le pas MMR.
-      mmrEstTip: 'Estimation — pas encore confirmée par un relevé réel dans le jeu.',
+      mmrEstTip: 'Estimation : pas encore confirmée par un relevé réel dans le jeu.',
       f7: '7 jours', fStreak: 'Record série', fDay: 'Record victoires / jour',
       ttGoals: 'Buts', ttAssists: 'Passes', ttSaves: 'Arrêts', ttShots: 'Tirs',
       histEmpty: 'Aucun match pour l’instant.<br/>Tout se remplit automatiquement dès la fin de ta première partie.',
       goalEmpty: 'Renseigne ton MMR dans les réglages<br/>pour suivre un objectif.',
       edit: 'Personnaliser', done: 'Terminé', reset: 'Réinitialiser',
-      escHint: 'F11 plein écran — Échap quitter / fermer',
-      live: 'En direct', offGame: 'Hors jeu', since: '— depuis ',
+      escHint: 'F11 plein écran · Échap quitter / fermer',
+      live: 'En direct', offGame: 'Hors jeu', since: '– depuis ',
       streakHot: function (n) { return 'Série : ' + n + ' victoires d’affilée'; },
-      streakTilt: function (n) { return n + ' défaites d’affilée — une pause ?'; },
+      streakTilt: function (n) { return n + ' défaites d’affilée, une pause ?'; },
       // Bandeau « matchs non attribués » (voir hero, sous le bandeau de
       // série) : le pseudo réglé ne correspond à aucun joueur sur un ou
       // plusieurs matchs — la courbe MMR se fige alors en silence.
-      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribués' : ' match non attribué') + ' — vérifie ton pseudo.'; },
+      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribués' : ' match non attribué') + ', vérifie ton pseudo.'; },
       modeStreak: function (n, w) { return 'Série de ' + n + ' ' + (w ? 'victoires' : 'défaites'); },
       nMatches: function (n) { return n + (n > 1 ? ' matchs' : ' match'); },
       notPlayed: 'pas joué',
@@ -1661,7 +1710,7 @@
       win: 'Victoire', loss: 'Défaite', forfeit: 'Forfait',
       resStreak: function (n, w) { return n + (w ? ' victoires' : ' défaites') + ' d’affilée'; },
       sG: 'B', sA: 'P', sS: 'A',
-      wkLine: function (p, r) { return p + ' matchs · ' + (r == null ? '—' : r + ' % V'); },
+      wkLine: function (p, r) { return p + ' matchs · ' + (r == null ? '–' : r + ' % V'); },
       vUnit: ' V', profile: 'Profil ',
       goalReached: 'Objectif atteint !', goalNeg: 'Remonte la pente…',
       goalLeft: function (n) { return 'Encore +' + n; },
@@ -1669,7 +1718,7 @@
         totals: 'Stats', history: 'Historique', clockw: 'Horloge', goalw: 'Objectif',
         music: 'En écoute', alerts: 'Alertes' },
       h2h: function (w, l) { return w + 'V – ' + l + 'D'; },
-      h2hTip: 'Déjà croisé — ton bilan contre ce joueur',
+      h2hTip: 'Déjà croisé : ton bilan contre ce joueur',
       // Lettres des pastilles de résultat (historique + boutons de
       // correction) : V/D en français, W/L en anglais.
       resW: 'V', resL: 'D',
@@ -1678,7 +1727,7 @@
       fixWinTip: 'Compter ce match comme une victoire',
       fixLossTip: 'Compter ce match comme une défaite',
       fixAutoTip: 'Revenir au résultat détecté automatiquement',
-      fixedTip: 'Résultat corrigé à la main — le verdict automatique est ignoré pour ce match.',
+      fixedTip: 'Résultat corrigé à la main : le verdict automatique est ignoré pour ce match.',
       locale: 'fr-FR',
     },
     en: {
@@ -1686,6 +1735,7 @@
       toNext: function (r) { return 'pts to ' + r; },
       wrTip: function (w, l) { return w + ' wins, ' + l + ' losses'; },
       widgetOpts: 'Block settings',
+      optAlertsNote: 'Adds to the general setting in the Dashboard section: both must be on.',
       optModes: 'Modes',
       optRows: 'rows',
       optStats: 'Stat columns',
@@ -1715,16 +1765,16 @@
       alRecStreakT: function (n) { return 'Best streak: ' + n + ' wins'; },
       alRecDayT: function (n) { return n + ' wins in a single day'; },
       simRun: 'Simulate', simStop: 'Stop',
-      simTip: 'Replays a full match in this window — nothing is saved.',
+      simTip: 'Replays a full match in this window, nothing is saved.',
       obsSizeTip: 'Size to give the "Browser" source in OBS.',
       wins: 'Wins', losses: 'Losses',
       kvWinrate: 'win rate', kvPlayed: 'matches played', kvBest: 'best streak',
       liveOff: 'Waiting for a match.<br/>Start playing: the score shows up here live.',
       training: 'Training',
-      trainingSub: 'Free play detected — nothing is counted in your stats.',
+      trainingSub: 'Free play detected: nothing is counted in your stats.',
       ranked: 'Ranked', casual: 'Casual',
       rkAutoLbl: 'Auto',
-      rkAutoTip: 'Ranked / Casual detected automatically from the game log — you can still override it.',
+      rkAutoTip: 'Ranked / Casual detected automatically from the game log, you can still override it.',
       mmrLogLbl: 'Game',
       mmrLogTip: function (step) {
         return 'MMR read automatically from the Rocket League log '
@@ -1734,17 +1784,17 @@
       you: 'You',
       evoEmpty: 'Set your MMR in the settings:<br/>the curve then draws itself match after match.',
       evoMinLbl: 'Min', evoCurLbl: 'Current', evoMaxLbl: 'Max',
-      mmrEstTip: 'Estimate — not yet confirmed by an actual in-game reading.',
+      mmrEstTip: 'Estimate: not yet confirmed by an actual in-game reading.',
       f7: 'Last 7 days', fStreak: 'Streak record', fDay: 'Wins / day record',
       ttGoals: 'Goals', ttAssists: 'Assists', ttSaves: 'Saves', ttShots: 'Shots',
       histEmpty: 'No matches yet.<br/>Everything fills in automatically when your first game ends.',
       goalEmpty: 'Set your MMR in the settings<br/>to track a goal.',
       edit: 'Customize', done: 'Done', reset: 'Reset',
-      escHint: 'F11 fullscreen — Esc exit / close',
-      live: 'Live', offGame: 'Not in game', since: '— since ',
+      escHint: 'F11 fullscreen · Esc exit / close',
+      live: 'Live', offGame: 'Not in game', since: '– since ',
       streakHot: function (n) { return 'Streak: ' + n + ' wins in a row'; },
-      streakTilt: function (n) { return n + ' losses in a row — take a break?'; },
-      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ' — check your name.'; },
+      streakTilt: function (n) { return n + ' losses in a row, take a break?'; },
+      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ', check your name.'; },
       modeStreak: function (n, w) { return 'Streak of ' + n + ' ' + (w ? 'wins' : 'losses'); },
       nMatches: function (n) { return n + (n > 1 ? ' matches' : ' match'); },
       notPlayed: 'not played',
@@ -1753,7 +1803,7 @@
       win: 'Victory', loss: 'Defeat', forfeit: 'Forfeit',
       resStreak: function (n, w) { return n + (w ? ' wins' : ' losses') + ' in a row'; },
       sG: 'G', sA: 'A', sS: 'S',
-      wkLine: function (p, r) { return p + ' matches · ' + (r == null ? '—' : r + '% W'); },
+      wkLine: function (p, r) { return p + ' matches · ' + (r == null ? '–' : r + '% W'); },
       vUnit: ' W', profile: 'Layout ',
       goalReached: 'Goal reached!', goalNeg: 'Climb back up…',
       goalLeft: function (n) { return '+' + n + ' to go'; },
@@ -1761,12 +1811,12 @@
         totals: 'Stats', history: 'History', clockw: 'Clock', goalw: 'Goal',
         music: 'Now playing', alerts: 'Alerts' },
       h2h: function (w, l) { return w + 'W – ' + l + 'L'; },
-      h2hTip: 'Seen before — your record against this player',
+      h2hTip: 'Seen before: your record against this player',
       resW: 'W', resL: 'L',
       fixWinTip: 'Count this match as a win',
       fixLossTip: 'Count this match as a loss',
       fixAutoTip: 'Back to the automatically detected result',
-      fixedTip: 'Result corrected by hand — the automatic verdict is ignored for this match.',
+      fixedTip: 'Result corrected by hand: the automatic verdict is ignored for this match.',
       locale: 'en-GB',
     },
   };
@@ -2141,6 +2191,16 @@
     var h = document.createElement('h4');
     h.textContent = T.widgets[id] || WIDGET_LABELS[id] || id;
     box.appendChild(h);
+    // Les alertes se règlent à DEUX endroits : ici, par surface (le dashboard
+    // et l'overlay ont chacun leur disposition), et dans la fenêtre de
+    // configuration, en politique générale. Rien ne le disait, et deux
+    // interrupteurs qui se cumulent en silence se lisent comme un bug.
+    if (id === 'alerts') {
+      var note = document.createElement('div');
+      note.className = 'optbox-note';
+      note.textContent = T.optAlertsNote;
+      box.appendChild(note);
+    }
     fields.forEach(function (f) {
       if (f.type === 'set') {
         var cur = wopt(id, f.key, f.values.slice());
@@ -2731,7 +2791,7 @@
     $('played').textContent = ses.played || 0;
     // Le winrate est porté par l'anneau : la ligne texte qui le répétait a
     // laissé place au MMR net (voir plus bas).
-    $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + T.vUnit : '—';
+    $('bestStreak').textContent = ses.bestWinStreak ? ses.bestWinStreak + T.vUnit : '–';
     $('sessionSince').textContent = ses.startedAt
       ? T.since + fmtHour(ses.startedAt) : '';
 
@@ -2752,7 +2812,7 @@
     // déplacé ou masqué — c'est ce qu'on lit de loin entre deux matchs.
     $('hdW').textContent = ses.wins || 0;
     $('hdL').textContent = ses.losses || 0;
-    $('hdWr').textContent = ses.winrate == null ? '—' : ses.winrate + ' %';
+    $('hdWr').textContent = ses.winrate == null ? '–' : ses.winrate + ' %';
     var hd = $('hdStreak');
     if ((st.type === 'W' || st.type === 'L') && st.count >= 2) {
       hd.style.display = 'inline-block';
@@ -2866,7 +2926,7 @@
           + '<div class="sub">' + stm + '</div>' + mmrLine + '</div>';
       } else if (MODES.indexOf(k) !== -1) {
         html += '<div class="mode empty ' + tCls + '"><div class="name">' + esc(k) + '</div>'
-          + '<div class="rec">—</div><div class="sub">' + T.notPlayed + '</div>'
+          + '<div class="rec">–</div><div class="sub">' + T.notPlayed + '</div>'
           + mmrLine + '</div>';
       }
     });
@@ -2916,7 +2976,7 @@
       if (typeof d === 'number') net = (net || 0) + d;
     });
     var netEl = $('mmrNet');
-    netEl.textContent = net === null ? '—' : (net > 0 ? '+' : '') + net;
+    netEl.textContent = net === null ? '–' : (net > 0 ? '+' : '') + net;
     netEl.style.color = net === null ? 'var(--muted)'
       : net > 0 ? 'var(--blue)' : net < 0 ? 'var(--orange)' : 'var(--text)';
     if (wantRing) renderWinrateRing(ses);
@@ -2959,7 +3019,7 @@
       // onglet doré + infobulle qui explique pourquoi ce résultat diffère
       // du verdict automatique.
       var ov = !!m.overridden;
-      var sc = m.score ? m.score[0] + ' – ' + m.score[1] : '—';
+      var sc = m.score ? m.score[0] + ' – ' + m.score[1] : '–';
       var stats = m.me
         ? '<b>' + m.me.goals + '</b> ' + T.sG + '&nbsp;&nbsp;<b>' + m.me.assists
           + '</b> ' + T.sA + '&nbsp;&nbsp;<b>' + m.me.saves + '</b> ' + T.sS
@@ -3051,7 +3111,7 @@
     arc.style.strokeDasharray = WR_C;
     arc.style.strokeDashoffset = WR_C * (1 - (has ? wr : 0) / 100);
     ring.classList.toggle('down', has && wr < 50);
-    $('wrPct').textContent = has ? wr + ' %' : '—';
+    $('wrPct').textContent = has ? wr + ' %' : '–';
     $('wrPct').style.color = has ? (wr < 50 ? 'var(--orange)' : 'var(--blue)') : 'var(--muted)';
     $('wrSub').textContent = T.kvWinrate;
     ring.title = has ? T.wrTip(ses.wins || 0, ses.losses || 0) : '';
@@ -3208,10 +3268,10 @@
     var wk = s.week;
     $('wkLine').textContent = (wk && wk.played)
       ? T.wkLine(wk.played, wk.winrate)
-      : '—';
+      : '–';
     var rec = s.records || {};
-    $('recStreak').textContent = rec.bestWinStreak ? rec.bestWinStreak + T.vUnit : '—';
-    $('recDay').textContent = rec.bestDayWins ? rec.bestDayWins + T.vUnit : '—';
+    $('recStreak').textContent = rec.bestWinStreak ? rec.bestWinStreak + T.vUnit : '–';
+    $('recDay').textContent = rec.bestDayWins ? rec.bestDayWins + T.vUnit : '–';
   }
 
   function drawEvolution(points) {
@@ -3443,19 +3503,22 @@
     $('resultStreak').textContent = (st && st.count >= 2)
       ? T.resStreak(st.count, st.type === 'W')
       : '';
-    if (win && preset !== 'minimal' && preset !== 'cinema') {
-      // Pluie aux couleurs du thème — couleur de victoire dominante.
+    // Les confettis ne survivent que dans le style « Arcade », où ils sont le
+    // sujet. Ailleurs ils s'ajoutaient au fondu, à l'écrasement et à la
+    // secousse sur le même élément : quatre techniques d'animation empilées
+    // pour dire une chose, et un outil de stats compétitif qui se met à
+    // ressembler à un jeu mobile.
+    if (win && preset === 'arcade') {
       var cs = getComputedStyle(document.documentElement);
-      var cWin = cs.getPropertyValue('--blue').trim() || '#2f9bff';
-      var cLoss = cs.getPropertyValue('--orange').trim() || '#ff8a1e';
+      var cWin = cs.getPropertyValue('--blue').trim() || '#4dabff';
+      var cLoss = cs.getPropertyValue('--orange').trim() || '#e0741a';
       var colors = [cWin, cWin, mix(cWin, '#000000', .42), '#eef1f5', cLoss];
-      var fast = preset === 'arcade';
-      for (var i = 0; i < 110; i++) {
+      for (var i = 0; i < 64; i++) {
         var p = document.createElement('i');
         p.className = 'confetti-piece';
         p.style.left = (Math.random() * 100) + 'vw';
         p.style.background = colors[i % colors.length];
-        p.style.animationDuration = (fast ? 1.4 : 2.2) + Math.random() * (fast ? 1.4 : 2.3) + 's';
+        p.style.animationDuration = 1.4 + Math.random() * 1.4 + 's';
         p.style.animationDelay = (Math.random() * 0.9) + 's';
         ov.appendChild(p);
       }

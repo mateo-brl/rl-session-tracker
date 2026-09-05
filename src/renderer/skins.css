@@ -159,13 +159,16 @@
   padding: 4px 16px;
 }
 [data-skin="neon"] .tag > span { transform: none; letter-spacing: .14em; }
+/* Le flou reste sur les cartes, PAS sur l'en-tête : deux surfaces floutées
+   plus des halos partout, c'était l'empilement de techniques que le filtre
+   rejette. Une seule surface en verre suffit à porter l'habillage. */
 [data-skin="neon"] header {
-  background: color-mix(in srgb, var(--panel) 60%, transparent);
-  backdrop-filter: blur(14px);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
 }
-[data-skin="neon"] .wl .w, [data-skin="neon"] .wl .l,
-[data-skin="neon"] .mode .mmr-val, [data-skin="neon"] .live-score .s0,
-[data-skin="neon"] .live-score .s1 {
+/* Halo conservé sur le SEUL chiffre qui compte de loin, le score de session.
+   Il en portait aussi le MMR et le score en direct : quatre halos plus celui
+   du coin d'accent, c'était trois de trop. */
+[data-skin="neon"] .wl .w, [data-skin="neon"] .wl .l {
   text-shadow: 0 0 26px currentColor, 0 0 6px currentColor;
 }
 [data-skin="neon"] .logo-plate, [data-skin="neon"] .chip,
