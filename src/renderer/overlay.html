@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'" />
-<title>RL Session Tracker — Overlay</title>
+<title>RL Session Tracker – Overlay</title>
 <style>
   @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
     src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
@@ -58,7 +58,7 @@
     </div>
     <div class="info">
       <div class="top" id="top">Session</div>
-      <div class="bottom" id="bottom">—</div>
+      <div class="bottom" id="bottom">–</div>
     </div>
   </div>
 <script>
@@ -159,7 +159,7 @@
       $('bottom').textContent = last && last.score
         ? T.last + last.score[0] + ' – ' + last.score[1]
           + (last.result === 'W' ? '  V' : last.result === 'L' ? '  D' : '')
-        : '—';
+        : '–';
     }
   }
 

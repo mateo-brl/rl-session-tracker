@@ -55,6 +55,26 @@
       var(--bg);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
+
+  /* ─── Navigation au clavier ───
+     Les éléments étaient bien atteignables au Tab (ce sont des <button> et
+     des <input> natifs), mais RIEN ne montrait où l'on se trouvait : le
+     contour du navigateur était retiré sur les champs et aucun état de focus
+     n'existait sur les boutons. Un contour franc, posé une fois pour toutes
+     sur ce qui reçoit le focus au clavier. :focus-visible et non :focus, pour
+     ne pas cercler ce qu'on vient de cliquer à la souris. */
+  :focus-visible {
+    outline:2px solid var(--blue);
+    outline-offset:2px;
+    border-radius:2px;
+  }
+  /* Les champs avaient outline:none sans remplacement digne de ce nom : la
+     bordure qui change de couleur ne se voit pas sur un fond déjà bordé. */
+  input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline:2px solid var(--blue);
+    outline-offset:1px;
+  }
+
   html,body { height:100%; }
   body {
     background:var(--bg); color:var(--text);
@@ -627,22 +647,22 @@
         <div class="card">
           <h2 data-i18n="hStatus">État</h2>
           <div class="stat-grid">
-            <div class="stat"><span>Rocket League</span><b id="rGame">—</b></div>
-            <div class="stat"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">—</b></div>
-            <div class="stat"><span id="rMatchLabel">Match</span><b id="rMatch">—</b></div>
-            <div class="stat"><span data-i18n="lSession">Session</span><b id="rSession">—</b></div>
+            <div class="stat"><span>Rocket League</span><b id="rGame">–</b></div>
+            <div class="stat"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">–</b></div>
+            <div class="stat"><span id="rMatchLabel">Match</span><b id="rMatch">–</b></div>
+            <div class="stat"><span data-i18n="lSession">Session</span><b id="rSession">–</b></div>
           </div>
           <div class="hint warn" id="apiHint" style="display:none"></div>
         </div>
 
         <div class="card" id="welcomeCard" style="display:none">
           <h2 data-i18n="hWelcome">Bienvenue</h2>
-          <p class="txt" data-i18n="pWelcome">Il n'y a rien à configurer : <b>lance Rocket League et joue un match</b>. L'application détecte tout — ton pseudo, tes victoires, ta série — et ouvre le tracker sur ton 2ᵉ écran.</p>
+          <p class="txt" data-i18n="pWelcome">Il n'y a rien à configurer : <b>lance Rocket League et joue un match</b>. L'application détecte tout (ton pseudo, tes victoires, ta série) et ouvre le tracker sur ton 2ᵉ écran.</p>
         </div>
 
         <div class="card" id="whoCard" style="display:none">
           <h2 data-i18n="hWho">Qui es-tu ?</h2>
-          <p class="txt" style="margin-bottom:10px" data-i18n="pWho">Plusieurs joueurs reviennent dans tes matchs — clique sur ton pseudo :</p>
+          <p class="txt" style="margin-bottom:10px" data-i18n="pWho">Plusieurs joueurs reviennent dans tes matchs, clique sur ton pseudo :</p>
           <div id="whoChips" class="chips"></div>
         </div>
 
@@ -666,7 +686,7 @@
              copiable en un clic, qui remonte jusqu'ici. -->
         <div class="card" id="diagCard">
           <h2 data-i18n="hDiag">Diagnostic</h2>
-          <div class="hint" style="margin-top:0" data-i18n="hintDiag">Passe en revue ce dont l'application dépend — installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR — et dit quoi faire pour chaque point qui coince. Rien n'est modifié, rien n'est envoyé : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.</div>
+          <div class="hint" style="margin-top:0" data-i18n="hintDiag">Passe en revue ce dont l'application dépend : installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR, et dit quoi faire pour chaque point qui coince. Rien n'est modifié, rien n'est envoyé : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.</div>
           <div class="duo">
             <button class="ghost" style="margin-top:0" id="diagRun" data-i18n="bDiagRun">Lancer le diagnostic</button>
             <button class="ghost lock" style="margin-top:0" id="diagCopy" data-i18n="bDiagCopy" disabled>Copier le rapport</button>
@@ -708,7 +728,7 @@
             <label class="check"><input type="checkbox" id="optPrivate" /><span data-i18n="cPrivate">Compter aussi les matchs privés</span></label>
             <div class="hint" data-i18n="hintPrivate">Un match privé ne passe par aucune file d'attente : l'appli le reconnaît à ça et ne le compte pas. Coche si tu veux quand même les voir dans la session.</div>
             <div class="gap"></div>
-            <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs — elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
+            <div class="hint" data-i18n="hintRankedOnly">Les parties occasionnelles restent enregistrées dans le journal des matchs, elles réapparaissent dès que tu décoches cette option. Rien n'est supprimé.</div>
           </div>
         </div>
 
@@ -725,7 +745,7 @@
               <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" />
               <small class="mmr-rank" id="mmrRank3v3" style="display:none"></small></div>
           </div>
-          <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9) — reviens le corriger quand tu veux.</div>
+          <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9), reviens le corriger quand tu veux.</div>
           <div class="hint warn" data-i18n="hintPlacement">Attention aux matchs de placement (début de saison) : les gains y sont bien plus gros (souvent ±15 et dégressifs), l'estimation dérive forcément. Recopie ton MMR en jeu une fois tes placements terminés.</div>
           <div class="hint warn" id="mmrDrift" style="display:none"></div>
         </div>
@@ -768,7 +788,7 @@
             <div class="hint" data-i18n="hintOverlay">Important : mets l'affichage
               de Rocket League en « Fenêtré sans bordure » (Paramètres → Vidéo). En
               « Plein écran » exclusif, Windows ne laisse aucune fenêtre passer
-              devant le jeu — c'est pareil pour tous les overlays.</div>
+              devant le jeu, c'est pareil pour tous les overlays.</div>
           </div>
         </div>
 
@@ -777,19 +797,19 @@
             <h2 data-i18n="hAnim">Animations</h2>
             <label class="field" data-i18n="lStyle">Style</label>
             <select id="animPreset">
-              <option value="broadcast" data-i18n="oBroadcast">Broadcast — liserés TV + confettis</option>
-              <option value="minimal" data-i18n="oMinimal">Minimal — fondu sobre et court</option>
-              <option value="arcade" data-i18n="oArcade">Arcade — punch rétro + secousse</option>
-              <option value="neon" data-i18n="oNeon">Néon — enseigne qui s'allume</option>
-              <option value="cinema" data-i18n="oCinema">Cinéma — zoom lent + bandes noires</option>
+              <option value="broadcast" data-i18n="oBroadcast">Plateau télé : liserés et confettis</option>
+              <option value="minimal" data-i18n="oMinimal">Minimal : fondu sobre et court</option>
+              <option value="arcade" data-i18n="oArcade">Arcade : punch rétro + secousse</option>
+              <option value="neon" data-i18n="oNeon">Néon : enseigne qui s'allume</option>
+              <option value="cinema" data-i18n="oCinema">Cinéma : zoom lent + bandes noires</option>
             </select>
             <div class="gap"></div>
             <label class="field" data-i18n="lJingle">Son de fin de match</label>
             <select id="sndPreset">
-              <option value="broadcast" data-i18n="oSndBroadcast">Broadcast — arpège net</option>
-              <option value="arcade" data-i18n="oSndArcade">8-bit — arcade rétro</option>
-              <option value="soft" data-i18n="oSndSoft">Doux — nappes discrètes</option>
-              <option value="epic" data-i18n="oSndEpic">Épique — accord puissant</option>
+              <option value="broadcast" data-i18n="oSndBroadcast">Plateau télé : arpège net</option>
+              <option value="arcade" data-i18n="oSndArcade">8-bit : arcade rétro</option>
+              <option value="soft" data-i18n="oSndSoft">Doux : nappes discrètes</option>
+              <option value="epic" data-i18n="oSndEpic">Épique : accord puissant</option>
             </select>
             <div class="gap"></div>
             <label class="check"><input type="checkbox" id="animEnd" /><span data-i18n="cAnimEnd">Écran victoire / défaite en fin de match</span></label>
@@ -877,7 +897,7 @@
                 <option value="auto" data-i18n="oAuto">Auto (habillage)</option>
                 <option value="cosy" data-i18n="oDensCosy">Confortable</option>
                 <option value="dense" data-i18n="oDensDense">Dense</option>
-                <option value="couch" data-i18n="oDensCouch">Canapé — tout plus grand</option>
+                <option value="couch" data-i18n="oDensCouch">Canapé : tout plus grand</option>
               </select></label>
             <label class="field"><span data-i18n="lTuneSkew">Inclinaison des plaques</span>
               <select id="tuneSkew">
@@ -908,7 +928,7 @@
         </div>
         <div class="card">
           <h2 data-i18n="hMyLooks">Mes looks</h2>
-          <div class="hint" data-i18n="hintMyLooks">Un look garde l'habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation — c'est comme ça qu'un look se partage.</div>
+          <div class="hint" data-i18n="hintMyLooks">Un look garde l'habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation : c'est comme ça qu'un look se partage.</div>
           <div class="look-grid" id="myLookGrid"></div>
           <div class="duo">
             <button class="ghost" id="lookSave" data-i18n="bLookSave">Créer un look à partir de l'actuel</button>
@@ -938,8 +958,8 @@
           </div>
           <div class="hint warn" id="obsErr" style="display:none"></div>
           <button class="ghost" id="obsCompose" data-i18n="bObsCompose">Composer l’overlay</button>
-          <div class="hint" data-i18n="hintObsUse">Dans OBS : Sources → + → Navigateur, colle l'URL ci-dessus, et décoche « Arrêter la source lorsqu'elle est invisible » — sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n'est exposé à internet.</div>
-          <div class="hint" data-i18n="hintObsCompose">L’overlay servi à OBS utilise les MÊMES blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.</div>
+          <div class="hint" data-i18n="hintObsUse">Dans OBS : Sources → + → Navigateur, colle l'URL ci-dessus, et décoche « Arrêter la source lorsqu'elle est invisible », sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n'est exposé à internet.</div>
+          <div class="hint" data-i18n="hintObsCompose">L’overlay servi à OBS utilise les MÊMES blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier : ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.</div>
           <label class="check"><input type="checkbox" id="obsBanner" /><span data-i18n="cObsBanner">Bannière victoire / défaite en fin de match</span></label>
           <label class="check"><input type="checkbox" id="obsGoal" /><span data-i18n="cObsGoal">Flash à chaque but</span></label>
           <div class="hint" data-i18n="hintObsAnim">Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.</div>
@@ -952,9 +972,9 @@
           <div class="gap"></div>
           <label class="field"><span data-i18n="lObsCanvas">Toile de l’overlay</span>
             <select id="obsCanvas">
-              <option value="1920x1080">1920 × 1080 — 1080p</option>
-              <option value="2560x1440">2560 × 1440 — 1440p</option>
-              <option value="1280x720">1280 × 720 — 720p</option>
+              <option value="1920x1080">1920 × 1080 (1080p)</option>
+              <option value="2560x1440">2560 × 1440 (1440p)</option>
+              <option value="1280x720">1280 × 720 (720p)</option>
               <option value="custom" data-i18n="oCanvasCustom">Personnalisé…</option>
             </select></label>
           <div class="duo" id="obsCanvasCustom" style="display:none">
@@ -996,9 +1016,9 @@
           <div class="duo">
             <label class="field"><span data-i18n="lObsStyle">Style</span>
               <select id="obsStyle">
-                <option value="broadcast" data-i18n="oObsBroadcast">Broadcast — bandeau deux blocs</option>
-                <option value="compact" data-i18n="oObsCompact">Compact — une ligne fine</option>
-                <option value="vertical" data-i18n="oObsVertical">Vertical — carte empilée</option>
+                <option value="broadcast" data-i18n="oObsBroadcast">Plateau télé : bandeau deux blocs</option>
+                <option value="compact" data-i18n="oObsCompact">Compact : une ligne fine</option>
+                <option value="vertical" data-i18n="oObsVertical">Vertical : carte empilée</option>
               </select></label>
             <label class="field"><span data-i18n="lSize">Taille</span>
               <select id="obsScale">
@@ -1046,7 +1066,7 @@
             plugin SOS, muets en ligne depuis. Ce pont réémet le même flux, au
             même format, en local sur le port choisi ci-dessus : colle l'URL
             dans l'overlay et il refonctionne sans être modifié. Réservé aux
-            streamers utilisant ce type d'overlay — inutile sinon.</div>
+            streamers utilisant ce type d'overlay, inutile sinon.</div>
         </div>
       </section>
 
@@ -1091,7 +1111,7 @@
           <div class="card">
             <h2 data-i18n="hData">Données</h2>
             <button class="ghost" style="margin-top:0" id="exportBtn" data-i18n="bExport">Exporter les matchs</button>
-            <button class="ghost danger" id="resetBtn" data-i18n="bClear">Nouvelle session — remettre les compteurs à zéro</button>
+            <button class="ghost danger" id="resetBtn" data-i18n="bClear">Nouvelle session : remettre les compteurs à zéro</button>
             <div class="hint" data-i18n="hintClear">Vider remet les compteurs de session à 0 ; le MMR, la courbe d'évolution et les records sont conservés.</div>
           </div>
 
@@ -1169,7 +1189,7 @@
               </div>
               <label class="field" for="cosAlphaTarget" data-i18n="lCosAlphaTarget">Boost à remplacer</label>
               <select id="cosAlphaTarget"></select>
-              <div class="hint" data-i18n="hintCosAlphaTarget">Choisis un boost que tu possèdes, non peint de préférence — Bubbles est le choix conseillé.</div>
+              <div class="hint" data-i18n="hintCosAlphaTarget">Choisis un boost que tu possèdes, non peint de préférence : Bubbles est le choix conseillé.</div>
               <div class="gap"></div>
               <button class="primary" id="cosAlphaBtn" data-i18n="bCosAlpha">Activer l’Alpha Boost</button>
               <button class="ghost" id="cosAlphaCheck" data-i18n="bCosCheck">Vérifier tous les boosts</button>
@@ -1230,7 +1250,7 @@
   <!-- Barre d'essayage : visible seulement pendant un aperçu. Elle existe
        parce qu'un aperçu qu'on ne sait pas annuler n'est pas un aperçu. -->
   <div class="try-bar" id="tryBar">
-    <div class="t"><span data-i18n="tryLive">Aperçu en direct</span> — <b id="tryName"></b></div>
+    <div class="t"><span data-i18n="tryLive">Aperçu en direct</span>–<b id="tryName"></b></div>
     <div class="grow"></div>
     <button class="ghost" id="tryCancel" data-i18n="bTryCancel">Annuler (Échap)</button>
     <button class="primary" id="tryApply" data-i18n="bTryApply">Appliquer</button>
@@ -1278,22 +1298,22 @@
       bQuit: 'Quitter l\u2019application',
       hintQuit: 'Arr\u00eate compl\u00e8tement le suivi. Fermer la fen\u00eatre ne quitte pas l\u2019application.',
       hWelcome: 'Bienvenue',
-      pWelcome: 'Il n\u2019y a rien \u00e0 configurer : <b>lance Rocket League et joue un match</b>. L\u2019application d\u00e9tecte tout \u2014 ton pseudo, tes victoires, ta s\u00e9rie \u2014 et ouvre le tracker sur ton 2\u1d49 \u00e9cran.',
-      hWho: 'Qui es-tu ?', pWho: 'Plusieurs joueurs reviennent dans tes matchs \u2014 clique sur ton pseudo :',
+      pWelcome: 'Il n\u2019y a rien \u00e0 configurer : <b>lance Rocket League et joue un match</b>. L\u2019application d\u00e9tecte tout (ton pseudo, tes victoires, ta s\u00e9rie) et ouvre le tracker sur ton 2\u1d49 \u00e9cran.',
+      hWho: 'Qui es-tu ?', pWho: 'Plusieurs joueurs reviennent dans tes matchs, clique sur ton pseudo :',
       hUpdate: 'Mise \u00e0 jour', lLang: 'Langue',
       oAuto: 'Automatique (syst\u00e8me)',
       lPseudo: 'Ton pseudo en jeu',
       hintPseudo: 'Sert \u00e0 savoir quelle \u00e9quipe est la tienne pour compter victoires et d\u00e9faites. Joue un match : les pseudos d\u00e9tect\u00e9s apparaissent en suggestion.',
       // Un ou plusieurs matchs de la session n'ont pu \u00eatre attribu\u00e9s \u00e0
       // aucun joueur : le pseudo r\u00e9gl\u00e9 ne correspond plus \u00e0 rien.
-      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribu\u00e9s' : ' match non attribu\u00e9') + ' \u2014 v\u00e9rifie ton pseudo.'; },
+      unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribu\u00e9s' : ' match non attribu\u00e9') + ', v\u00e9rifie ton pseudo.'; },
       lMmr: 'Mon MMR (optionnel)',
-      hintMmr: 'Recopie le MMR affich\u00e9 dans le jeu (Param\u00e8tres \u2192 Interface \u2192 \u00ab Afficher le MMR \u00bb, depuis la saison 22). Ensuite l\u2019appli l\u2019estime toute seule match apr\u00e8s match (environ \u00b19) \u2014 reviens le corriger quand tu veux.',
+      hintMmr: 'Recopie le MMR affich\u00e9 dans le jeu (Param\u00e8tres \u2192 Interface \u2192 \u00ab Afficher le MMR \u00bb, depuis la saison 22). Ensuite l\u2019appli l\u2019estime toute seule match apr\u00e8s match (environ \u00b19), reviens le corriger quand tu veux.',
       hintPlacement: 'Attention aux matchs de placement (d\u00e9but de saison) : les gains y sont bien plus gros (souvent \u00b115 et d\u00e9gressifs), l\u2019estimation d\u00e9rive forc\u00e9ment. Recopie ton MMR en jeu une fois tes placements termin\u00e9s.',
-      mmrDrift: function (d) { return '\u00c9cart de ' + (d > 0 ? '+' : '') + d + ' par rapport \u00e0 l\u2019estimation \u2014 normal pendant les placements ou apr\u00e8s une pause. L\u2019estimation vient d\u2019\u00eatre recal\u00e9e sur ta valeur.'; },
+      mmrDrift: function (d) { return '\u00c9cart de ' + (d > 0 ? '+' : '') + d + ' par rapport \u00e0 l\u2019estimation, normal pendant les placements ou apr\u00e8s une pause. L\u2019estimation vient d\u2019\u00eatre recal\u00e9e sur ta valeur.'; },
       cRanked: 'Par d\u00e9faut mes matchs sont class\u00e9s (modifiable \u00e0 chaque match sur le dashboard)',
       cRankedOnly: 'Ne compter que le class\u00e9 dans la session',
-      hintRankedOnly: 'Les parties occasionnelles restent enregistr\u00e9es dans le journal des matchs \u2014 elles r\u00e9apparaissent d\u00e8s que tu d\u00e9coches cette option. Rien n\u2019est supprim\u00e9.',
+      hintRankedOnly: 'Les parties occasionnelles restent enregistr\u00e9es dans le journal des matchs, elles r\u00e9apparaissent d\u00e8s que tu d\u00e9coches cette option. Rien n\u2019est supprim\u00e9.',
       cAuto: 'Ouvrir le dashboard quand Rocket League d\u00e9marre',
       cFull: 'Dashboard en plein \u00e9cran (2\u1d49 \u00e9cran si pr\u00e9sent)',
       cOverlay: 'Mini-overlay au premier plan pendant le jeu',
@@ -1301,16 +1321,16 @@
       cDiscord: 'Statut Discord pendant le jeu (Rich Presence)',
       cBoot: 'Lancer au d\u00e9marrage de Windows',
       hAnim: 'Animations', lStyle: 'Style',
-      oBroadcast: 'Broadcast \u2014 liser\u00e9s TV + confettis',
-      oMinimal: 'Minimal \u2014 fondu sobre et court',
-      oArcade: 'Arcade \u2014 punch r\u00e9tro + secousse',
-      oNeon: 'N\u00e9on \u2014 enseigne qui s\u2019allume',
-      oCinema: 'Cin\u00e9ma \u2014 zoom lent + bandes noires',
+      oBroadcast: 'Plateau t\u00e9l\u00e9 : liser\u00e9s et confettis',
+      oMinimal: 'Minimal : fondu sobre et court',
+      oArcade: 'Arcade : punch r\u00e9tro + secousse',
+      oNeon: 'N\u00e9on : enseigne qui s\u2019allume',
+      oCinema: 'Cin\u00e9ma : zoom lent + bandes noires',
       lJingle: 'Son de fin de match',
-      oSndBroadcast: 'Broadcast \u2014 arp\u00e8ge net',
-      oSndArcade: '8-bit \u2014 arcade r\u00e9tro',
-      oSndSoft: 'Doux \u2014 nappes discr\u00e8tes',
-      oSndEpic: '\u00c9pique \u2014 accord puissant',
+      oSndBroadcast: 'Plateau télé : arp\u00e8ge net',
+      oSndArcade: '8-bit : arcade r\u00e9tro',
+      oSndSoft: 'Doux : nappes discr\u00e8tes',
+      oSndEpic: '\u00c9pique : accord puissant',
       cAnimEnd: '\u00c9cran victoire / d\u00e9faite en fin de match',
       cAnimGoal: 'Flash \u00e0 chaque but',
       bTestWin: 'Tester victoire', bTestLoss: 'Tester d\u00e9faite',
@@ -1321,7 +1341,7 @@
       cOvLive: 'Afficher le score en direct / dernier match',
       lSize: 'Taille', oSmall: 'Petit', oNormal: 'Normal', oBig: 'Grand',
       lOpacity: 'Opacit\u00e9',
-      hintOverlay: 'Important : mets l\u2019affichage de Rocket League en \u00ab\u00a0Fen\u00eatr\u00e9 sans bordure\u00a0\u00bb (Param\u00e8tres \u2192 Vid\u00e9o). En \u00ab\u00a0Plein \u00e9cran\u00a0\u00bb exclusif, Windows ne laisse aucune fen\u00eatre passer devant le jeu \u2014 c\u2019est pareil pour tous les overlays.',
+      hintOverlay: 'Important : mets l\u2019affichage de Rocket League en \u00ab\u00a0Fen\u00eatr\u00e9 sans bordure\u00a0\u00bb (Param\u00e8tres \u2192 Vid\u00e9o). En \u00ab\u00a0Plein \u00e9cran\u00a0\u00bb exclusif, Windows ne laisse aucune fen\u00eatre passer devant le jeu, c\u2019est pareil pour tous les overlays.',
       lAbSound: 'Sonorit\u00e9', lAbVolume: 'Volume',
       oVol1: 'Tr\u00e8s doux', oVol2: 'Doux', oVol3: 'Normal', oVol4: 'Fort', oVol5: 'Maximum',
       hintAlphaApi: 'N\u00e9cessite 120 paquets/s de la Stats API : l\u2019appli r\u00e8gle \u00e7a toute seule, mais il faut red\u00e9marrer Rocket League apr\u00e8s la premi\u00e8re activation.',
@@ -1329,9 +1349,9 @@
       cObs: 'Servir l\u2019overlay de stream en local',
       bCopy: 'Copier l\u2019URL', bCopied: 'Copi\u00e9e !',
       lObsStyle: 'Style',
-      oObsBroadcast: 'Broadcast \u2014 bandeau deux blocs',
-      oObsCompact: 'Compact \u2014 une ligne fine',
-      oObsVertical: 'Vertical \u2014 carte empil\u00e9e',
+      oObsBroadcast: 'Plateau télé : bandeau deux blocs',
+      oObsCompact: 'Compact : une ligne fine',
+      oObsVertical: 'Vertical : carte empil\u00e9e',
       oXl: 'Tr\u00e8s grand',
       lObsBg: 'Fond du bandeau', oBgSolid: 'Opaque',
       cObsStreak: 'Afficher la s\u00e9rie en cours',
@@ -1339,13 +1359,13 @@
       cObsH2h: 'Afficher \u00ab d\u00e9j\u00e0 crois\u00e9 \u00bb (1v1)',
       cObsBanner: 'Banni\u00e8re victoire / d\u00e9faite en fin de match',
       cObsGoal: 'Flash \u00e0 chaque but',
-      obsErr: function (port) { return 'Port ' + port + ' indisponible \u2014 un autre logiciel l\u2019utilise. Modifie \u00ab obs.port \u00bb dans config.json ou ferme l\u2019autre application.'; },
-      hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct \u2014 avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb (section Dashboard & overlay) l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
+      obsErr: function (port) { return 'Port ' + port + ' indisponible : un autre logiciel l\u2019utilise. Modifie \u00ab obs.port \u00bb dans config.json ou ferme l\u2019autre application.'; },
+      hintObs: 'Dans OBS : Sources \u2192 + \u2192 Navigateur, colle l\u2019URL (taille conseill\u00e9e 860 \u00d7 220, fond transparent automatique). Le bandeau affiche ta session, la s\u00e9rie, le score en direct, avec flash de but et banni\u00e8re de fin de match. Les boutons \u00ab Tester victoire / d\u00e9faite \u00bb (section Dashboard & overlay) l\u2019animent aussi. Local uniquement : rien n\u2019est expos\u00e9 \u00e0 internet.',
       cObsSos: 'Activer le pont compatible SOS',
       lObsSosPort: 'Port du pont',
-      obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connect\u00e9s.' : ' overlay connect\u00e9.')) : 'Aucun overlay connect\u00e9 pour l\u2019instant \u2014 colle l\u2019URL ci-dessus dans ton overlay.'; },
-      obsSosErr: function (port) { return 'Port ' + port + ' indisponible \u2014 le pont SOS ne tourne pas. Un autre logiciel utilise sans doute ce port : change-le ci-dessus ou ferme l\u2019autre application.'; },
-      hintObsSos: 'Pour les overlays de diffusion \u00e9crits avant l\u2019arriv\u00e9e d\u2019Easy Anti-Cheat (avril 2026) pour le d\u00e9funt plugin SOS, muets en ligne depuis. Ce pont r\u00e9\u00e9met le m\u00eame flux, au m\u00eame format, en local sur le port choisi ci-dessus : colle l\u2019URL dans l\u2019overlay et il refonctionne sans \u00eatre modifi\u00e9. R\u00e9serv\u00e9 aux streamers utilisant ce type d\u2019overlay \u2014 inutile sinon.',
+      obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connect\u00e9s.' : ' overlay connect\u00e9.')) : 'Aucun overlay connect\u00e9 pour l\u2019instant : colle l\u2019URL ci-dessus dans ton overlay.'; },
+      obsSosErr: function (port) { return 'Port ' + port + ' indisponible : le pont SOS ne tourne pas. Un autre logiciel utilise sans doute ce port : change-le ci-dessus ou ferme l\u2019autre application.'; },
+      hintObsSos: 'Pour les overlays de diffusion \u00e9crits avant l\u2019arriv\u00e9e d\u2019Easy Anti-Cheat (avril 2026) pour le d\u00e9funt plugin SOS, muets en ligne depuis. Ce pont r\u00e9\u00e9met le m\u00eame flux, au m\u00eame format, en local sur le port choisi ci-dessus : colle l\u2019URL dans l\u2019overlay et il refonctionne sans \u00eatre modifi\u00e9. R\u00e9serv\u00e9 aux streamers utilisant ce type d\u2019overlay, inutile sinon.',
       // Toile de l'overlay et presets de disposition (carte de l'overlay
       // composable, section Overlay & streaming).
       lObsCanvas: 'Toile de l\u2019overlay', oCanvasCustom: 'Personnalis\u00e9\u2026',
@@ -1355,7 +1375,7 @@
       bPresetExport: 'Exporter le preset', bPresetImport: 'Importer un preset',
       presetBusy: 'En cours\u2026',
       presetDone: function (f) { return 'Preset \u00e9crit dans ' + f; },
-      presetIn: function (n) { return 'Preset \u00ab ' + n + ' \u00bb import\u00e9 \u2014 la disposition de l\u2019overlay a \u00e9t\u00e9 remplac\u00e9e.'; },
+      presetIn: function (n) { return 'Preset \u00ab ' + n + ' \u00bb import\u00e9 : la disposition de l\u2019overlay a \u00e9t\u00e9 remplac\u00e9e.'; },
       presetFail: 'Le preset n\u2019a pas pu \u00eatre trait\u00e9.',
       hintObsPreset: 'Un preset est un fichier qui contient la mise en page de l\u2019overlay : les blocs, leurs positions, leurs tailles et leurs r\u00e9glages. Sert \u00e0 partager ta composition avec quelqu\u2019un d\u2019autre, ou \u00e0 la retrouver sur une autre machine. Il n\u2019emporte ni tes matchs, ni ton pseudo, ni ton MMR.',
       // Alertes de session (section Dashboard).
@@ -1367,7 +1387,7 @@
       hintAlerts: 'Ces alertes apparaissent sur le dashboard ET dans l\u2019overlay OBS : c\u2019est le bloc \u00ab Alertes \u00bb qui les affiche, d\u00e9pla\u00e7able et redimensionnable comme les autres blocs (bouton \u00ab Personnaliser \u00bb du dashboard, \u00ab Composer l\u2019overlay \u00bb pour OBS).',
       // Diagnostic (section Accueil).
       hDiag: 'Diagnostic',
-      hintDiag: 'Passe en revue ce dont l\u2019application d\u00e9pend \u2014 installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR \u2014 et dit quoi faire pour chaque point qui coince. Rien n\u2019est modifi\u00e9, rien n\u2019est envoy\u00e9 : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.',
+      hintDiag: 'Passe en revue ce dont l\u2019application d\u00e9pend : installation du jeu, fichier de la Stats API, flux en direct, pseudo, journal du jeu pour le MMR, et dit quoi faire pour chaque point qui coince. Rien n\u2019est modifi\u00e9, rien n\u2019est envoy\u00e9 : le rapport reste sur ta machine tant que tu ne le colles pas quelque part.',
       bDiagRun: 'Lancer le diagnostic', bDiagCopy: 'Copier le rapport',
       diagBusy: 'Diagnostic en cours\u2026', diagCopied: 'Rapport copi\u00e9 !',
       diagStOk: 'OK', diagStWarn: '\u00c0 voir', diagStFail: '\u00c9chec',
@@ -1379,8 +1399,8 @@
       },
       diagEmpty: 'Aucun contr\u00f4le n\u2019a \u00e9t\u00e9 renvoy\u00e9.',
       diagFail: function (m) { return 'Le diagnostic n\u2019a pas pu aller au bout : ' + m; },
-      diagCopyFail: 'Copie impossible \u2014 s\u00e9lectionne les lignes ci-dessus \u00e0 la main.',
-      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' \u2014 diagnostic du ' + when; },
+      diagCopyFail: 'Copie impossible : s\u00e9lectionne les lignes ci-dessus \u00e0 la main.',
+      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' · diagnostic du ' + when; },
       diagTxtHint: '\u2192 conseil :',
       // Fonction absente du processus principal : version dépareillée, le
       // plus souvent une mise à jour installée sans redémarrage.
@@ -1407,12 +1427,12 @@
       updFail: function (v) { return 'Mise \u00e0 jour vers <b>v' + v + '</b> impossible.'; },
       updErr: 'Erreur inconnue.', updRetry: 'R\u00e9essayer',
       confirmClear: 'Vider les matchs r\u00e9cents ? Les compteurs repassent \u00e0 0. Le MMR, la courbe d\u2019\u00e9volution et les records sont conserv\u00e9s.',
-      confirmMmrClear: 'Effacer ce MMR ? Le calibrage est supprim\u00e9 et toute la courbe d\u2019\u00e9volution enregistr\u00e9e jusqu\u2019ici sera d\u00e9finitivement perdue \u2014 seuls les matchs suivant une nouvelle saisie compteront.',
+      confirmMmrClear: 'Effacer ce MMR ? Le calibrage est supprim\u00e9 et toute la courbe d\u2019\u00e9volution enregistr\u00e9e jusqu\u2019ici sera d\u00e9finitivement perdue : seuls les matchs suivant une nouvelle saisie compteront.',
       apiBusy: 'Activation\u2026 (autorise la fen\u00eatre Windows)',
-      apiDone: 'Fait \u2014 red\u00e9marre Rocket League',
-      apiFail: '\u00c9chec \u2014 aucune installation configur\u00e9e',
+      apiDone: 'Fait : red\u00e9marre Rocket League',
+      apiFail: '\u00c9chec : aucune installation configur\u00e9e',
       apiStuck: 'Le jeu tourne mais la Stats API ne s\u2019est jamais connect\u00e9e. Si tu es en match et que rien ne s\u2019affiche : clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League. Toujours rien ? V\u00e9rifie que TAGame\\Config\\DefaultStatsAPI.ini existe dans le dossier du jeu (Steam : clic droit \u2192 G\u00e9rer \u2192 Parcourir les fichiers locaux).',
-      apiBroken: 'La Stats API du jeu a \u00e9t\u00e9 d\u00e9sactiv\u00e9e \u2014 probablement par une mise \u00e0 jour du jeu ou une \u00ab\u00a0v\u00e9rification de l\u2019int\u00e9grit\u00e9 des fichiers\u00a0\u00bb Steam/Epic. Clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League.',
+      apiBroken: 'La Stats API du jeu a \u00e9t\u00e9 d\u00e9sactiv\u00e9e, probablement par une mise \u00e0 jour du jeu ou une \u00ab\u00a0v\u00e9rification de l\u2019int\u00e9grit\u00e9 des fichiers\u00a0\u00bb Steam/Epic. Clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League.',
       // Cosmétiques : swaps de fichiers du jeu (seule section qui y touche).
       navCosmetics: 'Cosm\u00e9tiques',
       subCosmetics: 'Swaps de fichiers cosm\u00e9tiques pr\u00e9par\u00e9s par la communaut\u00e9.',
@@ -1429,7 +1449,7 @@
       bCosPick: 'Choisir le fichier de remplacement\u2026', cosPicking: 'Choix du fichier\u2026',
       hintCosAdd: 'Le fichier de remplacement doit avoir la m\u00eame extension que la cible : .upk, ou .bnk pour le son d\u2019un boost. Il est copi\u00e9 \u00e0 la place de l\u2019original, sauvegard\u00e9 une fois pour toutes au premier remplacement. Pour l\u2019Alpha Boost, utilise un fichier .upk d\u00e9j\u00e0 pr\u00e9par\u00e9 par la communaut\u00e9 (par exemple les presets partag\u00e9s sur le Discord de Shift / Vibin\u2019s Hub) : copier tel quel le paquet du jeu ne fonctionne pas, le boost devient transparent.',
       cosExt: function (ext) { return 'Fichier de remplacement attendu : ' + ext; },
-      cosExtNone: 'Choisis un fichier dans la liste \u2014 l\u2019extension attendue s\u2019affichera ici.',
+      cosExtNone: 'Choisis un fichier dans la liste : l\u2019extension attendue s\u2019affichera ici.',
       cosNoTarget: 'Indique d\u2019abord le fichier du jeu \u00e0 remplacer.',
       cosNoInstall: 'Aucune installation de Rocket League d\u00e9tect\u00e9e.',
       cosNoMatch: 'Aucun fichier ne correspond.',
@@ -1445,12 +1465,12 @@
       bCosApply: 'Appliquer', bCosRestore: 'Restaurer', bCosRemove: 'Supprimer',
       tCosSwitch: 'Activ\u00e9 : r\u00e9appliqu\u00e9 automatiquement apr\u00e8s une mise \u00e0 jour du jeu',
       confirmCosRemove: function (l) { return 'Supprimer \u00ab ' + l + ' \u00bb ? L\u2019original est restaur\u00e9 dans le jeu, puis le swap est retir\u00e9 de la liste.'; },
-      cosFail: '\u00c9chec \u2014 erreur inconnue.',
+      cosFail: '\u00c9chec : erreur inconnue.',
       // Préréglage Alpha Boost (en tête de la section).
       hCosAlpha: 'Pr\u00e9r\u00e9glage : Alpha Boost',
-      pCosAlpha: 'Le paquet Alpha Boost (<b>Boost_AlphaReward_SF.upk</b>) est d\u00e9j\u00e0 dans les fichiers du jeu. Ce pr\u00e9r\u00e9glage le copie par-dessus le boost que tu choisis : en jeu, ce boost prend l\u2019apparence de l\u2019Alpha Boost. Visuel uniquement \u2014 le son d\u2019un boost est une autre m\u00e9canique, il ne change pas.',
+      pCosAlpha: 'Le paquet Alpha Boost (<b>Boost_AlphaReward_SF.upk</b>) est d\u00e9j\u00e0 dans les fichiers du jeu. Ce pr\u00e9r\u00e9glage le copie par-dessus le boost que tu choisis : en jeu, ce boost prend l\u2019apparence de l\u2019Alpha Boost. Visuel uniquement : le son d\u2019un boost est une autre m\u00e9canique, il ne change pas.',
       lCosAlphaTarget: 'Boost \u00e0 remplacer',
-      hintCosAlphaTarget: 'Choisis un boost que tu poss\u00e8des, non peint de pr\u00e9f\u00e9rence \u2014 Bubbles est le choix conseill\u00e9.',
+      hintCosAlphaTarget: 'Choisis un boost que tu poss\u00e8des, non peint de pr\u00e9f\u00e9rence : Bubbles est le choix conseill\u00e9.',
       cosRecommended: 'conseill\u00e9',
       cPrivate: 'Compter aussi les matchs privés',
       hintPrivate: 'Un match privé ne passe par aucune file d’attente : l’appli le reconnaît à ça et ne le compte pas. Coche si tu veux quand même les voir dans la session.',
@@ -1458,16 +1478,16 @@
       lThemeColors: 'Couleurs',
       hintSkin: 'Un habillage change la forme de l’interface : police, découpe des cartes, filets, ombres. Il apporte sa palette, que tu peux retoucher juste en dessous.',
       bObsCompose: 'Composer l’overlay',
-      hintObsCompose: 'L’overlay servi à OBS utilise les mêmes blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier — ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.',
+      hintObsCompose: 'L’overlay servi à OBS utilise les mêmes blocs que le dashboard, avec sa propre disposition. Le compositeur ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier : ce qui est transparent le restera dans OBS. L’ancien bandeau compact reste servi sur /classic.',
       hObsClassic: 'Ancien bandeau compact',
       hintObsClassic: 'Page à part, servie sur /classic. Elle ne se compose pas : ce sont les réglages ci-dessous qui la pilotent. À n’utiliser que si tu l’avais déjà en place dans OBS.',
       hintObsAnim: 'Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.',
       hintObsClassicUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus (taille conseillée 860 × 220). Ce bandeau affiche ta session, la série et le score en direct. Local uniquement : rien n’est exposé à internet.',
-      hintObsUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus, et décoche « Arrêter la source lorsqu’elle est invisible » — sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n’est exposé à internet.',
+      hintObsUse: 'Dans OBS : Sources → + → Navigateur, colle l’URL ci-dessus, et décoche « Arrêter la source lorsqu’elle est invisible », sinon ta session repart de zéro à chaque changement de scène. Fond transparent automatique, aucun filtre de couleur à ajouter. Local uniquement : rien n’est exposé à internet.',
       navLooks: 'Habillages',
       subLooks: 'Un habillage porte la forme et la palette. Tu l’essaies, tu l’appliques, tu le retouches.',
       hMyLooks: 'Mes looks',
-      hintMyLooks: 'Un look garde l’habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation — c’est comme ça qu’un look se partage.',
+      hintMyLooks: 'Un look garde l’habillage ET les couleurs telles que tu les as réglées, sous un nom. Le code se colle dans une autre installation : c’est comme ça qu’un look se partage.',
       bLookSave: 'Créer un look à partir de l’actuel',
       bLookCopy: 'Copier le code',
       bLookPaste: 'Coller un code',
@@ -1513,7 +1533,7 @@
       oCutRound: 'Arrondie',
       oDensCosy: 'Confortable',
       oDensDense: 'Dense',
-      oDensCouch: 'Canapé — tout plus grand',
+      oDensCouch: 'Canapé : tout plus grand',
       oSkewNone: 'Aucune',
       bTuneApply: 'Appliquer partout',
       bTuneReset: 'Réinitialiser',
@@ -1561,22 +1581,22 @@
       bQuit: 'Quit the app',
       hintQuit: 'Stops tracking entirely. Closing the window does not quit the app.',
       hWelcome: 'Welcome',
-      pWelcome: 'There is nothing to set up: <b>launch Rocket League and play a match</b>. The app detects everything \u2014 your name, your wins, your streak \u2014 and opens the tracker on your second screen.',
-      hWho: 'Who are you?', pWho: 'Several players keep showing up in your matches \u2014 click your name:',
+      pWelcome: 'There is nothing to set up: <b>launch Rocket League and play a match</b>. The app detects everything (your name, your wins, your streak) and opens the tracker on your second screen.',
+      hWho: 'Who are you?', pWho: 'Several players keep showing up in your matches, click your name:',
       hUpdate: 'Update', lLang: 'Language',
       oAuto: 'Automatic (system)',
       lPseudo: 'Your in-game name',
       hintPseudo: 'Used to know which team is yours when counting wins and losses. Play a match: detected names show up as suggestions.',
       // One or more matches this session couldn’t be attributed to any
       // player: the configured name no longer matches anything.
-      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ' — check your name.'; },
+      unknownWarn: function (n) { return n + (n > 1 ? ' matches were not attributed' : ' match was not attributed') + ', check your name.'; },
       lMmr: 'My MMR (optional)',
-      hintMmr: 'Copy the MMR shown in the game (Settings \u2192 Interface \u2192 \u201cShow MMR\u201d, since Season 22). The app then estimates it match after match (about \u00b19) \u2014 come back and correct it anytime.',
+      hintMmr: 'Copy the MMR shown in the game (Settings \u2192 Interface \u2192 \u201cShow MMR\u201d, since Season 22). The app then estimates it match after match (about \u00b19), come back and correct it anytime.',
       hintPlacement: 'Beware of placement matches (start of season): gains are much bigger there (often \u00b115 and decreasing), so the estimate inevitably drifts. Copy your in-game MMR again once your placements are done.',
-      mmrDrift: function (d) { return 'Gap of ' + (d > 0 ? '+' : '') + d + ' versus the estimate \u2014 normal during placements or after a break. The estimate has just been reset to your value.'; },
+      mmrDrift: function (d) { return 'Gap of ' + (d > 0 ? '+' : '') + d + ' versus the estimate, normal during placements or after a break. The estimate has just been reset to your value.'; },
       cRanked: 'My matches are ranked by default (changeable on each live match on the dashboard)',
       cRankedOnly: 'Only count ranked matches in the session',
-      hintRankedOnly: 'Casual matches stay logged in the match history — they reappear as soon as you turn this off. Nothing is deleted.',
+      hintRankedOnly: 'Casual matches stay logged in the match history, they reappear as soon as you turn this off. Nothing is deleted.',
       cAuto: 'Open the dashboard when Rocket League starts',
       cFull: 'Fullscreen dashboard (second screen if present)',
       cOverlay: 'Always-on-top mini-overlay while playing',
@@ -1584,16 +1604,16 @@
       cDiscord: 'Discord status while playing (Rich Presence)',
       cBoot: 'Start with Windows',
       hAnim: 'Animations', lStyle: 'Style',
-      oBroadcast: 'Broadcast \u2014 TV stripes + confetti',
-      oMinimal: 'Minimal \u2014 short, subtle fade',
-      oArcade: 'Arcade \u2014 retro punch + shake',
-      oNeon: 'Neon \u2014 sign flickering on',
-      oCinema: 'Cinema \u2014 slow zoom + black bars',
+      oBroadcast: 'Plateau télé : TV stripes + confetti',
+      oMinimal: 'Minimal : short, subtle fade',
+      oArcade: 'Arcade : retro punch + shake',
+      oNeon: 'Neon: sign flickering on',
+      oCinema: 'Cinema: slow zoom + black bars',
       lJingle: 'End-of-match sound',
-      oSndBroadcast: 'Broadcast \u2014 clean arpeggio',
-      oSndArcade: '8-bit \u2014 retro arcade',
-      oSndSoft: 'Soft \u2014 subtle pads',
-      oSndEpic: 'Epic \u2014 powerful chord',
+      oSndBroadcast: 'Plateau télé : clean arpeggio',
+      oSndArcade: '8-bit : retro arcade',
+      oSndSoft: 'Soft: subtle pads',
+      oSndEpic: 'Epic: powerful chord',
       cAnimEnd: 'Victory / defeat screen at match end',
       cAnimGoal: 'Flash on every goal',
       bTestWin: 'Test victory', bTestLoss: 'Test defeat',
@@ -1604,7 +1624,7 @@
       cOvLive: 'Show live score / last match',
       lSize: 'Size', oSmall: 'Small', oNormal: 'Normal', oBig: 'Large',
       lOpacity: 'Opacity',
-      hintOverlay: 'Important: set Rocket League\u2019s display mode to \u201cBorderless Windowed\u201d (Settings \u2192 Video). In exclusive \u201cFullscreen\u201d, Windows lets no window appear above the game \u2014 the same goes for every overlay.',
+      hintOverlay: 'Important: set Rocket League\u2019s display mode to \u201cBorderless Windowed\u201d (Settings \u2192 Video). In exclusive \u201cFullscreen\u201d, Windows lets no window appear above the game, the same goes for every overlay.',
       lAbSound: 'Sound', lAbVolume: 'Volume',
       oVol1: 'Very soft', oVol2: 'Soft', oVol3: 'Normal', oVol4: 'Loud', oVol5: 'Maximum',
       hintAlphaApi: 'Needs 120 packets/s from the Stats API: the app sets that up on its own, but Rocket League must be restarted after the first activation.',
@@ -1612,9 +1632,9 @@
       cObs: 'Serve the stream overlay locally',
       bCopy: 'Copy URL', bCopied: 'Copied!',
       lObsStyle: 'Style',
-      oObsBroadcast: 'Broadcast — two-block bar',
-      oObsCompact: 'Compact — one thin line',
-      oObsVertical: 'Vertical — stacked card',
+      oObsBroadcast: 'Plateau télé : two-block bar',
+      oObsCompact: 'Compact : one thin line',
+      oObsVertical: 'Vertical : stacked card',
       oXl: 'Extra large',
       lObsBg: 'Bar background', oBgSolid: 'Solid',
       cObsStreak: 'Show the current streak',
@@ -1622,13 +1642,13 @@
       cObsH2h: 'Show “seen before” (1v1)',
       cObsBanner: 'Victory / defeat banner at match end',
       cObsGoal: 'Flash on every goal',
-      obsErr: function (port) { return 'Port ' + port + ' unavailable — another program is using it. Change “obs.port” in config.json or close the other app.'; },
-      hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score — with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons (Dashboard & overlay section) animate it too. Local only: nothing is exposed to the internet.',
+      obsErr: function (port) { return 'Port ' + port + ' unavailable: another program is using it. Change “obs.port” in config.json or close the other app.'; },
+      hintObs: 'In OBS: Sources → + → Browser, paste the URL (suggested size 860 × 220, background is transparent automatically). The bar shows your session, streak and live score, with a goal flash and an end-of-match banner. The “Test victory / defeat” buttons (Dashboard & overlay section) animate it too. Local only: nothing is exposed to the internet.',
       cObsSos: 'Enable the SOS-compatible bridge',
       lObsSosPort: 'Bridge port',
-      obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connected.' : ' overlay connected.')) : 'No overlay connected yet — paste the URL above into your overlay.'; },
-      obsSosErr: function (port) { return 'Port ' + port + ' unavailable — the SOS bridge isn’t running. Another program is probably using this port: change it above or close the other app.'; },
-      hintObsSos: 'For streaming overlays written before Easy Anti-Cheat arrived (April 2026) for the now-defunct SOS plugin — they’ve been silent online ever since. This bridge re-emits the same feed, in the same format, locally on the port chosen above: paste the URL into the overlay and it works again unmodified. For streamers using that kind of overlay only — skip it otherwise.',
+      obsSosClients: function (n) { return n > 0 ? (n + (n > 1 ? ' overlays connected.' : ' overlay connected.')) : 'No overlay connected yet: paste the URL above into your overlay.'; },
+      obsSosErr: function (port) { return 'Port ' + port + ' unavailable: the SOS bridge isn’t running. Another program is probably using this port: change it above or close the other app.'; },
+      hintObsSos: 'For streaming overlays written before Easy Anti-Cheat arrived (April 2026) for the now-defunct SOS plugin, silent online ever since. This bridge re-emits the same feed, in the same format, locally on the port chosen above: paste the URL into the overlay and it works again unmodified. For streamers using that kind of overlay only, skip it otherwise.',
       // Overlay canvas and layout presets (composable overlay card,
       // Overlay & streaming section).
       lObsCanvas: 'Overlay canvas', oCanvasCustom: 'Custom…',
@@ -1638,7 +1658,7 @@
       bPresetExport: 'Export the preset', bPresetImport: 'Import a preset',
       presetBusy: 'Working…',
       presetDone: function (f) { return 'Preset written to ' + f; },
-      presetIn: function (n) { return 'Preset \u201c' + n + '\u201d imported — the overlay layout has been replaced.'; },
+      presetIn: function (n) { return 'Preset \u201c' + n + '\u201d imported: the overlay layout has been replaced.'; },
       presetFail: 'The preset could not be handled.',
       hintObsPreset: 'A preset is a file holding the overlay layout: the blocks, their positions, their sizes and their settings. Use it to share your composition with someone else, or to get it back on another machine. It carries none of your matches, your name or your MMR.',
       // Session alerts (Dashboard section).
@@ -1650,7 +1670,7 @@
       hintAlerts: 'These alerts show on the dashboard AND in the OBS overlay: the “Alerts” block displays them, movable and resizable like every other block (the dashboard’s “Customize” button, “Compose the overlay” for OBS).',
       // Diagnostic (Home section).
       hDiag: 'Diagnostic',
-      hintDiag: 'Goes through everything the app depends on — the game install, the Stats API file, the live feed, your name, the game log used for MMR — and says what to do about each point that fails. Nothing is changed, nothing is sent: the report stays on your machine until you paste it somewhere.',
+      hintDiag: 'Goes through everything the app depends on: the game install, the Stats API file, the live feed, your name, the game log used for MMR, and says what to do about each point that fails. Nothing is changed, nothing is sent: the report stays on your machine until you paste it somewhere.',
       bDiagRun: 'Run the diagnostic', bDiagCopy: 'Copy the report',
       diagBusy: 'Running…', diagCopied: 'Report copied!',
       diagStOk: 'OK', diagStWarn: 'Check', diagStFail: 'Failed',
@@ -1662,13 +1682,13 @@
       },
       diagEmpty: 'No check was returned.',
       diagFail: function (m) { return 'The diagnostic could not finish: ' + m; },
-      diagCopyFail: 'Copy failed — select the lines above by hand.',
-      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' — diagnostic from ' + when; },
+      diagCopyFail: 'Copy failed: select the lines above by hand.',
+      diagTxtHead: function (v, when) { return 'RL Session Tracker v' + v + ' · diagnostic from ' + when; },
       diagTxtHint: '→ fix:',
       // Function missing from the main process: mismatched versions, most
       // often an update installed without a restart.
       noMainApi: 'Unavailable: the main process is a different version from this window. Restart the app.',
-      bDash: 'Open the dashboard', bClear: 'New session — reset the counters',
+      bDash: 'Open the dashboard', bClear: 'New session: reset the counters',
       bStatsApi: 'Re-enable the game Stats API',
       // Match log export (Application section).
       bExport: 'Export matches', exportBusy: 'Exporting\u2026',
@@ -1690,12 +1710,12 @@
       updFail: function (v) { return 'Update to <b>v' + v + '</b> failed.'; },
       updErr: 'Unknown error.', updRetry: 'Retry',
       confirmClear: 'Clear recent matches? Counters go back to 0. MMR, the evolution curve and records are kept.',
-      confirmMmrClear: 'Clear this MMR? The calibration is removed and the evolution curve recorded so far will be permanently lost \u2014 only matches after a new entry will count.',
+      confirmMmrClear: 'Clear this MMR? The calibration is removed and the evolution curve recorded so far will be permanently lost: only matches after a new entry will count.',
       apiBusy: 'Enabling\u2026 (accept the Windows prompt)',
-      apiDone: 'Done \u2014 restart Rocket League',
-      apiFail: 'Failed \u2014 no install configured',
+      apiDone: 'Done: restart Rocket League',
+      apiFail: 'Failed: no install configured',
       apiStuck: 'The game is running but the Stats API never connected. If you are in a match and nothing shows up: click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League. Still nothing? Check that TAGame\\Config\\DefaultStatsAPI.ini exists in the game folder (Steam: right-click \u2192 Manage \u2192 Browse local files).',
-      apiBroken: 'The game\u2019s Stats API has been disabled \u2014 most likely by a game update or a Steam/Epic \u201cVerify integrity of game files\u201d. Click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League.',
+      apiBroken: 'The game\u2019s Stats API has been disabled, most likely by a game update or a Steam/Epic \u201cVerify integrity of game files\u201d. Click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League.',
       // Cosmetics: game file swaps (the only section that touches them).
       navCosmetics: 'Cosmetics',
       subCosmetics: 'Community-made cosmetic file swaps.',
@@ -1712,7 +1732,7 @@
       bCosPick: 'Choose the replacement file\u2026', cosPicking: 'Choosing file\u2026',
       hintCosAdd: 'The replacement file must have the same extension as the target: .upk, or .bnk for a boost sound. It is copied over the original, which is backed up once and for all at the first replacement. For the Alpha Boost, use a .upk file already prepared by the community (for example the presets shared on the Shift / Vibin\u2019s Hub Discord): copying the game\u2019s package as is does not work, the boost turns transparent.',
       cosExt: function (ext) { return 'Expected replacement file: ' + ext; },
-      cosExtNone: 'Pick a file from the list \u2014 the expected extension will show up here.',
+      cosExtNone: 'Pick a file from the list: the expected extension will show up here.',
       cosNoTarget: 'Enter the game file to replace first.',
       cosNoInstall: 'No Rocket League install detected.',
       cosNoMatch: 'No matching file.',
@@ -1728,12 +1748,12 @@
       bCosApply: 'Apply', bCosRestore: 'Restore', bCosRemove: 'Remove',
       tCosSwitch: 'Enabled: re-applied automatically after a game update',
       confirmCosRemove: function (l) { return 'Remove \u201c' + l + '\u201d? The original is restored in the game, then the swap is removed from the list.'; },
-      cosFail: 'Failed \u2014 unknown error.',
+      cosFail: 'Failed: unknown error.',
       // Alpha Boost preset (top of the section).
       hCosAlpha: 'Preset: Alpha Boost',
-      pCosAlpha: 'The Alpha Boost package (<b>Boost_AlphaReward_SF.upk</b>) is already in the game files. This preset copies it over the boost you pick: in-game, that boost takes on the Alpha Boost look. Visual only \u2014 a boost\u2019s sound is a separate mechanism and does not change.',
+      pCosAlpha: 'The Alpha Boost package (<b>Boost_AlphaReward_SF.upk</b>) is already in the game files. This preset copies it over the boost you pick: in-game, that boost takes on the Alpha Boost look. Visual only: a boost\u2019s sound is a separate mechanism and does not change.',
       lCosAlphaTarget: 'Boost to replace',
-      hintCosAlphaTarget: 'Pick a boost you own, preferably unpainted \u2014 Bubbles is the recommended choice.',
+      hintCosAlphaTarget: 'Pick a boost you own, preferably unpainted: Bubbles is the recommended choice.',
       cosRecommended: 'recommended',
       cPrivate: 'Count private matches too',
       hintPrivate: 'A private match goes through no queue: that is how the app spots it, and it is left out. Tick this to see them in the session anyway.',
@@ -1741,16 +1761,16 @@
       lThemeColors: 'Colors',
       hintSkin: 'A skin changes the shape of the interface: type, card cuts, rules, shadows. It brings its own palette, which you can tweak just below.',
       bObsCompose: 'Compose the overlay',
-      hintObsCompose: 'The overlay served to OBS uses the same blocks as the dashboard, with its own layout. The composer opens a window where you move, resize, hide and configure each block over a checkerboard — whatever is transparent stays transparent in OBS. The old compact bar is still served on /classic.',
+      hintObsCompose: 'The overlay served to OBS uses the same blocks as the dashboard, with its own layout. The composer opens a window where you move, resize, hide and configure each block over a checkerboard: whatever is transparent stays transparent in OBS. The old compact bar is still served on /classic.',
       hObsClassic: 'Old compact bar',
       hintObsClassic: 'A separate page, served on /classic. It cannot be composed: the settings below drive it. Use it only if you already had it set up in OBS.',
       hintObsAnim: 'These two settings apply to the overlay served to OBS. The banner covers the whole source during the celebration: turn it off if your source fills the screen. No sound ever leaves the overlay.',
       hintObsClassicUse: 'In OBS: Sources → + → Browser, paste the URL above (860 × 220 recommended). This bar shows your session, streak and live score. Local only: nothing is exposed to the internet.',
-      hintObsUse: 'In OBS: Sources → + → Browser, paste the URL above, and untick “Shutdown source when not visible” — otherwise your session restarts on every scene change. Transparent background is automatic, no colour filter needed. Local only: nothing is exposed to the internet.',
+      hintObsUse: 'In OBS: Sources → + → Browser, paste the URL above, and untick “Shutdown source when not visible”, otherwise your session restarts on every scene change. Transparent background is automatic, no colour filter needed. Local only: nothing is exposed to the internet.',
       navLooks: 'Skins',
       subLooks: 'A skin carries the shape and the palette. Try it, apply it, tweak it.',
       hMyLooks: 'My looks',
-      hintMyLooks: 'A look keeps the skin AND the colours as you set them, under a name. The code pastes into another install — that is how a look is shared.',
+      hintMyLooks: 'A look keeps the skin AND the colours as you set them, under a name. The code pastes into another install: that is how a look is shared.',
       bLookSave: 'Create a look from the current one',
       bLookCopy: 'Copy the code',
       bLookPaste: 'Paste a code',
@@ -1780,7 +1800,7 @@
       lookBadCode: 'Unreadable code. Paste the whole thing, it starts with RLST-.',
       lookNamePrompt: 'Look name?',
       hAtelier: 'Workshop',
-      hintAtelier: 'Start from a skin and change what bothers you. “Auto” lets the skin decide — that is the original setting.',
+      hintAtelier: 'Start from a skin and change what bothers you. “Auto” lets the skin decide, that is the original setting.',
       lTuneFont: 'Typography',
       lTuneCut: 'Card cut',
       lTuneDens: 'Density',
@@ -1796,7 +1816,7 @@
       oCutRound: 'Rounded',
       oDensCosy: 'Comfortable',
       oDensDense: 'Dense',
-      oDensCouch: 'Couch — everything bigger',
+      oDensCouch: 'Couch: everything bigger',
       oSkewNone: 'None',
       bTuneApply: 'Apply everywhere',
       bTuneReset: 'Reset',
@@ -2326,7 +2346,7 @@
       var last = s.history && s.history[0];
       $('rMatchLabel').textContent = T.lLast;
       $('rMatch').textContent = last && last.score
-        ? last.mode + ' · ' + last.score[0] + ' – ' + last.score[1] : '—';
+        ? last.mode + ' · ' + last.score[0] + ' – ' + last.score[1] : '–';
       $('rMatch').className = '';
     }
 
