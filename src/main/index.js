@@ -26,8 +26,8 @@ const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
 const Cosmetics = require('./cosmetics');
 const diagnostic = require('./diagnostic');
-const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured } =
-  require('./enable-statsapi');
+const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured,
+  ensureUserIni, userIniFiles, userConfigDirs, readIni } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
 const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
@@ -431,6 +431,12 @@ function startStatsApi() {
       + (snap.podium ? ' (podium atteint)' : ''));
   });
   api.on('podium', (d) => sos.send('podium', d));
+  // Journalisé pour apprendre la forme réelle de ces évènements en partie
+  // (voir statsapi.js) ; rien n'en dépend encore.
+  api.on('player', (p) => {
+    log('Stats API : joueur ' + (p.phase === 'left' ? 'parti' : 'arrivé') + ' : '
+      + (p.name || '?') + ' (équipe ' + (p.team === null ? '?' : p.team) + ')');
+  });
   api.on('goal', (d) => {
     statsApiSeenAt = Date.now();
     if (state.live && state.live.training) return;
@@ -609,6 +615,7 @@ function logStatsApiResult(r) {
   if (r.skipped) { log('Stats API : ignorée (' + (r.reason || '') + ')'); return; }
   log('Stats API : détectées=' + JSON.stringify(r.installs || [])
     + ' configurées=' + JSON.stringify(r.configured || null)
+    + ' profil=' + JSON.stringify(r.userIni || [])
     + (r.ok ? '' : ' ÉCHEC : ' + (r.reason || '?')));
 }
 
@@ -633,6 +640,15 @@ async function repairStatsApiIfNeeded(origin) {
   try { check = checkStatsApi(config.get().statsApiPort); } catch (e) { return; }
   if (!check.installs.length || !check.broken.length) {
     if (state.game.statsApiBroken) { state.game.statsApiBroken = false; pushState(); }
+    // Tout marche : on en profite pour poser TAStatsAPI.ini s'il manque. Ce
+    // fichier survit aux vérifications d'intégrité Steam ; l'écrire seulement
+    // après la panne arriverait trop tard pour l'éviter.
+    if (check.installs.length) {
+      try {
+        const w = ensureUserIni(config.get().statsApiPort);
+        if (w.length) log('Stats API : TAStatsAPI.ini posé dans ' + JSON.stringify(w));
+      } catch (e) { /* sans conséquence : DefaultStatsAPI.ini fait déjà le travail */ }
+    }
     return;
   }
   log('Stats API coupée dans ' + JSON.stringify(check.broken) + ' (' + origin
@@ -819,6 +835,9 @@ ipcMain.handle('run-diagnostic', () => {
       detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
       iniConfigured: iniConfigured,
       iniRate: iniRate,
+      userIni: () => (process.platform === 'win32'
+        ? { dirs: userConfigDirs(), files: userIniFiles() } : { dirs: [], files: [] }),
+      readIni: readIni,
       logFile: RLLogReader.defaultLogPath(),
       readQueue: () => (logReader ? logReader.refreshQueue() : null),
       readMmr: () => (logReader ? logReader.read() : null),

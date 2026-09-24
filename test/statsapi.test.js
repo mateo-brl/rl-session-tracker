@@ -494,3 +494,30 @@ test('remplacement en cours de match : le mode reste celui joué', () => {
   assert.equal(snap.mode, '3v3');        // et non « 4v4 »
   assert.equal(snap.players.length, 7);  // le partant reste dans les stats
 });
+
+test('PlayerLeft : tracé avec le match et émis, sans changer le résultat', () => {
+  const api = new RLStatsAPI();
+  const got = listen(api);
+  const vus = [];
+  api.on('player', (p) => vus.push(p));
+  feed(api, 'MatchCreated', {});
+  feed(api, 'PlayerJoined', JSON.stringify({ Player: { Name: 'Adv', TeamNum: 1, PrimaryId: 'Steam|1|0', Goals: 3 } }));
+  feed(api, 'PlayerLeft', { Player: { Name: 'Adv', TeamNum: 1, PrimaryId: 'Steam|1|0' } });
+  assert.deepEqual(vus, [
+    { phase: 'joined', name: 'Adv', team: 1, id: 'Steam|1|0' },
+    { phase: 'left', name: 'Adv', team: 1, id: 'Steam|1|0' },
+  ]);
+  const trace = api.match.events.filter((e) => e.event.startsWith('player'));
+  assert.deepEqual(trace.map((e) => e.event), ['playerjoined', 'playerleft']);
+  assert.equal(trace[0].data.Goals, undefined);   // forme réduite
+  assert.equal(got.ended + got.abandoned, 0);
+});
+
+test('PlayerLeft hors match : émis, sans créer de match', () => {
+  const api = new RLStatsAPI();
+  let n = 0;
+  api.on('player', () => n++);
+  feed(api, 'PlayerLeft', { Name: 'Solo' });
+  assert.equal(n, 1);
+  assert.equal(api.match, null);
+});

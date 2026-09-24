@@ -184,6 +184,12 @@ L'application le vérifie désormais **à chaque lancement** et le réactive
 toute seule (une fenêtre admin à accepter). Si ça arrive en pleine session,
 reclique **« Réactiver la Stats API du jeu »** et redémarre Rocket League.
 (Pareil pour la réparation Epic.)
+
+Depuis la 3.32.0, l'application pose aussi `TAStatsAPI.ini` dans
+`Documents\My Games\Rocket League\TAGame\Config`. Ce fichier du profil
+prime sur celui du jeu, ne demande aucun droit admin, et ni Steam ni Epic n'y
+touchent lors d'une vérification : la Stats API devrait survivre aux mises à
+jour. Le diagnostic le contrôle aussi.
 </details>
 
 > ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). L'application est
@@ -488,6 +494,12 @@ Steam or a big game update, the Stats API config file can be reset. The app
 now checks this **on every launch** and re-enables it by itself (one admin
 prompt to accept). If it happens mid-session, click **"Re-enable the game's
 Stats API"** again and restart Rocket League. (Same for Epic's repair.)
+
+Since 3.32.0, the app also writes `TAStatsAPI.ini` to
+`Documents\My Games\Rocket League\TAGame\Config`. This profile file takes
+priority over the game's own, needs no admin rights, and neither Steam nor Epic
+touch it during a verification: the Stats API should survive updates. The
+diagnostic checks it too.
 </details>
 
 > ⚠️ The Stats API only exists on **PC** (Epic / Steam). The app is
