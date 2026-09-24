@@ -1,7 +1,7 @@
 // cosmetics.js — Swaps cosmétiques : remplacer un paquet du jeu par un autre.
 //
-// C'est le SEUL module de l'application qui touche aux fichiers de Rocket
-// League, et il est optionnel. Le principe est celui de Shift, RLPeak ou
+// Avec maps.js (cartes workshop), c'est le seul module de l'application qui
+// touche aux fichiers de Rocket League, et il est optionnel. Le principe est celui de Shift, RLPeak ou
 // Bakkboard : un fichier `.upk` (ou une paire `.upk` + `.bnk` pour un boost)
 // vient remplacer un paquet original dans TAGame\CookedPCConsole, côté client
 // uniquement — seul le joueur voit le changement. Aucune injection, aucune

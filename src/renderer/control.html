@@ -229,6 +229,7 @@
   }
   /* Pastille d'alerte : quelque chose attend sur l'accueil (mise à jour,
      Stats API en panne, pseudo à confirmer) alors qu'on est ailleurs. */
+  .nav .ext { width:13px; height:13px; margin-left:auto; opacity:.7; }
   .nav .badge { display:none; width:8px; height:8px; margin-left:auto;
     background:var(--orange); transform:skewX(-14deg); flex:none; }
   .nav.alert .badge { display:block; }
@@ -617,6 +618,13 @@
         <button class="nav" data-sec="cosmetics">
           <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.6 0 2.2-1.1 1.6-2.2-.6-1.2.1-2.3 1.5-2.3h1.4a3.5 3.5 0 0 0 3.5-3.5C20 7.6 16.4 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10" cy="7.5" r="1.1"/><circle cx="14.5" cy="7" r="1.1"/></svg>
           <span data-i18n="navCosmetics">Cosmétiques</span><i class="badge"></i>
+        </button>
+        <!-- Pas une section : ouvre la fenêtre Cartes. Le petit carré fléché
+             à droite le signale, pour qu'on ne cherche pas le contenu ici. -->
+        <button class="nav" id="mapsNav">
+          <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg>
+          <span data-i18n="navMaps">Cartes workshop</span>
+          <svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg>
         </button>
       </div>
       <div class="side-foot">
@@ -1434,6 +1442,7 @@
       apiBroken: 'La Stats API du jeu a \u00e9t\u00e9 d\u00e9sactiv\u00e9e, probablement par une mise \u00e0 jour du jeu ou une \u00ab\u00a0v\u00e9rification de l\u2019int\u00e9grit\u00e9 des fichiers\u00a0\u00bb Steam/Epic. Clique \u00ab\u00a0R\u00e9activer la Stats API du jeu\u00a0\u00bb (section Application), accepte la fen\u00eatre admin, puis red\u00e9marre Rocket League.',
       // Cosmétiques : swaps de fichiers du jeu (seule section qui y touche).
       navCosmetics: 'Cosm\u00e9tiques',
+      navMaps: 'Cartes workshop',
       subCosmetics: 'Swaps de fichiers cosm\u00e9tiques pr\u00e9par\u00e9s par la communaut\u00e9.',
       hCosWarn: 'Cette section modifie des fichiers du jeu',
       pCosWarn: 'Seule fonction de l\u2019application qui touche aux fichiers de Rocket League. Un swap remplace un fichier de <b>TAGame\\CookedPCConsole</b> par un fichier pr\u00e9par\u00e9 par la communaut\u00e9. L\u2019original est <b>sauvegard\u00e9 avant le premier remplacement</b> et se restaure d\u2019un clic. <b>Rien n\u2019est modifi\u00e9 pendant que le jeu tourne.</b> Si une mise \u00e0 jour ou une v\u00e9rification des fichiers Steam/Epic remet les originaux, les swaps activ\u00e9s sont r\u00e9appliqu\u00e9s automatiquement au prochain moment s\u00fbr. Modifier les fichiers du jeu rel\u00e8ve des conditions d\u2019utilisation de Rocket League : tu l\u2019utilises sous ta propre responsabilit\u00e9.',
@@ -1716,6 +1725,7 @@
       apiBroken: 'The game\u2019s Stats API has been disabled, most likely by a game update or a Steam/Epic \u201cVerify integrity of game files\u201d. Click \u201cRe-enable the game Stats API\u201d (Application section), accept the admin prompt, then restart Rocket League.',
       // Cosmetics: game file swaps (the only section that touches them).
       navCosmetics: 'Cosmetics',
+      navMaps: 'Workshop maps',
       subCosmetics: 'Community-made cosmetic file swaps.',
       hCosWarn: 'This section modifies game files',
       pCosWarn: 'The only feature of this app that touches Rocket League\u2019s files. A swap replaces a file in <b>TAGame\\CookedPCConsole</b> with a community-made one. The original is <b>backed up before the first replacement</b> and restored with one click. <b>Nothing is changed while the game is running.</b> If a game update or a Steam/Epic file verification puts the originals back, enabled swaps are re-applied automatically at the next safe moment. Modifying game files falls under Rocket League\u2019s terms of use: you use this at your own risk.',
@@ -2713,6 +2723,7 @@
   navBtns.forEach(function (b) {
     b.onclick = function () { showSection(b.dataset.sec); };
   });
+  $('mapsNav').onclick = function () { window.rl.openMaps(); };
   var savedSection = 'home';
   try { savedSection = localStorage.getItem(SECTION_KEY) || 'home'; } catch (e) { /* idem */ }
   showSection(savedSection);

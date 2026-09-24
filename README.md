@@ -82,7 +82,8 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🏬 **Vitrine des habillages** | Une section à part : les six habillages en vignettes qui montrent le vrai rendu, filtrées par famille, avec le look actif signalé. « Essayer » applique partout — cette fenêtre, le dashboard, l'overlay — sans rien enregistrer, et Échap annule. Un look garde l'habillage et tes couleurs sous un nom, et se partage par un code à coller. |
 | 🎭 **Six habillages** | Bien plus que quatre couleurs : chaque habillage change la police, la découpe des cartes, les filets, les ombres et le fond. Arène (l'origine), Console (terminal à phosphore), Papier (imprimé clair), Néon (verre et enseignes), Brut (brutaliste), Calme (rien que le contenu). Il s'applique au dashboard et à la fenêtre de configuration, et apporte sa palette, que tu peux retoucher ensuite. |
 | 🚫 **Matchs privés ignorés** | Un match privé ne passe par aucune file d'attente : l'appli le reconnaît à ça et ne le compte ni en victoire, ni en défaite, ni dans le mode déduit du nombre de joueurs. Case à cocher si tu veux quand même les compter. |
-| 🎨 **Alpha Boost visuel & swaps (optionnel)** | Un clic : l'appli prend le paquet Alpha déjà présent dans ton installation, **renomme ses entrées** pour le boost que tu choisis (Bubbles conseillé) — c'est le vrai patch, celui des fichiers « préparés » — puis le met en place, sauvegarde l'original, restaure d'un clic et **réapplique après une mise à jour**. Fonctionne aussi avec un `.upk` préparé par la communauté. Section « Cosmétiques » — la seule de l'appli qui touche aux fichiers du jeu, jamais pendant qu'il tourne. |
+| 🎨 **Alpha Boost visuel & swaps (optionnel)** | Un clic : l'appli prend le paquet Alpha déjà présent dans ton installation, **renomme ses entrées** pour le boost que tu choisis (Bubbles conseillé) — c'est le vrai patch, celui des fichiers « préparés » — puis le met en place, sauvegarde l'original, restaure d'un clic et **réapplique après une mise à jour**. Fonctionne aussi avec un `.upk` préparé par la communauté. Section « Cosmétiques » (avec les cartes workshop, la seule partie de l'appli qui touche aux fichiers du jeu), jamais pendant qu'il tourne. |
+| 🗺️ **Cartes workshop sur Epic** | Menu « Cartes workshop » : le site [bakkesplugins.com/maps](https://bakkesplugins.com/maps) s'ouvre dans une fenêtre de l'appli. Tu cliques sur le téléchargement d'une carte, elle arrive dans ta bibliothèque avec son titre, son auteur et son aperçu. « Charger dans Underpass » la pose à la place d'Underpass : en jeu, Entraînement libre, carte Underpass. L'original est sauvegardé une fois et se remet d'un clic. Il revient aussi tout seul si tu lances une recherche hors modes classiques (Rumble et autres modes extra, où Underpass peut tomber en ligne). Tu peux aussi importer un `.udk` ou un `.zip` déjà sur ton PC. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -234,9 +235,9 @@ file. Le format n'étant pas documenté par Psyonix, il peut changer à un patch
 dans ce cas l'application ne casse pas, elle revient simplement à l'estimation
 seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
 
-**Et les cosmétiques, c'est sûr ?** C'est la seule section de l'appli qui
-modifie des fichiers de Rocket League, et elle ne fait rien tant que tu n'y
-touches pas. Elle ne télécharge rien. Copier tel quel un paquet du jeu par-dessus un
+**Et les cosmétiques, c'est sûr ?** Avec les cartes workshop, c'est la seule
+partie de l'appli qui modifie des fichiers de Rocket League, et elle ne fait
+rien tant que tu n'y touches pas. Elle ne télécharge rien. Copier tel quel un paquet du jeu par-dessus un
 autre ne fonctionne pas (testé : boost transparent) : le moteur cherche dans
 `Boost_Bubble_SF.upk` des objets nommés « Boost_Bubble… ». L'appli fait donc
 le vrai travail — elle déchiffre l'en-tête du paquet Alpha (AES, clé
@@ -312,11 +313,15 @@ rl-session-tracker/
 │   │   ├── obs-server.js      # Mode streamer : overlay OBS servi en local (SSE)
 │   │   ├── sos-bridge.js      # Pont WebSocket compatible plugin SOS (49122)
 │   │   ├── cosmetics.js       # Swaps cosmétiques (Alpha Boost visuel), jeu fermé
+│   │   ├── maps.js            # Cartes workshop : bibliothèque + emplacement Underpass
+│   │   ├── maps-browser.js    # bakkesplugins.com intégré, téléchargements interceptés
+│   │   ├── zip.js             # Lecture des archives .zip (sans dépendance)
 │   │   ├── rl-log.js          # Vrai MMR + playlist lus dans Launch.log
 │   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
 │   └── renderer/
 │       ├── control.html       # Fenêtre de contrôle / réglages
+│       ├── maps.html          # Fenêtre Cartes workshop
 │       ├── dashboard.html     # Le tracker plein écran
 │       ├── overlay.html       # Mini-overlay toujours au premier plan
 │       ├── obs.html           # Overlay de stream (capturé dans OBS)
@@ -396,7 +401,8 @@ and it's the only "thank you" this app will ever ask for.**
 | 🏬 **Skin showcase** | Its own section: the six skins as thumbnails rendered with the real CSS, filtered by family, with the active look marked. "Try" applies everywhere — this window, the dashboard, the overlay — saving nothing, and Esc cancels. A look keeps the skin and your colours under a name, and travels as a code you paste. |
 | 🎭 **Six skins** | Far more than four colors: each skin changes the type, the card cuts, the rules, the shadows and the background. Arena (the original), Console (phosphor terminal), Paper (light print), Neon (glass and signs), Brut (brutalist), Calm (content only). It applies to the dashboard and the settings window, and brings its own palette you can tweak afterwards. |
 | 🚫 **Private matches ignored** | A private match goes through no queue: that's how the app spots it, and it counts as neither a win nor a loss, nor toward the mode guessed from the player count. A checkbox brings them back if you want them. |
-| 🎨 **Visual Alpha Boost & swaps (optional)** | One click: the app takes the Alpha package already in your install, **renames its entries** for the boost you pick (Bubbles recommended) — the real patch, the one "prepared" files carry — then puts it in place, backs up the original, restores in one click and **re-applies after a game update**. Also works with a community-prepared `.upk`. "Cosmetics" section — the only part of the app that touches game files, never while the game is running. |
+| 🎨 **Visual Alpha Boost & swaps (optional)** | One click: the app takes the Alpha package already in your install, **renames its entries** for the boost you pick (Bubbles recommended) — the real patch, the one "prepared" files carry — then puts it in place, backs up the original, restores in one click and **re-applies after a game update**. Also works with a community-prepared `.upk`. "Cosmetics" section (with workshop maps, the only part of the app that touches game files), never while the game is running. |
+| 🗺️ **Workshop maps on Epic** | "Workshop maps" menu: [bakkesplugins.com/maps](https://bakkesplugins.com/maps) opens in an app window. Click a map's download button and it lands in your library with its title, author and preview. "Load into Underpass" puts it in place of Underpass: in game, Free Play, map Underpass. The original is backed up once and comes back in one click. It also comes back on its own if you queue outside the standard modes (Rumble and other extra modes, where Underpass can show up online). You can also import a `.udk` or `.zip` already on your PC. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -536,8 +542,8 @@ compares the real MMR change to the tally of recorded matches over that
 span — if a misclassified forfeit explains the gap, it fixes the result
 automatically.
 
-**Are cosmetics safe?** It's the only section of the app that modifies
-Rocket League files, and it does nothing until you use it. Nothing is
+**Are cosmetics safe?** Along with workshop maps, it's the only part of the
+app that modifies Rocket League files, and it does nothing until you use it. Nothing is
 downloaded. Copying a game package as-is over another one does not work
 (tested: invisible boost): the engine looks inside `Boost_Bubble_SF.upk` for
 objects named "Boost_Bubble…". So the app does the real work — it decrypts
@@ -619,11 +625,15 @@ rl-session-tracker/
 │   │   ├── obs-server.js      # Streamer mode: locally served OBS overlay (SSE)
 │   │   ├── sos-bridge.js      # SOS-compatible WebSocket bridge (49122)
 │   │   ├── cosmetics.js       # Cosmetic swaps (visual Alpha Boost), game closed
+│   │   ├── maps.js            # Workshop maps: library + Underpass slot
+│   │   ├── maps-browser.js    # Embedded bakkesplugins.com, downloads intercepted
+│   │   ├── zip.js             # .zip reader (no dependency)
 │   │   ├── rl-log.js          # Real MMR + playlist read from Launch.log
 │   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
 │   ├── preload.js             # Secure IPC bridge (contextIsolation)
 │   └── renderer/
 │       ├── control.html       # Control / settings window
+│       ├── maps.html          # Workshop maps window
 │       ├── dashboard.html     # The fullscreen tracker
 │       ├── overlay.html       # Always-on-top mini-overlay
 │       ├── obs.html           # Stream overlay (captured in OBS)

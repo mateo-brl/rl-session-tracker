@@ -2,7 +2,7 @@
 // contextIsolation est activé : les fenêtres n'ont pas accès à Node, seulement
 // à l'API minimale exposée ici.
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('rl', {
   // État de l'application (poussé en continu).
@@ -45,8 +45,7 @@ contextBridge.exposeInMainWorld('rl', {
   setCurrentRanked: (on) => ipcRenderer.send('set-current-ranked', on),
   previewAnimation: (result) => ipcRenderer.send('preview-animation', result),
 
-  // Cosmétiques : swaps de paquets du jeu (seule fonction qui touche aux
-  // fichiers de Rocket League — optionnelle, jeu fermé uniquement).
+  // Cosmétiques : swaps de paquets du jeu (optionnels, jeu fermé uniquement).
   cosmeticsList: () => ipcRenderer.invoke('cosmetics-list'),
   cosmeticsTargets: (install, query) => ipcRenderer.invoke('cosmetics-targets', install, query),
   cosmeticsAdd: (opts) => ipcRenderer.invoke('cosmetics-add', opts),
@@ -60,6 +59,25 @@ contextBridge.exposeInMainWorld('rl', {
   cosmeticsApplyAll: () => ipcRenderer.invoke('cosmetics-apply-all'),
   cosmeticsRestoreAll: () => ipcRenderer.invoke('cosmetics-restore-all'),
 
+
+  // Cartes workshop : bibliothèque, emplacement Underpass, et le site
+  // bakkesplugins affiché dans la fenêtre Cartes.
+  openMaps: () => ipcRenderer.send('open-maps'),
+  mapsList: () => ipcRenderer.invoke('maps-list'),
+  mapsPreview: (id) => ipcRenderer.invoke('maps-preview', id),
+  mapsLoad: (id) => ipcRenderer.invoke('maps-load', id),
+  mapsRestore: () => ipcRenderer.invoke('maps-restore'),
+  mapsRemove: (id) => ipcRenderer.invoke('maps-remove', id),
+  mapsImport: () => ipcRenderer.invoke('maps-import'),
+  // Un fichier glissé dans la fenêtre : avec contextIsolation, la page n'a
+  // pas accès au chemin, seul le preload peut le lire.
+  mapsImportFiles: (files) => ipcRenderer.invoke('maps-import-paths',
+    Array.from(files || []).map((f) => { try { return webUtils.getPathForFile(f); } catch (e) { return ''; } })),
+  mapsViewBounds: (r) => ipcRenderer.send('maps-view-bounds', r),
+  mapsView: (cmd) => ipcRenderer.send('maps-view', cmd),
+  onMapsNav: (cb) => ipcRenderer.on('maps-nav', (_e, n) => cb(n)),
+  onMapsDownload: (cb) => ipcRenderer.on('maps-download', (_e, d) => cb(d)),
+  onMapsChanged: (cb) => ipcRenderer.on('maps-changed', (_e, c) => cb(c)),
 
   // Mises à jour.
   updateCheck: () => ipcRenderer.send('update-check'),
