@@ -564,23 +564,24 @@ function run(deps) {
   });
 
   // ───────── Cartes workshop ─────────
-  // Ce qui occupe Underpass. Utile surtout pour un symptôme : « je lance
-  // Underpass et j'ai la carte d'origine » après une mise à jour du jeu.
-  add('maps', 'Cartes workshop (Underpass)', () => {
+  // Ce qui occupe chaque arène. Utile surtout pour un symptôme : « je lance
+  // l'arène et j'ai la carte d'origine » après une mise à jour du jeu.
+  add('maps', 'Cartes workshop', () => {
     if (typeof d.maps !== 'function') return { state: SKIP, detail: 'module indisponible' };
-    const s = d.maps();
-    if (!s || typeof s !== 'object') return { state: SKIP, detail: 'module indisponible' };
-    if (s.loaded) {
-      return { state: OK, detail: '« ' + s.loaded.title + ' » dans ' + (s.target || 'Underpass')
-        + ' (' + (Array.isArray(s.installs) ? s.installs.length : 0) + ' installation(s))' };
+    const slots = d.maps();
+    if (!Array.isArray(slots)) return { state: SKIP, detail: 'module indisponible' };
+    if (!slots.length) return { state: SKIP, detail: 'aucune arène utilisable trouvée dans le jeu' };
+    const names = slots.map((s) => s.name).join(', ');
+    const reverted = slots.filter((s) => s.reverted);
+    if (reverted.length) {
+      return { state: WARN, detail: reverted.map((s) => s.name + ' : « ' + s.reverted.title
+        + ' » remplacée par le jeu').join(' · '),
+        hint: 'Une mise à jour ou une vérification des fichiers a remis l’arène d’origine.'
+          + ' Recharge la carte depuis la fenêtre Cartes workshop.' };
     }
-    if (s.reverted) {
-      return { state: WARN, detail: 'le jeu a remis Underpass d’origine, « ' + s.reverted.title
-        + ' » n’est plus en place',
-        hint: 'Une mise à jour ou une vérification des fichiers a remplacé la carte.'
-          + ' Recharge-la depuis la fenêtre Cartes workshop.' };
-    }
-    return { state: SKIP, detail: 'aucune carte chargée, Underpass d’origine' };
+    const loaded = slots.filter((s) => s.loaded);
+    if (!loaded.length) return { state: SKIP, detail: 'aucune carte chargée (arènes : ' + names + ')' };
+    return { state: OK, detail: loaded.map((s) => s.name + ' : « ' + s.loaded.title + ' »').join(' · ') };
   });
 
   // `ok` ne retient que les vraies pannes : un « warn » signale quelque chose à

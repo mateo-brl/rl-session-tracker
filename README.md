@@ -83,7 +83,7 @@ trouver — et c'est le seul « merci » qu'elle demandera jamais.**
 | 🎭 **Six habillages** | Bien plus que quatre couleurs : chaque habillage change la police, la découpe des cartes, les filets, les ombres et le fond. Arène (l'origine), Console (terminal à phosphore), Papier (imprimé clair), Néon (verre et enseignes), Brut (brutaliste), Calme (rien que le contenu). Il s'applique au dashboard et à la fenêtre de configuration, et apporte sa palette, que tu peux retoucher ensuite. |
 | 🚫 **Matchs privés ignorés** | Un match privé ne passe par aucune file d'attente : l'appli le reconnaît à ça et ne le compte ni en victoire, ni en défaite, ni dans le mode déduit du nombre de joueurs. Case à cocher si tu veux quand même les compter. |
 | 🎨 **Alpha Boost visuel & swaps (optionnel)** | Un clic : l'appli prend le paquet Alpha déjà présent dans ton installation, **renomme ses entrées** pour le boost que tu choisis (Bubbles conseillé) — c'est le vrai patch, celui des fichiers « préparés » — puis le met en place, sauvegarde l'original, restaure d'un clic et **réapplique après une mise à jour**. Fonctionne aussi avec un `.upk` préparé par la communauté. Section « Cosmétiques » (avec les cartes workshop, la seule partie de l'appli qui touche aux fichiers du jeu), jamais pendant qu'il tourne. |
-| 🗺️ **Cartes workshop sur Epic** | Menu « Cartes workshop » : le site [bakkesplugins.com/maps](https://bakkesplugins.com/maps) s'ouvre dans une fenêtre de l'appli. Tu cliques sur le téléchargement d'une carte, elle arrive dans ta bibliothèque avec son titre, son auteur et son aperçu. « Charger dans Underpass » la pose à la place d'Underpass : en jeu, Entraînement libre, carte Underpass. L'original est sauvegardé une fois et se remet d'un clic. Il revient aussi tout seul si tu lances une recherche hors modes classiques (Rumble et autres modes extra, où Underpass peut tomber en ligne). Tu peux aussi importer un `.udk` ou un `.zip` déjà sur ton PC. |
+| 🗺️ **Cartes workshop sur Epic** | Menu « Cartes workshop » : le site [bakkesplugins.com/maps](https://bakkesplugins.com/maps) s'ouvre dans une fenêtre de l'appli. Tu cliques sur le téléchargement d'une carte, elle arrive dans ta bibliothèque avec son titre, son auteur et son aperçu. Jusqu'à quatre arènes Labs servent d'emplacements (Underpass, Utopia Retro, Octagon, Cosmic, selon ce que contient ton jeu) : choisis-en une en haut de la fenêtre, puis « Charger » y pose la carte. En jeu : Entraînement libre, sur cette arène. L'original est sauvegardé une fois et se remet d'un clic. Underpass reste chargé pendant tes files classiques ; les autres arènes reviennent d'origine dès que tu lances une recherche de match, car elles peuvent tomber en ligne. Recherche par nom ou auteur, favoris, et import d'un `.udk` ou d'un `.zip` déjà sur ton PC. |
 | 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
 | 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
 | 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
@@ -277,7 +277,7 @@ qu'aucun son ne soit joué par l'application.
 | **Données** | Stats API native du jeu (socket TCP `127.0.0.1:49123`, JSON concaténé) |
 | **Empaquetage** | electron-builder — installeur NSIS un-clic |
 | **Mises à jour** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Qualité** | Tests unitaires et d'intégration (`node --test`), CI à chaque push |
+| **Qualité** | Tests unitaires et d'intégration (`node --test`), test de fumée dans le vrai Electron (`e2e/smoke.js`), CI à chaque push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
@@ -285,6 +285,8 @@ cd rl-session-tracker
 npm install
 npm start          # lance l'application en mode développement
 node --test        # lance les tests
+npm run smoke      # test de fumée : la vraie application dans Electron
+                   # (sous Linux sans écran : xvfb-run -a npm run smoke -- --no-sandbox)
 npm run dist       # construit l'installeur Windows dans dist/
 ```
 
@@ -308,7 +310,12 @@ bouton « Mettre à jour ».
 rl-session-tracker/
 ├── src/
 │   ├── main/                  # Processus principal Electron
-│   │   ├── index.js           # Cycle de vie, tray, IPC, câblage général
+│   │   ├── index.js           # Cycle de vie, état partagé, câblage général
+│   │   ├── ipc-*.js           # IPC par domaine : cosmétiques, cartes, fichiers
+│   │   ├── mmr-log.js         # Branchement du journal du jeu (MMR, files)
+│   │   ├── statsapi-repair.js # Quand réparer la Stats API, et combien de fois
+│   │   ├── tray.js            # Icône et menu de la zone de notification
+│   │   ├── csv.js             # Export CSV des matchs
 │   │   ├── statsapi.js        # Connecteur Stats API (TCP, parseur de flux)
 │   │   ├── game-watcher.js    # Détection du processus RocketLeague.exe
 │   │   ├── session.js         # Journal des matchs + stats + MMR + records
@@ -410,7 +417,7 @@ and it's the only "thank you" this app will ever ask for.**
 | 🎭 **Six skins** | Far more than four colors: each skin changes the type, the card cuts, the rules, the shadows and the background. Arena (the original), Console (phosphor terminal), Paper (light print), Neon (glass and signs), Brut (brutalist), Calm (content only). It applies to the dashboard and the settings window, and brings its own palette you can tweak afterwards. |
 | 🚫 **Private matches ignored** | A private match goes through no queue: that's how the app spots it, and it counts as neither a win nor a loss, nor toward the mode guessed from the player count. A checkbox brings them back if you want them. |
 | 🎨 **Visual Alpha Boost & swaps (optional)** | One click: the app takes the Alpha package already in your install, **renames its entries** for the boost you pick (Bubbles recommended) — the real patch, the one "prepared" files carry — then puts it in place, backs up the original, restores in one click and **re-applies after a game update**. Also works with a community-prepared `.upk`. "Cosmetics" section (with workshop maps, the only part of the app that touches game files), never while the game is running. |
-| 🗺️ **Workshop maps on Epic** | "Workshop maps" menu: [bakkesplugins.com/maps](https://bakkesplugins.com/maps) opens in an app window. Click a map's download button and it lands in your library with its title, author and preview. "Load into Underpass" puts it in place of Underpass: in game, Free Play, map Underpass. The original is backed up once and comes back in one click. It also comes back on its own if you queue outside the standard modes (Rumble and other extra modes, where Underpass can show up online). You can also import a `.udk` or `.zip` already on your PC. |
+| 🗺️ **Workshop maps on Epic** | "Workshop maps" menu: [bakkesplugins.com/maps](https://bakkesplugins.com/maps) opens in an app window. Click a map's download button and it lands in your library with its title, author and preview. Up to four Labs arenas act as slots (Underpass, Utopia Retro, Octagon, Cosmic, depending on what your game has): pick one at the top of the window, then "Load" puts the map there. In game: Free Play, on that arena. The original is backed up once and comes back in one click. Underpass stays loaded during standard queues; the other arenas go back to the original as soon as you queue, since they can show up online. Search by name or author, favorites, and import of a `.udk` or `.zip` already on your PC. |
 | 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
 | 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
 | 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
@@ -598,7 +605,7 @@ before.
 | **Data** | The game's native Stats API (TCP socket `127.0.0.1:49123`, concatenated JSON) |
 | **Packaging** | electron-builder — one-click NSIS installer |
 | **Updates** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Quality** | Unit & integration tests (`node --test`), CI on every push |
+| **Quality** | Unit & integration tests (`node --test`), smoke test in real Electron (`e2e/smoke.js`), CI on every push |
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
@@ -606,6 +613,8 @@ cd rl-session-tracker
 npm install
 npm start          # run the app in development mode
 node --test        # run the tests
+npm run smoke      # smoke test: the real app inside Electron
+                   # (headless Linux: xvfb-run -a npm run smoke -- --no-sandbox)
 npm run dist       # build the Windows installer into dist/
 ```
 
@@ -628,7 +637,12 @@ Every installed app will see it and offer the "Update" button.
 rl-session-tracker/
 ├── src/
 │   ├── main/                  # Electron main process
-│   │   ├── index.js           # Lifecycle, tray, IPC, general wiring
+│   │   ├── index.js           # Lifecycle, shared state, general wiring
+│   │   ├── ipc-*.js           # IPC by domain: cosmetics, maps, files
+│   │   ├── mmr-log.js         # Game log wiring (MMR, queues)
+│   │   ├── statsapi-repair.js # When to repair the Stats API, how many times
+│   │   ├── tray.js            # Notification area icon and menu
+│   │   ├── csv.js             # Match CSV export
 │   │   ├── statsapi.js        # Stats API connector (TCP, stream parser)
 │   │   ├── game-watcher.js    # RocketLeague.exe process detection
 │   │   ├── session.js         # Match log + stats + MMR + records

@@ -1,14 +1,14 @@
-// maps.js — Cartes workshop sur Epic : bibliothèque et emplacement Underpass.
+// maps.js — Cartes workshop sur Epic : bibliothèque et emplacements.
 //
 // La version Epic de Rocket League n'a pas d'onglet Workshop. La méthode de
 // la communauté (rl-map-loader, le greffon Workshop Map Loader de
-// BakkesMod) : remplacer le paquet d'une carte d'entraînement par le .udk de
-// la carte voulue, puis lancer cette carte en Entraînement libre. On fait la
-// même chose, sur Labs_Underpass_P.upk.
+// BakkesMod) : remplacer le paquet d'une arène d'entraînement par le .udk de
+// la carte voulue, puis lancer cette arène en Entraînement libre.
 //
-// Pourquoi Underpass : c'est l'emplacement qu'utilisent les outils existants,
-// donc celui dont on sait qu'il charge les cartes workshop. En ligne, il
-// n'apparaît que dans la rotation des modes extra (Rumble) : voir guardQueue.
+// Plusieurs arènes « Labs » servent d'emplacements, pour garder quelques
+// cartes prêtes à la fois. Underpass est celui des outils existants, donc
+// celui dont on sait qu'il charge les cartes workshop ; les autres suivent
+// le même principe, sans validation en jeu au moment où ce code est écrit.
 //
 // Ce module ne dépend PAS d'Electron : les téléchargements arrivent sous
 // forme de fichiers déjà sur disque (maps-browser.js s'en charge), ce qui
@@ -30,16 +30,30 @@ const { TAG } = require('./upk');
 const { fingerprint, pathKey } = require('./cosmetics');
 
 const SUB = path.join('TAGame', 'CookedPCConsole');
-const SLOT = 'Labs_Underpass_P.upk';
 const MAX_MAPS = 200;
 const MAX_PREVIEW = 3 * 1024 * 1024;
 const MAX_TITLE = 120;
 
+// Les emplacements. `files` : noms possibles du paquet, le premier présent
+// dans l'installation est retenu (un emplacement absent du jeu n'est tout
+// simplement pas proposé). `guard` dit quand remettre l'original :
+//  • 'extra' : Underpass ne sort en ligne que dans les modes extra (Rumble) ;
+//    il reste en place pendant les files classiques, en casual comme en
+//    classé. C'est l'emplacement à privilégier ;
+//  • 'any' : pour les autres arènes Labs, on ne sait pas avec certitude
+//    lesquelles tournent en casual. Elles sont donc remises à CHAQUE
+//    recherche de match : un client qui chargerait une carte workshop dans
+//    un vrai match serait désynchronisé du serveur.
+const SLOTS = [
+  { id: 'underpass', name: 'Underpass', files: ['Labs_Underpass_P.upk'], guard: 'extra' },
+  { id: 'utopia', name: 'Utopia Retro', files: ['Labs_Utopia_P.upk'], guard: 'any' },
+  { id: 'octagon', name: 'Octagon', files: ['Labs_Octagon_02_P.upk', 'Labs_Octagon_P.upk'], guard: 'any' },
+  { id: 'cosmic', name: 'Cosmic', files: ['Labs_Cosmic_V4_P.upk', 'Labs_Cosmic_P.upk'], guard: 'any' },
+];
+const DEFAULT_SLOT = 'underpass';
+
 // Files où Underpass ne peut pas sortir : les modes classiques, en casual
-// comme en classé. Toute autre file (Rumble, modes extra, tournois, playlist
-// inconnue) remet l'original avant que le jeu ne charge une carte : un
-// client qui chargerait une carte workshop dans un vrai match serait
-// désynchronisé du serveur.
+// comme en classé.
 const SAFE_PLAYLISTS = new Set([1, 2, 3, 4, 10, 11, 12, 13]);
 
 function sameFp(a, b) {
@@ -111,12 +125,13 @@ class MapLibrary {
     this.log = o.log || (() => {});
     this.now = o.now || Date.now;
     this.maps = [];
-    // installs : { [clé] : { install, writtenFp } } — ce qu'on a posé où.
-    this.slot = { loaded: null, installs: {} };
-    // Dernière carte que le jeu a remplacée de lui-même, pour le dire.
-    this.reverted = null;
+    // slots : { [emplacement] : { loaded, installs, reverted } }, où
+    // installs = { [clé d'installation] : { install, file, writtenFp } } dit
+    // ce qu'on a posé où, et reverted garde la dernière carte que le jeu a
+    // remplacée de lui-même, pour le dire.
+    this.slots = {};
     // Les opérations qui écrivent passent une par une : un clic sur
-    // « Charger » pendant que la garde de file remet Underpass ne doit pas
+    // « Charger » pendant que la garde de file remet un original ne doit pas
     // entrelacer deux copies sur le même fichier.
     this._queue = Promise.resolve();
     this._busy = 0;
@@ -133,15 +148,28 @@ class MapLibrary {
     return run;
   }
 
+  _slot(id) {
+    return this.slots[id] || (this.slots[id] = { loaded: null, installs: {}, reverted: null });
+  }
+
   _load() {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, 'utf8'));
       this.maps = Array.isArray(raw.maps) ? raw.maps.filter((m) => m && m.id) : [];
-      if (raw.slot && typeof raw.slot === 'object') {
-        this.slot = { loaded: raw.slot.loaded || null,
-          installs: raw.slot.installs && typeof raw.slot.installs === 'object' ? raw.slot.installs : {} };
+      const obj = (x) => !!x && typeof x === 'object';
+      if (obj(raw.slots)) {
+        for (const def of SLOTS) {
+          const st = raw.slots[def.id];
+          if (!obj(st)) continue;
+          this.slots[def.id] = { loaded: st.loaded || null,
+            installs: obj(st.installs) ? st.installs : {}, reverted: st.reverted || null };
+        }
+      } else if (obj(raw.slot)) {
+        // Format de la 3.33 : un seul emplacement, Underpass.
+        const installs = obj(raw.slot.installs) ? raw.slot.installs : {};
+        for (const k of Object.keys(installs)) installs[k].file = installs[k].file || SLOTS[0].files[0];
+        this.slots.underpass = { loaded: raw.slot.loaded || null, installs, reverted: raw.reverted || null };
       }
-      this.reverted = raw.reverted || null;
     } catch (e) { /* bibliothèque vide */ }
   }
 
@@ -149,8 +177,7 @@ class MapLibrary {
     try {
       fs.mkdirSync(this.dir, { recursive: true });
       const tmp = this.file + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify({ maps: this.maps, slot: this.slot,
-        reverted: this.reverted }, null, 2) + '\n');
+      fs.writeFileSync(tmp, JSON.stringify({ maps: this.maps, slots: this.slots }, null, 2) + '\n');
       fs.renameSync(tmp, this.file);
     } catch (e) { this.log('cartes : écriture de library.json impossible : ' + e.message); }
   }
@@ -162,8 +189,14 @@ class MapLibrary {
 
   _find(id) { return this.maps.find((m) => m.id === id) || null; }
   _mapPath(m) { return path.join(this.filesDir, m.file); }
-  _backupPath(install) { return path.join(this.backupsDir, shortKey(install), SLOT); }
-  _slotPath(install) { return path.join(install, SUB, SLOT); }
+  _backupPath(install, file) { return path.join(this.backupsDir, shortKey(install), file); }
+  _targetPath(install, file) { return path.join(install, SUB, file); }
+
+  // Paquet de l'emplacement dans une installation : le premier nom connu
+  // qui y existe, ou null.
+  _fileIn(install, def) {
+    return def.files.find((f) => fs.existsSync(this._targetPath(install, f))) || null;
+  }
 
   // ───────── Lecture ─────────
 
@@ -175,54 +208,77 @@ class MapLibrary {
     // prendre pour une remise par le jeu effacerait la sauvegarde du vrai
     // original. On attend que l'opération se termine.
     if (this._busy) return;
-    const keys = Object.keys(this.slot.installs);
-    if (!keys.length) return;
     let changed = false;
-    for (const k of keys) {
-      const st = this.slot.installs[k];
-      if (sameFp(fingerprint(this._slotPath(st.install)), st.writtenFp)) continue;
-      try { fs.rmSync(this._backupPath(st.install), { force: true }); } catch (e) {}
-      delete this.slot.installs[k];
-      changed = true;
-    }
-    if (changed && !Object.keys(this.slot.installs).length) {
-      const m = this._find(this.slot.loaded);
-      this.reverted = m ? { id: m.id, title: m.title, at: this.now() } : null;
-      this.log('cartes : le jeu a remis ' + SLOT + ' (mise à jour ou vérification)');
-      this.slot.loaded = null;
+    for (const def of SLOTS) {
+      const slot = this.slots[def.id];
+      if (!slot) continue;
+      const keys = Object.keys(slot.installs);
+      if (!keys.length) continue;
+      let gone = false;
+      for (const k of keys) {
+        const st = slot.installs[k];
+        if (sameFp(fingerprint(this._targetPath(st.install, st.file)), st.writtenFp)) continue;
+        try { fs.rmSync(this._backupPath(st.install, st.file), { force: true }); } catch (e) { /* déjà partie */ }
+        delete slot.installs[k];
+        gone = true;
+      }
+      if (gone && !Object.keys(slot.installs).length) {
+        const m = this._find(slot.loaded);
+        slot.reverted = m ? { id: m.id, title: m.title, at: this.now() } : null;
+        this.log('cartes : le jeu a remis ' + def.name + ' (mise à jour ou vérification)');
+        slot.loaded = null;
+      }
+      changed = changed || gone;
     }
     if (changed) this._persist();
   }
 
-  // État de l'emplacement, pour l'interface.
+  // État de chaque emplacement, pour l'interface et le diagnostic. Les
+  // emplacements absents de toutes les installations sont omis.
   slotStatus() {
     this.refresh();
-    const m = this._find(this.slot.loaded);
-    return {
-      target: SLOT,
-      loaded: m ? { id: m.id, title: m.title } : null,
-      installs: Object.values(this.slot.installs).map((s) => s.install),
-      reverted: this.reverted,
-    };
+    const installs = this.installs();
+    const out = [];
+    for (const def of SLOTS) {
+      const slot = this.slots[def.id] || { loaded: null, installs: {}, reverted: null };
+      const available = installs.some((i) => this._fileIn(i, def));
+      const m = this._find(slot.loaded);
+      if (!available && !m) continue;
+      out.push({
+        id: def.id, name: def.name, guard: def.guard, available,
+        loaded: m ? { id: m.id, title: m.title } : null,
+        reverted: slot.reverted || null,
+      });
+    }
+    return out;
   }
 
   list() {
-    const slot = this.slotStatus();
-    return {
-      installs: this.installs(),
-      slot,
-      maps: this.maps.map((m) => ({
-        id: m.id, title: m.title, author: m.author || '', source: m.source,
-        page: m.page || '', size: m.size, addedAt: m.addedAt,
-        hasPreview: !!m.preview, loaded: slot.loaded ? slot.loaded.id === m.id : false,
-        missing: !fs.existsSync(this._mapPath(m)),
-      })),
-    };
+    const slots = this.slotStatus();
+    const where = {};
+    for (const s of slots) if (s.loaded) (where[s.loaded.id] = where[s.loaded.id] || []).push(s.id);
+    const maps = this.maps.map((m) => ({
+      id: m.id, title: m.title, author: m.author || '', source: m.source,
+      page: m.page || '', size: m.size, addedAt: m.addedAt, favorite: !!m.favorite,
+      hasPreview: !!m.preview, loadedIn: where[m.id] || [],
+      missing: !fs.existsSync(this._mapPath(m)),
+    }));
+    // Favoris d'abord, puis les plus récentes.
+    maps.sort((a, b) => (b.favorite - a.favorite) || ((b.addedAt || 0) - (a.addedAt || 0)));
+    return { installs: this.installs(), slots, maps };
   }
 
   summary() {
-    const s = this.slotStatus();
-    return { count: this.maps.length, loaded: s.loaded ? s.loaded.title : null };
+    const loaded = this.slotStatus().filter((s) => s.loaded);
+    return { count: this.maps.length, loaded: loaded.map((s) => s.name + ' : ' + s.loaded.title) };
+  }
+
+  setFavorite(id, on) {
+    const m = this._find(id);
+    if (!m) return { ok: false, error: 'Carte introuvable.' };
+    m.favorite = !!on;
+    this._persist();
+    return { ok: true };
   }
 
   // Aperçu en data: URL. Demandé carte par carte par la fenêtre : renvoyer
@@ -328,24 +384,28 @@ class MapLibrary {
   async _remove(id) {
     const m = this._find(id);
     if (!m) return { ok: false, error: 'Carte introuvable.' };
-    if (this.slot.loaded === id) {
-      const r = await this._restore();
-      if (!r.ok) return r;
+    for (const def of SLOTS) {
+      if (this.slots[def.id] && this.slots[def.id].loaded === id) {
+        const r = await this._restore(def.id);
+        if (!r.ok) return r;
+      }
     }
-    try { fs.rmSync(this._mapPath(m), { force: true }); } catch (e) {}
-    if (m.preview) { try { fs.rmSync(path.join(this.filesDir, m.preview), { force: true }); } catch (e) {} }
+    try { fs.rmSync(this._mapPath(m), { force: true }); } catch (e) { /* déjà parti */ }
+    if (m.preview) { try { fs.rmSync(path.join(this.filesDir, m.preview), { force: true }); } catch (e) { /* idem */ } }
     this.maps = this.maps.filter((x) => x.id !== id);
     this._persist();
     return { ok: true };
   }
 
-  // ───────── Emplacement Underpass ─────────
+  // ───────── Emplacements ─────────
 
-  load(id) {
-    return this._serial(() => this._loadMap(id));
+  load(id, slotId) {
+    return this._serial(() => this._loadMap(id, slotId || DEFAULT_SLOT));
   }
 
-  async _loadMap(id) {
+  async _loadMap(id, slotId) {
+    const def = SLOTS.find((d) => d.id === slotId);
+    if (!def) return { ok: false, error: 'Emplacement inconnu.' };
     const m = this._find(id);
     if (!m) return { ok: false, error: 'Carte introuvable.' };
     const src = this._mapPath(m);
@@ -355,17 +415,19 @@ class MapLibrary {
     const installs = this.installs();
     if (!installs.length) return { ok: false, error: 'Aucune installation de Rocket League détectée.' };
 
+    const slot = this._slot(def.id);
     const done = [];
     let fail = null;
     for (const install of installs) {
-      const target = this._slotPath(install);
-      if (!fs.existsSync(target)) {
-        fail = fail || { error: SLOT + ' introuvable dans ' + install + '.' };
+      const file = this._fileIn(install, def);
+      if (!file) {
+        fail = fail || { error: def.name + ' introuvable dans ' + install + '.' };
         continue;
       }
+      const target = this._targetPath(install, file);
       const key = pathKey(install);
-      const st = this.slot.installs[key];
-      const backup = this._backupPath(install);
+      const st = slot.installs[key];
+      const backup = this._backupPath(install, file);
       try {
         // Sauvegarde seulement si le fichier en place est l'original du jeu.
         // Si c'est une carte qu'on a posée, la sauvegarde existante est la
@@ -388,22 +450,22 @@ class MapLibrary {
       const before = fingerprint(target);
       try {
         await fsp.copyFile(src, target);
-        this.slot.installs[key] = { install, writtenFp: fingerprint(target) };
+        slot.installs[key] = { install, file, writtenFp: fingerprint(target) };
         done.push(install);
       } catch (e) {
         fail = fail || { error: explain(e), code: e.code };
-        if (!sameFp(fingerprint(target), before)) await this._repair(key, install, target, backup);
+        if (!sameFp(fingerprint(target), before)) await this._repair(slot, key, install, file);
       }
     }
     if (!done.length) {
-      if (!Object.keys(this.slot.installs).length) this.slot.loaded = null;
+      if (!Object.keys(slot.installs).length) slot.loaded = null;
       this._persist();
     }
     if (done.length) {
-      this.slot.loaded = id;
-      this.reverted = null;
+      slot.loaded = id;
+      slot.reverted = null;
       this._persist();
-      this.log('cartes : « ' + m.title + ' » chargée dans ' + SLOT + ' (' + done.length + ' installation(s))');
+      this.log('cartes : « ' + m.title + ' » chargée dans ' + def.name + ' (' + done.length + ' installation(s))');
     }
     if (fail) return Object.assign({ ok: false, installs: done }, fail);
     return { ok: true, installs: done };
@@ -412,30 +474,44 @@ class MapLibrary {
   // Une copie vers le jeu s'est interrompue en route (disque plein…) : le
   // paquet en place est tronqué. On remet l'original depuis la sauvegarde ;
   // si même ça échoue, on note le fichier abîmé comme « le nôtre », pour que
-  // la sauvegarde soit gardée et que « Remettre Underpass » la réessaie.
-  async _repair(key, install, target, backup) {
+  // la sauvegarde soit gardée et que « Remettre » la réessaie.
+  async _repair(slot, key, install, file) {
+    const target = this._targetPath(install, file);
+    const backup = this._backupPath(install, file);
     try {
       await fsp.copyFile(backup, target);
       await fsp.rm(backup, { force: true });
-      delete this.slot.installs[key];
-      this.log('cartes : copie interrompue, ' + SLOT + ' d\'origine remis');
+      delete slot.installs[key];
+      this.log('cartes : copie interrompue, ' + file + ' d\'origine remis');
     } catch (e) {
-      this.slot.installs[key] = { install, writtenFp: fingerprint(target) };
+      slot.installs[key] = { install, file, writtenFp: fingerprint(target) };
       this.log('cartes : copie interrompue ET remise impossible (' + e.message + '), sauvegarde conservée');
     }
   }
 
-  // Remet l'original partout où une carte a été posée.
-  restore() {
-    return this._serial(() => this._restore());
+  // Remet l'original d'un emplacement, ou de tous sans argument.
+  restore(slotId) {
+    return this._serial(async () => {
+      const ids = slotId ? [slotId] : SLOTS.map((d) => d.id);
+      let fail = null;
+      for (const id of ids) {
+        const r = await this._restore(id);
+        if (!r.ok) fail = fail || r;
+      }
+      return fail || { ok: true };
+    });
   }
 
-  async _restore() {
+  async _restore(slotId) {
+    const def = SLOTS.find((d) => d.id === slotId);
+    if (!def) return { ok: false, error: 'Emplacement inconnu.' };
+    const slot = this.slots[slotId];
+    if (!slot) return { ok: true };
     let fail = null;
-    for (const k of Object.keys(this.slot.installs)) {
-      const st = this.slot.installs[k];
-      const target = this._slotPath(st.install);
-      const backup = this._backupPath(st.install);
+    for (const k of Object.keys(slot.installs)) {
+      const st = slot.installs[k];
+      const target = this._targetPath(st.install, st.file);
+      const backup = this._backupPath(st.install, st.file);
       const before = fingerprint(target);
       try {
         if (sameFp(before, st.writtenFp) && fs.existsSync(backup)) {
@@ -444,7 +520,7 @@ class MapLibrary {
         // Sinon le jeu a déjà remis son propre fichier, peut-être plus récent
         // que notre sauvegarde : on ne touche à rien.
         fs.rmSync(backup, { force: true });
-        delete this.slot.installs[k];
+        delete slot.installs[k];
       } catch (e) {
         fail = fail || { error: explain(e), code: e.code };
         // Copie interrompue : le fichier en place n'est plus celui qu'on
@@ -454,26 +530,38 @@ class MapLibrary {
         if (!sameFp(fingerprint(target), before)) st.writtenFp = fingerprint(target);
       }
     }
-    if (!Object.keys(this.slot.installs).length) this.slot.loaded = null;
-    this.reverted = null;
+    const hadMap = !!slot.loaded;
+    if (!Object.keys(slot.installs).length) slot.loaded = null;
+    slot.reverted = null;
     this._persist();
     if (fail) return Object.assign({ ok: false }, fail);
-    this.log('cartes : ' + SLOT + ' d\'origine remis en place');
+    if (hadMap) this.log('cartes : ' + def.name + ' d\'origine remis en place');
     return { ok: true };
   }
 
-  // Appelé à chaque mise en file relevée dans le journal du jeu.
+  // Appelé à chaque mise en file relevée dans le journal du jeu. Rend les
+  // emplacements remis (`restored`) et la première erreur.
   async guardQueue(q) {
-    if (!this.slot.loaded || !q) return { restored: false };
-    if (SAFE_PLAYLISTS.has(Number(q.playlist))) return { restored: false };
-    this.log('cartes : file ' + q.playlist + ' hors modes classiques, Underpass remis par sécurité');
-    const r = await this.restore();
-    return { restored: r.ok, error: r.ok ? null : r.error };
+    if (!q) return { restored: [] };
+    const safe = SAFE_PLAYLISTS.has(Number(q.playlist));
+    const due = SLOTS.filter((d) => this.slots[d.id] && this.slots[d.id].loaded
+      && (d.guard === 'any' || !safe));
+    if (!due.length) return { restored: [] };
+    this.log('cartes : file ' + q.playlist + ', remise de ' + due.map((d) => d.name).join(', '));
+    const restored = [];
+    let error = null;
+    for (const d of due) {
+      const r = await this.restore(d.id);
+      if (r.ok) restored.push(d.name);
+      else error = error || r.error;
+    }
+    return { restored, error };
   }
 }
 
 module.exports = MapLibrary;
-module.exports.SLOT = SLOT;
+module.exports.SLOTS = SLOTS;
+module.exports.SLOT = SLOTS[0].files[0];
 module.exports.SAFE_PLAYLISTS = SAFE_PLAYLISTS;
 module.exports.titleFromFile = titleFromFile;
 module.exports.isPackage = isPackage;

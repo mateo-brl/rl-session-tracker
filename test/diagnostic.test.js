@@ -396,16 +396,18 @@ test('TAStatsAPI.ini : absent = avertissement, surcharge à 0 = échec, le nôtr
 });
 
 test('cartes workshop : chargée = ok, remise par le jeu = avertissement', () => {
+  const slot = (o) => Object.assign({ id: 'underpass', name: 'Underpass', guard: 'extra',
+    available: true, loaded: null, reverted: null }, o);
   const charge = diagnostic.run(healthyDeps({
-    maps: () => ({ target: 'Labs_Underpass_P.upk', loaded: { id: 'a', title: 'Ice Rings' },
-      installs: ['C:\\RL'], reverted: null }),
+    maps: () => [slot({ loaded: { id: 'a', title: 'Ice Rings' } }), slot({ id: 'octagon', name: 'Octagon' })],
   }));
   assert.equal(byId(charge, 'maps').state, 'ok');
-  assert.match(byId(charge, 'maps').detail, /Ice Rings/);
+  assert.match(byId(charge, 'maps').detail, /Underpass : « Ice Rings »/);
   const remise = diagnostic.run(healthyDeps({
-    maps: () => ({ loaded: null, installs: [], reverted: { id: 'a', title: 'Ice Rings' } }),
+    maps: () => [slot({ reverted: { id: 'a', title: 'Ice Rings' } })],
   }));
   assert.equal(byId(remise, 'maps').state, 'warn');
+  assert.equal(byId(diagnostic.run(healthyDeps({ maps: () => [slot()] })), 'maps').state, 'skip');
   assert.equal(byId(diagnostic.run(healthyDeps()), 'maps').state, 'skip');
 });
 
