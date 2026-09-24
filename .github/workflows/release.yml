@@ -81,6 +81,7 @@ jobs:
               "src/renderer/dashboard.html",
               "src/renderer/overlay.html",
               "src/renderer/obs.html",
+              "src/renderer/maps.html",
             ];
             // Global (drapeau g) et attributs optionnels dans <script ...> :
             // un second bloc inline ajouté plus tard, ou un <script defer>

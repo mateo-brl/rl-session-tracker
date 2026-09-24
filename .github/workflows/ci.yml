@@ -52,6 +52,7 @@ jobs:
               "src/renderer/dashboard.html",
               "src/renderer/overlay.html",
               "src/renderer/obs.html",
+              "src/renderer/maps.html",
             ];
             // Global (drapeau g) et attributs optionnels dans <script ...> :
             // un second bloc inline ajouté plus tard, ou un <script defer>
@@ -84,3 +85,31 @@ jobs:
             }
             if (echec) process.exit(1);
           '
+
+  # La vraie application dans le vrai Electron (e2e/smoke.js) : ouvre chaque
+  # fenêtre, rejoue un match, simule la fermeture du jeu. Attrape le câblage
+  # que les tests unitaires ne voient pas (une fonction disparue appelée à la
+  # fermeture du jeu est restée huit versions sans que rien ne le signale).
+  # Job à part : il télécharge Electron, que le job de tests évite.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test de fumée (Electron sous Xvfb)
+        run: xvfb-run -a npx electron --no-sandbox e2e/smoke.js
+
+      - name: Captures en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-captures
+          path: e2e/out/
+          if-no-files-found: ignore
