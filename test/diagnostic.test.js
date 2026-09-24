@@ -394,3 +394,17 @@ test('TAStatsAPI.ini : absent = avertissement, surcharge à 0 = échec, le nôtr
   // Sans dépendance (hors Windows) : sans objet.
   assert.equal(byId(diagnostic.run(healthyDeps()), 'user-ini').state, 'skip');
 });
+
+test('cartes workshop : chargée = ok, remise par le jeu = avertissement', () => {
+  const charge = diagnostic.run(healthyDeps({
+    maps: () => ({ target: 'Labs_Underpass_P.upk', loaded: { id: 'a', title: 'Ice Rings' },
+      installs: ['C:\\RL'], reverted: null }),
+  }));
+  assert.equal(byId(charge, 'maps').state, 'ok');
+  assert.match(byId(charge, 'maps').detail, /Ice Rings/);
+  const remise = diagnostic.run(healthyDeps({
+    maps: () => ({ loaded: null, installs: [], reverted: { id: 'a', title: 'Ice Rings' } }),
+  }));
+  assert.equal(byId(remise, 'maps').state, 'warn');
+  assert.equal(byId(diagnostic.run(healthyDeps()), 'maps').state, 'skip');
+});

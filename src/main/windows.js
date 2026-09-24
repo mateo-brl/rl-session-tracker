@@ -365,8 +365,49 @@ function getOverlay() {
 
 
 // Pousse l'état vers toutes les fenêtres ouvertes.
+// ───────── Cartes workshop ─────────
+// Fenêtre à cadre natif, comme le compositeur : c'est un outil qu'on ouvre
+// à côté du jeu, pas un panneau de l'application. Le site bakkesplugins y
+// est affiché par une vue intégrée (maps-browser.js), posée par-dessus la
+// zone que la page lui réserve.
+let maps = null;
+function openMaps(onCreate) {
+  if (maps && !maps.isDestroyed()) {
+    if (maps.isMinimized()) maps.restore();
+    maps.show();
+    maps.focus();
+    return maps;
+  }
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  maps = new BrowserWindow({
+    width: Math.min(1320, width - 80),
+    height: Math.min(860, height - 80),
+    minWidth: 820,
+    minHeight: 560,
+    backgroundColor: '#0c0e11',
+    show: false,
+    icon: ICON,
+    autoHideMenuBar: true,
+    title: 'RL Session Tracker : cartes workshop',
+    webPreferences: {
+      preload: PRELOAD,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  hardenWindow(maps);
+  maps.loadFile(path.join(RENDERER, 'maps.html'));
+  maps.once('ready-to-show', () => maps.show());
+  maps.on('closed', () => { maps = null; });
+  if (onCreate) onCreate(maps);
+  return maps;
+}
+function getMaps() {
+  return maps && !maps.isDestroyed() ? maps : null;
+}
+
 function broadcast(channel, payload) {
-  for (const w of [getControl(), getDashboard(), getOverlay(), getComposer()]) {
+  for (const w of [getControl(), getDashboard(), getOverlay(), getComposer(), getMaps()]) {
     if (w && w.webContents) {
       try { w.webContents.send(channel, payload); } catch (e) {}
     }
@@ -378,6 +419,7 @@ module.exports = {
   setTrayOnly,
   openDashboard, closeDashboard, getDashboard,
   openOverlayComposer, getComposer,
+  openMaps, getMaps,
   setDashboardFullscreen,
   openOverlay, closeOverlay, getOverlay, applyOverlayCfg,
   broadcast,
