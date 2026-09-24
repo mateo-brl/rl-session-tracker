@@ -25,6 +25,8 @@ const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
 const Cosmetics = require('./cosmetics');
+const MapLibrary = require('./maps');
+const mapsBrowser = require('./maps-browser');
 const diagnostic = require('./diagnostic');
 const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured,
   ensureUserIni, userIniFiles, userConfigDirs, readIni } = require('./enable-statsapi');
@@ -49,7 +51,9 @@ process.on('unhandledRejection', (e) => log('unhandledRejection : ' + (e && (e.m
 let store = null;
 let media = null;
 let tray = null;
-let cosmetics = null;   // swaps cosmétiques (seul module qui touche aux fichiers du jeu)
+let cosmetics = null;   // swaps cosmétiques (fichiers du jeu, jeu fermé)
+let mapLib = null;      // cartes workshop : bibliothèque + emplacement Underpass
+let mapsNav = null;     // site bakkesplugins affiché dans la fenêtre Cartes
 // Horodatage du dernier paquet EXPLOITÉ de la Stats API. Le connecteur peut
 // être connecté sans que rien n'arrive (le jeu n'émet qu'en match) : sans cette
 // date, le diagnostic ne pourrait pas distinguer « le flux coule » de « le
@@ -283,9 +287,9 @@ function openDashboard() {
 
 // ───────── Barre des tâches ─────────
 const TRAY_LABELS = {
-  fr: { open: 'Ouvrir', dash: 'Ouvrir le dashboard', overlay: 'Mini-overlay',
+  fr: { open: 'Ouvrir', dash: 'Ouvrir le dashboard', overlay: 'Mini-overlay', maps: 'Cartes workshop',
     update: 'Vérifier les mises à jour', quit: 'Quitter' },
-  en: { open: 'Open', dash: 'Open the dashboard', overlay: 'Mini-overlay',
+  en: { open: 'Open', dash: 'Open the dashboard', overlay: 'Mini-overlay', maps: 'Workshop maps',
     update: 'Check for updates', quit: 'Quit' },
 };
 
@@ -305,6 +309,7 @@ function buildTrayMenu() {
       }
       pushState();
     } },
+    { label: L.maps, click: () => openMapsWindow() },
     { type: 'separator' },
     { label: L.update, click: () => updater.check() },
     { type: 'separator' },
@@ -571,6 +576,18 @@ function startMmrFromLog() {
   const reader = logReader = new RLLogReader();
   reader.on('queue', (q) => {
     state.queue = q;
+    // Une file hors modes classiques peut tomber sur Underpass : la carte
+    // workshop qui l'occupe doit être retirée avant que le match ne charge.
+    // On peut lancer une recherche DEPUIS l'entraînement sur Underpass : le
+    // fichier est alors encore ouvert par le jeu. On réessaie quelques fois,
+    // le temps que le match trouvé fasse quitter la carte.
+    const guard = async (tries) => {
+      if (!mapLib) return;
+      const g = await mapLib.guardQueue(q);
+      if (g.restored || g.error) sendMaps('maps-changed', { guard: g });
+      if (g.error && tries > 0) setTimeout(() => guard(tries - 1), 5000).unref();
+    };
+    guard(6);
     pushState();
     log('mise en file détectée : playlist ' + q.playlist
       + (q.known ? ' (' + (q.ranked ? 'classé ' + q.mode : 'casual') + ')' : ' (inconnue)'));
@@ -845,6 +862,7 @@ ipcMain.handle('run-diagnostic', () => {
       playersSeen: state.playersSeen,
       obs: state.obs,
       cosmetics: cosmetics ? cosmetics.list() : null,
+      maps: () => (mapLib ? mapLib.slotStatus() : null),
     });
   } catch (e) {
     // `diagnostic.run` ne doit jamais lever — mais s'il le faisait, la fenêtre
@@ -1019,15 +1037,16 @@ function cosmeticsResult(r) {
 // que l'utilisateur n'a pas de droits sur CookedPCConsole. Plutôt que de lui
 // demander d'aller cliquer ailleurs, on lance l'élévation (qui pose l'ACL)
 // et on rejoue l'opération une fois. Une seule invite UAC, puis plus jamais.
-async function withGameRights(op) {
-  let r = op();
+async function withGameRights(op, what) {
+  const who = what || 'cosmétiques';
+  let r = await op();
   if (r && r.ok === false && (r.code === 'EACCES' || r.code === 'EPERM')
       && process.platform === 'win32') {
-    log('cosmétiques : accès refusé, élévation pour poser les droits…');
+    log(who + ' : accès refusé, élévation pour poser les droits…');
     try { await enableStatsApi(config.get().statsApiPort, { forceElevate: true }); }
-    catch (e) { log('cosmétiques : élévation échouée : ' + e.message); }
+    catch (e) { log(who + ' : élévation échouée : ' + e.message); }
     refreshStatsApiFlag();
-    r = op();
+    r = await op();
   }
   return cosmeticsResult(r);
 }
@@ -1053,6 +1072,91 @@ ipcMain.handle('cosmetics-add', async (_e, opts) => {
   }));
 });
 ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
+// ───────── Cartes workshop ─────────
+function sendMaps(channel, payload) {
+  const w = windows.getMaps();
+  if (w) { try { w.webContents.send(channel, payload); } catch (e) {} }
+}
+function mapsList() {
+  if (!mapLib) return { installs: [], maps: [], slot: null, gameRunning: false };
+  return Object.assign(mapLib.list(), { gameRunning: !!state.game.processRunning });
+}
+function mapsChanged(r) {
+  sendMaps('maps-changed', null);
+  return r;
+}
+
+// Téléchargement terminé dans le site : l'aperçu est récupéré, la carte
+// entre dans la bibliothèque, l'archive temporaire disparaît.
+async function importDownload(d) {
+  const meta = d.meta || {};
+  const preview = meta.preview ? await mapsBrowser.fetchPreview(meta.preview) : null;
+  const r = mapLib ? await mapLib.importFile(d.file, {
+    title: meta.title, author: meta.author, page: meta.page,
+    source: 'bakkesplugins', preview: preview,
+  }) : { ok: false, error: 'Module indisponible.' };
+  try { fs.rmSync(d.file, { force: true }); } catch (e) {}
+  log('cartes : téléchargement « ' + d.name + ' » ' + (r.ok ? 'ajouté' : 'refusé : ' + r.error));
+  sendMaps('maps-download', { id: d.id, name: d.name, state: r.ok ? 'imported' : 'error',
+    mapId: r.ok ? r.map.id : null, title: r.ok ? r.map.title : null,
+    duplicate: !!r.duplicate, error: r.ok ? null : r.error });
+  sendMaps('maps-changed', null);
+}
+
+function openMapsWindow() {
+  const w = windows.openMaps((win) => {
+    mapsNav = mapsBrowser.attach(win, {
+      downloadDir: mapLib ? mapLib.incomingDir : path.join(app.getPath('temp'), 'rlst-maps'),
+      onNav: (n) => sendMaps('maps-nav', n),
+      onDownload: (d) => sendMaps('maps-download', d),
+      onComplete: (d) => { importDownload(d).catch((e) => log('cartes : import échoué : ' + e.message)); },
+    });
+    win.on('close', () => { if (mapsNav) { mapsNav.destroy(); mapsNav = null; } });
+  });
+  return w;
+}
+
+ipcMain.on('open-maps', () => openMapsWindow());
+ipcMain.handle('maps-list', () => mapsList());
+ipcMain.handle('maps-preview', (_e, id) => (mapLib ? mapLib.preview(String(id || '')) : null));
+ipcMain.handle('maps-load', (_e, id) =>
+  withGameRights(() => (mapLib ? mapLib.load(String(id || '')) : { ok: false, error: 'Module indisponible.' }), 'cartes')
+    .then(mapsChanged));
+ipcMain.handle('maps-restore', () =>
+  withGameRights(() => (mapLib ? mapLib.restore() : { ok: false, error: 'Module indisponible.' }), 'cartes')
+    .then(mapsChanged));
+ipcMain.handle('maps-remove', (_e, id) =>
+  withGameRights(() => (mapLib ? mapLib.remove(String(id || '')) : { ok: false, error: 'Module indisponible.' }), 'cartes')
+    .then(mapsChanged));
+async function importPaths(paths) {
+  const out = [];
+  for (const p of paths.slice(0, 20)) {
+    if (typeof p !== 'string' || !/\.(udk|upk|zip)$/i.test(p)) {
+      out.push({ ok: false, error: 'Format non pris en charge : il faut un .udk, un .upk ou un .zip.' });
+      continue;
+    }
+    out.push(mapLib ? await mapLib.importFile(p, { source: 'fichier' }) : { ok: false, error: 'Module indisponible.' });
+  }
+  mapsChanged(null);
+  return out;
+}
+ipcMain.handle('maps-import', async () => {
+  const w = windows.getMaps();
+  const r = await dialog.showOpenDialog(w || undefined, {
+    title: state.lang === 'en' ? 'Import a map' : 'Importer une carte',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: state.lang === 'en' ? 'Maps' : 'Cartes', extensions: ['udk', 'upk', 'zip'] }],
+  });
+  if (r.canceled || !r.filePaths || !r.filePaths.length) return { canceled: true, results: [] };
+  return { results: await importPaths(r.filePaths) };
+});
+// Glisser-déposer : les chemins viennent de webUtils.getPathForFile, côté
+// preload ; ils sont revérifiés ici (extension) puis à l'import (contenu).
+ipcMain.handle('maps-import-paths', async (_e, paths) =>
+  ({ results: await importPaths(Array.isArray(paths) ? paths : []) }));
+ipcMain.on('maps-view-bounds', (_e, r) => { if (mapsNav) mapsNav.setBounds(r); });
+ipcMain.on('maps-view', (_e, cmd) => { if (mapsNav) mapsNav.command(String(cmd || '')); });
+
 // Aperçu d'un habillage : rediffusé tel quel aux fenêtres, jamais écrit dans
 // la configuration. C'est la fenêtre qui l'a lancé qui décide d'appliquer.
 ipcMain.on('preview-look', (_e, look) => {
@@ -1182,6 +1286,10 @@ if (!gotLock) {
       log: log,
     });
     refreshCosmetics();
+    mapLib = new MapLibrary(app.getPath('userData'), {
+      detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
+      log: log,
+    });
     // Chaque lancement démarre une nouvelle liste de « matchs récents ».
     // Le journal complet est conservé : courbe MMR, 7 jours et records
     // continuent de tout voir.

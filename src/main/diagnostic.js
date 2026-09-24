@@ -149,7 +149,7 @@ function writeTest(fs, dir, token) {
 
 // Produit le rapport. `deps` porte TOUT ce qui touche au monde extérieur :
 //   fs, now, platform, config, game, lastPacketAt, detectInstalls, iniConfigured,
-//   iniRate, userIni, readIni, logFile, readQueue, readMmr, history, playersSeen, obs, cosmetics.
+//   iniRate, userIni, readIni, logFile, readQueue, maps, readMmr, history, playersSeen, obs, cosmetics.
 // Chacune est facultative : absente, le contrôle correspondant est « skip »
 // plutôt qu'en échec — un contrôle qu'on n'a pas pu faire n'est pas une panne.
 function run(deps) {
@@ -543,6 +543,26 @@ function run(deps) {
           + ' réappliqués tout seuls à la prochaine FERMETURE de Rocket League.' };
     }
     return { state: OK, detail: detail };
+  });
+
+  // ───────── Cartes workshop ─────────
+  // Ce qui occupe Underpass. Utile surtout pour un symptôme : « je lance
+  // Underpass et j'ai la carte d'origine » après une mise à jour du jeu.
+  add('maps', 'Cartes workshop (Underpass)', () => {
+    if (typeof d.maps !== 'function') return { state: SKIP, detail: 'module indisponible' };
+    const s = d.maps();
+    if (!s || typeof s !== 'object') return { state: SKIP, detail: 'module indisponible' };
+    if (s.loaded) {
+      return { state: OK, detail: '« ' + s.loaded.title + ' » dans ' + (s.target || 'Underpass')
+        + ' (' + (Array.isArray(s.installs) ? s.installs.length : 0) + ' installation(s))' };
+    }
+    if (s.reverted) {
+      return { state: WARN, detail: 'le jeu a remis Underpass d’origine, « ' + s.reverted.title
+        + ' » n’est plus en place',
+        hint: 'Une mise à jour ou une vérification des fichiers a remplacé la carte.'
+          + ' Recharge-la depuis la fenêtre Cartes workshop.' };
+    }
+    return { state: SKIP, detail: 'aucune carte chargée, Underpass d’origine' };
   });
 
   // `ok` ne retient que les vraies pannes : un « warn » signale quelque chose à
