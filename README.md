@@ -227,6 +227,12 @@ elle compare aussi la variation réelle du MMR au bilan des matchs enregistrés
 sur la période — si un forfait mal classé explique l'écart, elle corrige le
 résultat automatiquement.
 
+Depuis la 3.34.0, une lecture trop éloignée de ce que tes matchs prévoient
+(le MMR du chef quand tu joues en groupe, par exemple) est mise de côté au
+lieu de tout recaler : acceptée si la lecture suivante la confirme, oubliée
+sinon. Le diagnostic l'affiche. Le journal est aussi retrouvé quand Windows a
+déplacé Documents (OneDrive, autre disque).
+
 C'est une simple lecture de fichier, en dehors du processus du jeu — aucune
 injection, aucune lecture mémoire, rien qui puisse déplaire à l'anti-triche.
 Deux limites assumées : rien n'est écrit quand tu n'es pas chef de groupe, et
@@ -317,6 +323,8 @@ rl-session-tracker/
 │   │   ├── maps-browser.js    # bakkesplugins.com intégré, téléchargements interceptés
 │   │   ├── zip.js             # Lecture des archives .zip (sans dépendance)
 │   │   ├── rl-log.js          # Vrai MMR + playlist lus dans Launch.log
+│   │   ├── mmr-guard.js       # Garde-fou : lecture de MMR crédible ou mise de côté
+│   │   ├── documents.js       # Vrai dossier Documents (OneDrive, déplacé)
 │   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
 │   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
 │   └── renderer/
@@ -542,6 +550,12 @@ compares the real MMR change to the tally of recorded matches over that
 span — if a misclassified forfeit explains the gap, it fixes the result
 automatically.
 
+Since 3.34.0, a reading too far from what your matches predict (the party
+leader's MMR when you play in a group, for instance) is set aside instead of
+re-anchoring everything: accepted if the next reading confirms it, dropped
+otherwise. The diagnostic shows it. The log is also found when Windows has
+moved Documents (OneDrive, another drive).
+
 **Are cosmetics safe?** Along with workshop maps, it's the only part of the
 app that modifies Rocket League files, and it does nothing until you use it. Nothing is
 downloaded. Copying a game package as-is over another one does not work
@@ -629,6 +643,8 @@ rl-session-tracker/
 │   │   ├── maps-browser.js    # Embedded bakkesplugins.com, downloads intercepted
 │   │   ├── zip.js             # .zip reader (no dependency)
 │   │   ├── rl-log.js          # Real MMR + playlist read from Launch.log
+│   │   ├── mmr-guard.js       # Guard: MMR reading credible or set aside
+│   │   ├── documents.js       # Real Documents folder (OneDrive, moved)
 │   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
 │   ├── preload.js             # Secure IPC bridge (contextIsolation)
 │   └── renderer/

@@ -28,6 +28,8 @@ const Cosmetics = require('./cosmetics');
 const MapLibrary = require('./maps');
 const mapsBrowser = require('./maps-browser');
 const diagnostic = require('./diagnostic');
+const documents = require('./documents');
+const mmrGuard = require('./mmr-guard');
 const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured,
   ensureUserIni, userIniFiles, userConfigDirs, readIni } = require('./enable-statsapi');
 
@@ -72,6 +74,7 @@ const state = {
   currentRanked: null,   // le match en cours est-il classé ? (null = pas de match)
   currentRankedAuto: null,  // déduit de la playlist du journal ? (null = préférence)
   queue: null,           // dernière mise en file relevée dans le journal
+  mmrPending: null,      // lecture de MMR mise de côté, en attente de confirmation (mmr-guard.js)
   currentMatchmade: null,// match en cours issu d'une file ? null = indéterminable
   queueUsed: null,       // identité de la file déjà consommée par un match
   session: null,         // agrégats de session
@@ -572,6 +575,14 @@ function learnMmrStep(reading, previous) {
     + ' (observé ' + observed.toFixed(1) + ' sur ' + d.net + ' victoire(s) nette(s))');
 }
 
+// Gain moyen par match d'un mode : celui appris sur les lectures du journal
+// s'il est plausible, sinon la moyenne générale.
+function stepFor(mode) {
+  const learned = (config.get().mmrStep || {})[mode];
+  return (Number.isFinite(learned) && learned >= MMR_STEP_MIN && learned <= MMR_STEP_MAX)
+    ? learned : SessionStore.MMR_STEP;
+}
+
 function startMmrFromLog() {
   const reader = logReader = new RLLogReader();
   reader.on('queue', (q) => {
@@ -596,18 +607,48 @@ function startMmrFromLog() {
     if (config.get().mmrFromLog === false) return;
     const cur = (config.get().mmr || {})[r.mode];
     if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
-    learnMmrStep(r, cur);
+
+    // Garde-fou : une lecture qui s'écarte trop de ce que les matchs
+    // enregistrés prévoient n'est pas ancrée tout de suite (voir mmr-guard.js).
+    const now = Date.now();
+    const pseudo = config.get().pseudo;
+    const anchor = store.lastReading(r.mode);
+    const pend = state.mmrPending && state.mmrPending.mode === r.mode ? state.mmrPending : null;
+    const verdict = mmrGuard.judge({
+      prev: anchor, reading: r, now, step: stepFor(r.mode),
+      decided: anchor ? store.decidedBetween(r.mode, anchor.t, now, pseudo) : null,
+      pending: pend,
+      decidedPending: pend ? store.decidedBetween(r.mode, pend.at, now, pseudo) : null,
+    });
+    if (verdict.action === 'hold') {
+      state.mmrPending = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: now,
+        expected: Math.round(verdict.expected), tolerance: Math.round(verdict.tolerance) };
+      log('MMR relevé mis de côté : ' + r.mode + ' = ' + r.mmr + ', attendu ~'
+        + Math.round(verdict.expected) + ' ± ' + Math.round(verdict.tolerance)
+        + ' (' + verdict.reason + ')');
+      pushState();
+      return;
+    }
+    if (pend) state.mmrPending = null;
+    if (verdict.action === 'accept-pending') {
+      // La lecture mise de côté était juste : on l'ancre à SA date, sans
+      // apprentissage ni correction de forfait (l'intervalle qui la précède
+      // est justement celui que nos matchs n'expliquaient pas).
+      store.addMmrReading(pend.mode, pend.mmr, pend.tier, pend.at);
+      config.update({ mmrSet: { mode: pend.mode, value: pend.mmr, fromLog: true, at: pend.at } });
+      log('MMR mis de côté confirmé : ' + pend.mode + ' = ' + pend.mmr);
+    } else if (pend) {
+      log('MMR mis de côté abandonné : ' + pend.mode + ' = ' + pend.mmr + ' (' + verdict.reason + ')');
+    }
+    const curNow = (config.get().mmr || {})[r.mode];
+    learnMmrStep(r, curNow);
     // Réconciliation AVANT d'ancrer : le relevé qui arrive est la vérité, et
     // c'est en le comparant au bilan enregistré depuis l'ancre PRÉCÉDENTE
     // qu'un forfait mal compté se trahit (écart de deux pas exactement).
     const prevAnchor = store.lastReading(r.mode);
     if (prevAnchor) {
-      const learned = (config.get().mmrStep || {})[r.mode];
-      const step = (Number.isFinite(learned)
-        && learned >= MMR_STEP_MIN && learned <= MMR_STEP_MAX)
-        ? learned : SessionStore.MMR_STEP;
       const fixed = store.reconcileForfeits(r.mode, prevAnchor, Date.now(),
-        r.mmr, step, config.get().pseudo);
+        r.mmr, stepFor(r.mode), config.get().pseudo);
       if (fixed) {
         log('forfait réconcilié par le vrai MMR : match ' + fixed.id
           + ' recompté ' + (fixed.flipped === 'W' ? 'victoire' : 'défaite'));
@@ -858,6 +899,7 @@ ipcMain.handle('run-diagnostic', () => {
       logFile: RLLogReader.defaultLogPath(),
       readQueue: () => (logReader ? logReader.refreshQueue() : null),
       readMmr: () => (logReader ? logReader.read() : null),
+      mmrPending: state.mmrPending || null,
       history: state.history,
       playersSeen: state.playersSeen,
       obs: state.obs,
@@ -1272,6 +1314,9 @@ if (!gotLock) {
 
     const firstRun = !configExists();
     config.init(app.getPath('userData'));
+    // Le vrai dossier Documents de Windows (OneDrive ou déplacé compris) :
+    // c'est là que le jeu écrit son journal, source du MMR.
+    try { documents.setKnown(app.getPath('documents')); } catch (e) { /* candidats par défaut */ }
     store = new SessionStore(app.getPath('userData'));
     // Ce qui joue sur la machine : le contrôleur média de Windows, celui de
     // la tuile du volume. Il couvre tous les lecteurs, sans clé ni compte.

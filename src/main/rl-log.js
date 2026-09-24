@@ -24,9 +24,9 @@
 // En cas d'échec de lecture, on ne casse rien : l'estimation continue seule.
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const EventEmitter = require('events');
+const documents = require('./documents');
 
 // Identifiants de playlists classées → mode de l'application.
 const RANKED_PLAYLISTS = {
@@ -65,11 +65,12 @@ const MMR_OFFSET = 100;
 const TAIL_BYTES = 512 * 1024;
 const POLL_MS = 20 * 1000;
 
+// Chemin du journal : résolu à chaque fois (voir documents.js), car le jeu
+// peut créer son dossier APRÈS le démarrage de l'application, et pas
+// forcément dans %USERPROFILE%\Documents.
 function defaultLogPath() {
-  const docs = process.env.USERPROFILE
-    ? path.join(process.env.USERPROFILE, 'Documents')
-    : path.join(os.homedir(), 'Documents');
-  return path.join(docs, 'My Games', 'Rocket League', 'TAGame', 'Logs', 'Launch.log');
+  return documents.launchLogPath()
+    || path.join('Documents', 'My Games', 'Rocket League', 'TAGame', 'Logs', 'Launch.log');
 }
 
 // Lit les derniers octets d'un fichier sans le charger en entier.
@@ -159,7 +160,8 @@ class RLLogReader extends EventEmitter {
   constructor(opts) {
     super();
     const o = opts || {};
-    this.file = o.file || defaultLogPath();
+    // Chemin imposé (tests) ou résolu à chaque lecture.
+    this._fixedFile = o.file || null;
     this._timer = null;
     this._lastSize = -1;
     this._lastKey = '';       // dernier relevé émis (évite les doublons)
@@ -168,6 +170,10 @@ class RLLogReader extends EventEmitter {
   }
 
   // Retourne le relevé courant, ou null si le journal est absent/illisible.
+  get file() {
+    return this._fixedFile || defaultLogPath();
+  }
+
   read() {
     return parseLatest(tailText(this.file, TAIL_BYTES));
   }
@@ -216,14 +222,15 @@ class RLLogReader extends EventEmitter {
   }
 
   _tick() {
+    const file = this.file;
     let size;
-    try { size = fs.statSync(this.file).size; } catch (e) { return; }
+    try { size = fs.statSync(file).size; } catch (e) { return; }
     // Rien de nouveau : on évite de relire 512 Ko toutes les 20 s. Une taille
     // qui DIMINUE signale un nouveau lancement du jeu (journal réécrit).
     if (size === this._lastSize) return;
     this._lastSize = size;
 
-    const t = readTail(this.file, TAIL_BYTES);
+    const t = readTail(file, TAIL_BYTES);
     if (!t) return;
     if (this._applyQueue(parseLastQueue(t.text), t.from, t.text)) {
       this.emit('queue', this.lastQueue);
