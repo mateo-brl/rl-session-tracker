@@ -616,3 +616,14 @@ test('progression dans le palier : borne, reste, et dernier palier ouvert', () =
   assert.equal(top.max, null);                        // Supersonic Legend : ouvert
   assert.equal(top.next, null);
 });
+
+test('lecture de MMR ancrée après coup : rangée à sa date', () => {
+  const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'rlst-anchor-'));
+  const s = new SessionStore(dir);
+  s.addMmrReading('2v2', 1100, null);
+  const late = Date.now() - 60 * 1000;
+  s.addMmrReading('2v2', 1250, null, late);
+  const list = s.mmrReadings['2v2'];
+  assert.equal(list[list.length - 1].v, 1100);   // la plus récente reste la dernière ancre
+  assert.equal(list[list.length - 2].t, late);
+});

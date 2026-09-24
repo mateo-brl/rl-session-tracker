@@ -408,3 +408,13 @@ test('cartes workshop : chargée = ok, remise par le jeu = avertissement', () =>
   assert.equal(byId(remise, 'maps').state, 'warn');
   assert.equal(byId(diagnostic.run(healthyDeps()), 'maps').state, 'skip');
 });
+
+test('lecture de MMR mise de côté : signalée avec ce qu’on attendait', () => {
+  const r = diagnostic.run(healthyDeps({
+    mmrPending: { mode: '2v2', mmr: 1420, expected: 1109, tolerance: 39, at: NOW - MIN },
+  }));
+  const c = byId(r, 'log-mmr-pending');
+  assert.equal(c.state, 'warn');
+  assert.match(c.detail, /2v2 = 1420, attendu ~1109 ± 39/);
+  assert.equal(byId(diagnostic.run(healthyDeps()), 'log-mmr-pending').state, 'skip');
+});

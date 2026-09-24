@@ -400,7 +400,9 @@ function update(partial) {
         // `fromLog` distingue un relevé automatique (journal du jeu) d'une
         // saisie manuelle : l'interface peut ainsi indiquer d'où vient la
         // valeur, et le recalage évite de se réécrire en boucle.
-        config.mmr[mode] = { base: Math.round(v), setAt: Date.now(),
+        const at = Number(partial.mmrSet.at);
+        config.mmr[mode] = { base: Math.round(v),
+          setAt: Number.isFinite(at) && at > 0 ? at : Date.now(),
           fromLog: !!partial.mmrSet.fromLog };
       } else {
         delete config.mmr[mode];

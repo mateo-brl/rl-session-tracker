@@ -149,7 +149,8 @@ function writeTest(fs, dir, token) {
 
 // Produit le rapport. `deps` porte TOUT ce qui touche au monde extérieur :
 //   fs, now, platform, config, game, lastPacketAt, detectInstalls, iniConfigured,
-//   iniRate, userIni, readIni, logFile, readQueue, maps, readMmr, history, playersSeen, obs, cosmetics.
+//   iniRate, userIni, readIni, logFile, readQueue, readMmr, mmrPending, history,
+//   playersSeen, obs, cosmetics, maps.
 // Chacune est facultative : absente, le contrôle correspondant est « skip »
 // plutôt qu'en échec — un contrôle qu'on n'a pas pu faire n'est pas une panne.
 function run(deps) {
@@ -403,6 +404,23 @@ function run(deps) {
     }
     return { state: OK, detail: (r.mode || '?') + ' = ' + Math.round(Number(r.mmr))
       + (Number.isFinite(Number(r.tier)) ? ' (palier ' + r.tier + ')' : '') };
+  });
+
+  // Lecture mise de côté par le garde-fou (mmr-guard.js) : on dit laquelle,
+  // ce qu'on attendait, et ce qui la fera accepter ou oublier.
+  add('log-mmr-pending', 'Lecture de MMR en attente', () => {
+    const p = d.mmrPending;
+    if (!p || !Number.isFinite(Number(p.mmr))) {
+      return { state: SKIP, detail: 'aucune lecture mise de côté' };
+    }
+    return { state: WARN,
+      detail: p.mode + ' = ' + Math.round(Number(p.mmr)) + ', attendu ~' + p.expected
+        + ' ± ' + p.tolerance + ' d’après tes matchs',
+      hint: 'Trop loin de ce que tes matchs enregistrés prévoient, donc pas encore'
+        + ' prise en compte. Cause fréquente : tu jouais en groupe sans en être le'
+        + ' chef, le journal note alors le MMR du chef. Elle sera acceptée si la'
+        + ' prochaine lecture la confirme (vrai saut, parties jouées ailleurs),'
+        + ' oubliée si la prochaine retombe sur ta trajectoire.' };
   });
 
   // ───────── Pseudo suivi ─────────
