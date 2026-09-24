@@ -21,6 +21,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const documents = require('./documents');
 
 // ───────── Détection des installations (session utilisateur) ─────────
 
@@ -206,23 +207,13 @@ function readIni(file) {
 // on écrit donc LES DEUX fichiers plutôt que de parier sur l'un.
 const USER_INI = 'TAStatsAPI.ini';
 
-// Dossiers Documents possibles. OneDrive redirige souvent Documents : le jeu
-// écrit alors sous %OneDrive%\Documents, pas sous %USERPROFILE%\Documents.
-function documentsDirs() {
-  const out = [];
-  const home = process.env.USERPROFILE || os.homedir();
-  if (home) out.push(path.join(home, 'Documents'));
-  if (process.env.OneDrive) out.push(path.join(process.env.OneDrive, 'Documents'));
-  return out;
-}
-
 // Dossiers de config utilisateur où écrire TAStatsAPI.ini : ceux où le jeu a
-// déjà créé « My Games\Rocket League », sinon le Documents classique.
+// déjà créé « My Games\Rocket League », sinon le premier Documents candidat
+// (voir documents.js : OneDrive et Documents déplacé compris).
 function userConfigDirs() {
-  const docs = documentsDirs();
-  const rl = docs.map((d) => path.join(d, 'My Games', 'Rocket League'));
-  const seen = rl.filter((d) => { try { return fs.statSync(d).isDirectory(); } catch (e) { return false; } });
-  return (seen.length ? seen : rl.slice(0, 1)).map((d) => path.join(d, 'TAGame', 'Config'));
+  const seen = documents.existingRocketLeagueDirs();
+  const rl = seen.length ? seen : documents.rocketLeagueDirs().slice(0, 1);
+  return rl.map((d) => path.join(d, 'TAGame', 'Config'));
 }
 
 // TAStatsAPI.ini existants — les seuls qui peuvent contredire DefaultStatsAPI.ini.

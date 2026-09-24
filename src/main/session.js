@@ -205,13 +205,17 @@ class SessionStore {
   // Enregistre un relevé de MMR. Renvoie `true` si c'est une nouvelle ancre.
   // Un même relevé répété (le joueur relance une file sans avoir joué) ne
   // crée pas de point supplémentaire.
-  addMmrReading(mode, value, tier) {
+  // `at` : horodatage de la lecture, quand elle est ancrée après coup (une
+  // lecture mise de côté puis confirmée par la suivante, voir mmr-guard.js).
+  addMmrReading(mode, value, tier, at) {
     const v = Math.round(Number(value));
     if (!mode || !Number.isFinite(v) || v <= 0) return false;
     const list = this.mmrReadings[mode] || (this.mmrReadings[mode] = []);
     const last = list[list.length - 1];
     if (last && last.v === v) return false;
-    list.push({ t: Date.now(), v: v, tier: Number.isFinite(tier) ? tier : null });
+    const t = Number.isFinite(at) ? at : Date.now();
+    list.push({ t: t, v: v, tier: Number.isFinite(tier) ? tier : null });
+    list.sort((a, b) => a.t - b.t);
     if (list.length > MAX_READINGS) list.splice(0, list.length - MAX_READINGS);
     this._persist();
     return true;
