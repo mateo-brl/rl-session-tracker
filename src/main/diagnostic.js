@@ -149,7 +149,7 @@ function writeTest(fs, dir, token) {
 
 // Produit le rapport. `deps` porte TOUT ce qui touche au monde extérieur :
 //   fs, now, platform, config, game, lastPacketAt, detectInstalls, iniConfigured,
-//   iniRate, logFile, readQueue, readMmr, history, playersSeen, obs, cosmetics.
+//   iniRate, userIni, readIni, logFile, readQueue, readMmr, history, playersSeen, obs, cosmetics.
 // Chacune est facultative : absente, le contrôle correspondant est « skip »
 // plutôt qu'en échec — un contrôle qu'on n'a pas pu faire n'est pas une panne.
 function run(deps) {
@@ -218,7 +218,10 @@ function run(deps) {
             + ' Windows, puis REDÉMARRE Rocket League : le jeu ne relit son ini'
             + ' qu’à son lancement.' };
       }
-      const ok = typeof d.iniConfigured === 'function' ? d.iniConfigured(p, port) : null;
+      // Liste vide en 3ᵉ argument : on juge CE fichier seul. Une contradiction
+      // venue de TAStatsAPI.ini a son propre contrôle, plus bas ; la mettre ici
+      // accuserait à tort DefaultStatsAPI.ini.
+      const ok = typeof d.iniConfigured === 'function' ? d.iniConfigured(p, port, []) : null;
       if (ok === false) {
         return { state: FAIL, detail: 'présent mais pas configuré pour le port ' + port
             + ' — ' + ini,
@@ -234,7 +237,7 @@ function run(deps) {
       if (typeof d.iniRate !== 'function') {
         return { state: SKIP, detail: 'relevé du débit indisponible' };
       }
-      const rate = Number(d.iniRate(p));
+      const rate = Number(d.iniRate(p, []));
       if (!Number.isFinite(rate) || rate <= 0) {
         return { state: FAIL, detail: 'PacketSendRate = 0 — la Stats API n’émet rien',
           hint: 'C’est la valeur par défaut du jeu : réactive la Stats API, puis'
@@ -251,6 +254,46 @@ function run(deps) {
     add('install-' + i + '-write', 'Droits d’écriture (' + who + ')',
       () => writeTest(fs, cfgDir, at + '-' + i));
   });
+
+  // ───────── TAStatsAPI.ini (profil utilisateur) ─────────
+  // Ses valeurs priment sur DefaultStatsAPI.ini, et il survit aux
+  // vérifications d'intégrité : c'est à la fois le filet de Steam et un
+  // coupe-circuit possible, d'où un contrôle à part.
+  if (installs.length) {
+    add('user-ini', 'TAStatsAPI.ini (profil)', () => {
+      if (typeof d.userIni !== 'function' || typeof d.readIni !== 'function') {
+        return { state: SKIP, detail: 'lecture du profil indisponible' };
+      }
+      const u = d.userIni() || {};
+      const files = Array.isArray(u.files) ? u.files : [];
+      if (!files.length) {
+        const where = Array.isArray(u.dirs) && u.dirs.length ? ' dans ' + u.dirs.join(' · ') : '';
+        return { state: WARN, detail: 'absent' + where,
+          hint: 'Sans lui, la Stats API retombe à chaque vérification d’intégrité'
+            + ' Steam. Clique « Réactiver la Stats API du jeu » : il est posé sans'
+            + ' fenêtre admin, puis redémarre Rocket League.' };
+      }
+      for (const f of files) {
+        const ini = d.readIni(f);
+        if (!ini || !ini.section) continue;   // aucune surcharge de la Stats API
+        if (ini.rate !== null && !(ini.rate > 0)) {
+          return { state: FAIL, detail: 'PacketSendRate = 0 dans ' + f,
+            hint: 'Ce fichier coupe la Stats API même si DefaultStatsAPI.ini est bon.'
+              + ' Clique « Réactiver la Stats API du jeu », puis redémarre Rocket League.' };
+        }
+        if (ini.port !== null && ini.port !== port) {
+          return { state: FAIL, detail: 'port ' + ini.port + ' au lieu de ' + port + ' dans ' + f,
+            hint: 'Le jeu émet sur un autre port que celui qu’écoute le tracker.'
+              + ' Clique « Réactiver la Stats API du jeu », puis redémarre Rocket League.' };
+        }
+        return { state: OK, detail: (ini.port === null ? 'port non fixé' : 'port ' + ini.port)
+          + ', ' + (ini.rate === null ? 'débit non fixé' : ini.rate + ' paquets/s') + ' (' + f + ')' };
+      }
+      return { state: WARN, detail: 'présent sans section Stats API : ' + files.join(' · '),
+        hint: 'Il ne surcharge rien, mais ne protège pas non plus. « Réactiver la'
+          + ' Stats API du jeu » le complète.' };
+    });
+  }
 
   // ───────── Stats API ─────────
   add('statsapi-port', 'Port de la Stats API', () => {

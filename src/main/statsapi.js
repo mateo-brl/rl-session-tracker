@@ -359,9 +359,35 @@ class RLStatsAPI extends EventEmitter {
         }
         this.emit('match', { phase: 'destroyed' });
         break;
+      // Arrivées et départs de joueurs, émis par le jeu depuis la mise à jour
+      // 2.72. On les JOURNALISE seulement : c'est la piste la plus directe vers
+      // le forfait adverse (un adversaire qui part, puis un match qui se
+      // détruit), mais sa forme exacte n'est documentée que par la
+      // communauté. Les traces conservées avec chaque match diront, après
+      // quelques vraies parties, s'il est assez fiable pour trancher.
+      case 'playerjoined':
+      case 'playerleft': {
+        const who = this._playerEvent(data);
+        this._trace(name, who);
+        this.emit('player', Object.assign({ phase: name === 'playerleft' ? 'left' : 'joined' }, who));
+        break;
+      }
       default:
         break;
     }
+  }
+
+  // Forme réduite d'un joueur pour la trace : nom, équipe, identifiant. Le
+  // paquet complet porte toutes les statistiques du joueur, inutiles ici et
+  // coûteuses sur 40 entrées conservées par match.
+  _playerEvent(data) {
+    const p = (data && (data.Player || data.player)) || data || {};
+    const team = Number(p.TeamNum ?? p.Team ?? p.team);
+    return {
+      name: String(p.Name ?? p.name ?? ''),
+      team: Number.isInteger(team) ? team : null,
+      id: p.PrimaryId ? String(p.PrimaryId) : null,
+    };
   }
 
   // Journal des évènements MARQUANTS du match (pas le flux d'état, qui arrive

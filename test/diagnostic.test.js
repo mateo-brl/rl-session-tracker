@@ -363,3 +363,34 @@ test('overlay OBS désactivé : sans objet, et non en échec', () => {
   assert.equal(byId(r, 'obs').state, 'skip');
   assert.equal(r.ok, true);
 });
+
+test('TAStatsAPI.ini : absent = avertissement, surcharge à 0 = échec, le nôtre = ok', () => {
+  const lire = (map) => (f) => map[f] || null;
+  const absent = diagnostic.run(healthyDeps({
+    userIni: () => ({ dirs: ['C:\\Docs\\Config'], files: [] }), readIni: lire({}),
+  }));
+  assert.equal(byId(absent, 'user-ini').state, 'warn');
+  assert.match(byId(absent, 'user-ini').detail, /absent/);
+
+  const coupe = diagnostic.run(healthyDeps({
+    userIni: () => ({ dirs: [], files: ['u.ini'] }),
+    readIni: lire({ 'u.ini': { section: true, port: null, rate: 0 } }),
+  }));
+  assert.equal(byId(coupe, 'user-ini').state, 'fail');
+  assert.equal(coupe.ok, false);
+
+  const port = diagnostic.run(healthyDeps({
+    userIni: () => ({ dirs: [], files: ['u.ini'] }),
+    readIni: lire({ 'u.ini': { section: true, port: 50000, rate: 60 } }),
+  }));
+  assert.match(byId(port, 'user-ini').detail, /50000 au lieu de 49123/);
+
+  const bon = diagnostic.run(healthyDeps({
+    userIni: () => ({ dirs: [], files: ['u.ini'] }),
+    readIni: lire({ 'u.ini': { section: true, port: 49123, rate: 60 } }),
+  }));
+  assert.equal(byId(bon, 'user-ini').state, 'ok');
+
+  // Sans dépendance (hors Windows) : sans objet.
+  assert.equal(byId(diagnostic.run(healthyDeps()), 'user-ini').state, 'skip');
+});

@@ -176,26 +176,91 @@ function detectInstalls() {
 // détecter la panne à chaque lancement et ne réactiver (élévation UAC) que
 // quand c'est réellement nécessaire.
 
-// L'ini d'une installation est-il configuré pour nous ?
-function iniConfigured(install, port) {
-  try {
-    const txt = fs.readFileSync(
-      path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'), 'utf8');
-    if (!/\[TAGame\.MatchStatsExporter_TA\]/i.test(txt)) return false;
-    const p = /^\s*Port\s*=\s*(\d+)/im.exec(txt);
-    const r = /^\s*PacketSendRate\s*=\s*(\d+)/im.exec(txt);
-    return !!(p && Number(p[1]) === port && r && Number(r[1]) > 0);
-  } catch (e) { return false; }   // absent ou illisible : à refaire
+// Lit la section de la Stats API d'un ini : { section, port, rate }, ou null
+// si le fichier est absent ou illisible. `port`/`rate` valent null quand la
+// clé manque — ce qui n'est pas la même chose qu'une clé à 0.
+function readIni(file) {
+  let txt;
+  try { txt = fs.readFileSync(file, 'utf8'); } catch (e) { return null; }
+  const p = /^\s*Port\s*=\s*(\d+)/im.exec(txt);
+  const r = /^\s*PacketSendRate\s*=\s*(\d+)/im.exec(txt);
+  return {
+    section: /\[TAGame\.MatchStatsExporter_TA\]/i.test(txt),
+    port: p ? Number(p[1]) : null,
+    rate: r ? Number(r[1]) : null,
+  };
 }
 
-// Débit actuellement configuré dans l'ini d'une installation (0 si absent).
-function iniRate(install) {
-  try {
-    const txt = fs.readFileSync(
-      path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'), 'utf8');
-    const r = /^\s*PacketSendRate\s*=\s*(\d+)/im.exec(txt);
-    return r ? Number(r[1]) : 0;
-  } catch (e) { return 0; }
+// ───────── TAStatsAPI.ini, la surcharge du profil utilisateur ─────────
+// Le jeu lit aussi Documents\My Games\Rocket League\TAGame\Config\
+// TAStatsAPI.ini, et ses valeurs PRIMENT sur DefaultStatsAPI.ini. Deux
+// conséquences :
+//  • ce fichier est hors du dossier du jeu : ni Steam ni Epic n'y touchent
+//    lors d'une mise à jour ou d'une vérification d'intégrité, et l'écrire ne
+//    demande aucun droit admin. C'est le filet qui manquait sur Steam ;
+//  • un TAStatsAPI.ini laissé à PacketSendRate=0 (par un autre outil, ou par
+//    le jeu lui-même) coupe la Stats API même quand DefaultStatsAPI.ini est
+//    parfait. Sans le lire, le diagnostic affichait « tout va bien » face à
+//    une API muette.
+// La source est communautaire (la page officielle n'est pas consultable) :
+// on écrit donc LES DEUX fichiers plutôt que de parier sur l'un.
+const USER_INI = 'TAStatsAPI.ini';
+
+// Dossiers Documents possibles. OneDrive redirige souvent Documents : le jeu
+// écrit alors sous %OneDrive%\Documents, pas sous %USERPROFILE%\Documents.
+function documentsDirs() {
+  const out = [];
+  const home = process.env.USERPROFILE || os.homedir();
+  if (home) out.push(path.join(home, 'Documents'));
+  if (process.env.OneDrive) out.push(path.join(process.env.OneDrive, 'Documents'));
+  return out;
+}
+
+// Dossiers de config utilisateur où écrire TAStatsAPI.ini : ceux où le jeu a
+// déjà créé « My Games\Rocket League », sinon le Documents classique.
+function userConfigDirs() {
+  const docs = documentsDirs();
+  const rl = docs.map((d) => path.join(d, 'My Games', 'Rocket League'));
+  const seen = rl.filter((d) => { try { return fs.statSync(d).isDirectory(); } catch (e) { return false; } });
+  return (seen.length ? seen : rl.slice(0, 1)).map((d) => path.join(d, 'TAGame', 'Config'));
+}
+
+// TAStatsAPI.ini existants — les seuls qui peuvent contredire DefaultStatsAPI.ini.
+function userIniFiles() {
+  return userConfigDirs().map((d) => path.join(d, USER_INI))
+    .filter((f) => { try { return fs.statSync(f).isFile(); } catch (e) { return false; } });
+}
+
+// Un TAStatsAPI.ini contredit-il notre réglage ? Seules les clés PRÉSENTES
+// comptent : un fichier sans la section ne surcharge rien.
+function userIniConflict(files, port) {
+  for (const f of files) {
+    const ini = readIni(f);
+    if (!ini || !ini.section) continue;
+    if (ini.port !== null && ini.port !== port) return true;
+    if (ini.rate !== null && !(ini.rate > 0)) return true;
+  }
+  return false;
+}
+
+// L'ini d'une installation est-il configuré pour nous ? `userFiles` : les
+// TAStatsAPI.ini à prendre en compte (par défaut ceux du profil courant).
+function iniConfigured(install, port, userFiles) {
+  const ini = readIni(path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'));
+  if (!ini || !ini.section) return false;          // absent, illisible ou vide
+  if (ini.port !== port || !(ini.rate > 0)) return false;
+  return !userIniConflict(userFiles || userIniFiles(), port);
+}
+
+// Débit EFFECTIF d'une installation (0 si l'API est coupée) : celui de
+// TAStatsAPI.ini quand il le fixe, sinon celui de DefaultStatsAPI.ini.
+function iniRate(install, userFiles) {
+  for (const f of (userFiles || userIniFiles())) {
+    const u = readIni(f);
+    if (u && u.section && u.rate !== null) return u.rate;
+  }
+  const ini = readIni(path.join(install, 'TAGame', 'Config', 'DefaultStatsAPI.ini'));
+  return ini && ini.rate !== null ? ini.rate : 0;
 }
 
 // Retourne { installs, broken } — broken : installations détectées dont
@@ -217,8 +282,9 @@ const PS_LINES = [
   // vérification, elle, comparait au port configuré — un port personnalisé
   // provoquait donc une invite UAC à CHAQUE lancement, sans jamais converger.
   '$Port=__PORT__',
-  // 120 paquets/s : nécessaire à la réactivité du son Alpha Boost.
-  '$Rate=120',
+  // Même débit que l'écriture directe : le script élevé écrivait encore 120
+  // paquets/s après le passage à 60, et l'ini dépendait donc du chemin pris.
+  '$Rate=__RATE__',
   "$Result='__RESULT__'",
   "$GrantUser='__USER__'",
   // ── Élévation automatique : sans droits admin, on se relance élevé et on
@@ -290,10 +356,6 @@ function psQuote(s) {
   return "'" + String(s).replace(/'/g, "''") + "'";
 }
 
-// 120 paquets/s : nécessaire à la réactivité du son Alpha Boost (le tracker
-// seul se contenterait de 10). Un ini déjà écrit à une autre cadence reste
-// valide pour la vérification (débit > 0) ; l'activation du son, elle,
-// réécrit à 120 si besoin.
 // 60 paquets/s : assez pour un score et un chrono fluides. Les 120 servaient
 // au moteur audio Alpha Boost, retiré depuis que le swap de fichiers rend le
 // vrai son du jeu.
@@ -368,6 +430,39 @@ function writeIniDirect(installs, port) {
   return done;
 }
 
+// Écrit TAStatsAPI.ini dans le profil utilisateur. Jamais d'élévation : le
+// dossier appartient à l'utilisateur. Rend les fichiers écrits.
+function writeUserIni(port) {
+  const done = [];
+  for (const dir of userConfigDirs()) {
+    const file = path.join(dir, USER_INI);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      // Même règle que pour DefaultStatsAPI.ini : une seule sauvegarde, celle
+      // du fichier d'origine.
+      if (fs.existsSync(file) && !fs.existsSync(file + '.bak')) fs.copyFileSync(file, file + '.bak');
+      fs.writeFileSync(file, iniBody(port));
+      done.push(file);
+    } catch (e) { /* profil en lecture seule : DefaultStatsAPI.ini reste le seul filet */ }
+  }
+  return done;
+}
+
+// Pose TAStatsAPI.ini s'il manque ou nous contredit, sans toucher au reste.
+// Sert quand DefaultStatsAPI.ini est encore bon : c'est justement AVANT la
+// prochaine vérification d'intégrité Steam qu'il faut avoir posé le filet.
+function ensureUserIni(port) {
+  if (process.platform !== 'win32') return [];
+  const want = numOrPort(port);
+  const files = userIniFiles();
+  const good = files.some((f) => {
+    const u = readIni(f);
+    return !!(u && u.section && u.port === want && u.rate > 0);
+  });
+  if (good && !userIniConflict(files, want)) return [];
+  return writeUserIni(want);
+}
+
 // `opts.forceElevate` : passer directement par l'élévation même si l'ini
 // est déjà accessible — c'est l'élévation qui pose les droits sur
 // CookedPCConsole, dont la section Cosmétiques a besoin. Sans ça, une machine
@@ -379,12 +474,21 @@ async function enableStatsApi(port, opts) {
   const want = numOrPort(port);
   const installs = detectInstalls();
   const force = !!(opts && opts.forceElevate);
+  // Le fichier du profil d'abord : il ne coûte rien, et c'est lui qui survit
+  // aux vérifications d'intégrité. Sans installation détectée, on n'écrit
+  // rien, pour ne pas créer de dossier « Rocket League » chez qui n'a pas le jeu.
+  const userIni = installs.length ? writeUserIni(want) : [];
 
   // 1) Tentative silencieuse. Si toutes les installations sont écrites, on
   //    s'arrête là : aucune invite UAC, donc aucune occasion de la rater.
-  const direct = force ? [] : writeIniDirect(installs, want);
+  //    Une installation dont DefaultStatsAPI.ini est déjà bon n'est pas
+  //    réécrite : quand seul TAStatsAPI.ini était en faute, le réécrire
+  //    ci-dessus suffit, et une invite UAC n'aurait rien à réparer.
+  const ready = force ? [] : installs.filter((p) => iniConfigured(p, want, []));
+  const direct = force ? [] : ready.concat(
+    writeIniDirect(installs.filter((p) => !ready.includes(p)), want));
   if (!force && installs.length && direct.length === installs.length) {
-    return { ok: true, installs, configured: direct, elevated: false };
+    return { ok: true, installs, configured: direct, userIni, elevated: false };
   }
 
   // 2) Sinon, élévation — et on en profite pour poser l'ACL qui rendra les
@@ -400,6 +504,7 @@ async function enableStatsApi(port, opts) {
     const script = PS_LINES.join('\r\n')
       .replace('__RESULT__', () => resultFile.replace(/'/g, "''"))
       .replace('__PORT__', () => String(want))
+      .replace('__RATE__', () => String(PACKET_RATE))
       .replace('__USER__', () => currentUserForIcacls().replace(/'/g, "''"))
       .replace('__INSTALLS__', () => installs.map(psQuote).join(','));
     // BOM UTF-8 OBLIGATOIRE : Windows PowerShell 5.1 (celui de Windows 10)
@@ -410,7 +515,7 @@ async function enableStatsApi(port, opts) {
     // silence chez les utilisateurs au nom accentué (fréquent en français).
     fs.writeFileSync(tmpFile, '\uFEFF' + script + '\r\n');
   } catch (e) {
-    return { ok: false, installs, configured: null,
+    return { ok: false, installs, configured: null, userIni,
       reason: 'écriture du script impossible : ' + e.message };
   }
 
@@ -430,16 +535,18 @@ async function enableStatsApi(port, opts) {
   if (r.ok) { try { fs.unlinkSync(tmpFile); } catch (e) {} }
 
   if (raw === null) {
-    return { ok: false, installs, configured: direct.length ? direct : null,
+    return { ok: false, installs, configured: direct.length ? direct : null, userIni,
       reason: r.ok ? 'aucun résultat — fenêtre admin refusée ?' : r.reason };
   }
   const lines = raw.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length || lines[0] === 'NONE') {
-    return { ok: false, installs, configured: direct,
+    return { ok: false, installs, configured: direct, userIni,
       reason: 'aucune installation Rocket League valide trouvée' };
   }
-  return { ok: true, installs, configured: lines, elevated: true };
+  return { ok: true, installs, configured: lines, userIni, elevated: true };
 }
 
 module.exports = { enableStatsApi, checkStatsApi, iniConfigured, detectInstalls,
-  parseLibraryFolders, isRLInstall, iniRate, canonicalPath, pathKey };
+  parseLibraryFolders, isRLInstall, iniRate, canonicalPath, pathKey,
+  readIni, userConfigDirs, userIniFiles, userIniConflict, ensureUserIni, writeUserIni,
+  USER_INI };
