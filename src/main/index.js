@@ -8,7 +8,7 @@
 //  • enregistre chaque match (victoires/défaites, série, stats par mode) ;
 //  • se met à jour toute seule depuis les releases GitHub (sur accord).
 
-const { app, Tray, Menu, ipcMain, shell, dialog, globalShortcut } = require('electron');
+const { app, ipcMain, shell, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
@@ -20,21 +20,17 @@ const obs = require('./obs-server');
 const sos = require('./sos-bridge');
 const SessionStore = require('./session');
 const MediaControl = require('./media');
-const { MMR_STEP_MIN, MMR_STEP_MAX } = SessionStore;
 const GameWatcher = require('./game-watcher');
 const RLStatsAPI = require('./statsapi');
 const RLLogReader = require('./rl-log');
 const Cosmetics = require('./cosmetics');
 const MapLibrary = require('./maps');
-const mapsBrowser = require('./maps-browser');
 const diagnostic = require('./diagnostic');
 const documents = require('./documents');
-const mmrGuard = require('./mmr-guard');
-const { enableStatsApi, checkStatsApi, detectInstalls, iniRate, iniConfigured,
-  ensureUserIni, userIniFiles, userConfigDirs, readIni } = require('./enable-statsapi');
+const { enableStatsApi, detectInstalls, iniRate, iniConfigured,
+  userIniFiles, userConfigDirs, readIni } = require('./enable-statsapi');
 
 const SILENT = process.argv.includes('--silent');   // lancé par le démarrage auto
-const ICON = path.join(__dirname, '..', '..', 'build', 'icon.ico');
 const LOG_FILE = path.join(app.getPath('userData'), 'app.log');
 
 // ───────── Journal fichier (l'application n'a pas de console) ─────────
@@ -52,10 +48,8 @@ process.on('unhandledRejection', (e) => log('unhandledRejection : ' + (e && (e.m
 // ───────── État partagé, poussé aux fenêtres ─────────
 let store = null;
 let media = null;
-let tray = null;
 let cosmetics = null;   // swaps cosmétiques (fichiers du jeu, jeu fermé)
 let mapLib = null;      // cartes workshop : bibliothèque + emplacement Underpass
-let mapsNav = null;     // site bakkesplugins affiché dans la fenêtre Cartes
 // Horodatage du dernier paquet EXPLOITÉ de la Stats API. Le connecteur peut
 // être connecté sans que rien n'arrive (le jeu n'émet qu'en match) : sans cette
 // date, le diagnostic ne pourrait pas distinguer « le flux coule » de « le
@@ -92,6 +86,30 @@ const state = {
   cosmetics: { count: 0, applied: 0, reverted: 0, gameRunning: false },
   update: updater.getState(),
 };
+
+// Ce que les modules extraits d'index.js partagent avec lui. Les accesseurs
+// (get store…) lisent la valeur au moment de l'appel : ces objets ne sont
+// créés qu'une fois l'application prête, après le chargement des modules.
+const ctx = {
+  state, config, windows, log,
+  pushState: () => pushState(),
+  refreshSession: () => refreshSession(),
+  get store() { return store; },
+  get cosmetics() { return cosmetics; },
+  get mapLib() { return mapLib; },
+};
+const repair = require('./statsapi-repair')(ctx);
+const cosmeticsIpc = require('./ipc-cosmetics')(ctx, repair);
+const mapsIpc = require('./ipc-maps')(ctx, cosmeticsIpc.withGameRights);
+ctx.onQueue = (q) => mapsIpc.guardQueue(q);
+const mmrLog = require('./mmr-log')(ctx);
+require('./ipc-files')(ctx);
+const tray = require('./tray')(ctx, {
+  lang: () => resolveLang(),
+  openDashboard: () => openDashboard(),
+  toggleOverlay: () => toggleOverlay(),
+  openMaps: () => mapsIpc.openWindow(),
+});
 
 // ── Mode streamer : extrait de l'état envoyé à la page overlay OBS ──
 function obsState() {
@@ -209,7 +227,7 @@ function pushState() {
   state.lang = resolveLang();
   state.sos = sos.status();   // le serveur démarre en asynchrone : on relit
   state.media = media ? media.status() : null;
-  refreshCosmetics();
+  cosmeticsIpc.refresh();
 
   refreshH2h();
   discord.refresh(state);
@@ -257,24 +275,26 @@ function setGameRunning(running) {
     state.currentRankedAuto = null;
     windows.closeDashboard();
     windows.closeOverlay();
-    windows.closeAlphaAudio();
   }
   pushState();
 }
-
-// Débit de la Stats API suffisant pour le son Alpha Boost (120/s).
-
-// ───────── Son Alpha Boost ─────────
-// Joué par une fenêtre invisible (WebAudio), pilotée par la télémétrie de la
-// Stats API. 100 % externe : on ne touche ni aux fichiers ni à la mémoire du
-// jeu — même approche que le reste de l'application.
-
-
 
 function openOverlay() {
   windows.openOverlay(config.get().overlayPos,
     (pos) => config.update({ overlayPos: pos }),
     config.get().overlayCfg);
+}
+
+// Mini-overlay allumé ou éteint depuis le menu de la zone de notification.
+function toggleOverlay() {
+  if (windows.getOverlay()) {
+    config.update({ overlayEnabled: false });
+    windows.closeOverlay();
+  } else {
+    config.update({ overlayEnabled: true });
+    openOverlay();
+  }
+  pushState();
 }
 
 function recomputeRunning() {
@@ -288,51 +308,6 @@ function openDashboard() {
     () => pushState());
 }
 
-// ───────── Barre des tâches ─────────
-const TRAY_LABELS = {
-  fr: { open: 'Ouvrir', dash: 'Ouvrir le dashboard', overlay: 'Mini-overlay', maps: 'Cartes workshop',
-    update: 'Vérifier les mises à jour', quit: 'Quitter' },
-  en: { open: 'Open', dash: 'Open the dashboard', overlay: 'Mini-overlay', maps: 'Workshop maps',
-    update: 'Check for updates', quit: 'Quit' },
-};
-
-function buildTrayMenu() {
-  if (!tray) return;
-  const L = TRAY_LABELS[resolveLang()] || TRAY_LABELS.fr;
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: L.open, click: () => windows.showControl() },
-    { label: L.dash, click: () => openDashboard() },
-    { label: L.overlay, click: () => {
-      if (windows.getOverlay()) {
-        config.update({ overlayEnabled: false });
-        windows.closeOverlay();
-      } else {
-        config.update({ overlayEnabled: true });
-        openOverlay();
-      }
-      pushState();
-    } },
-    { label: L.maps, click: () => openMapsWindow() },
-    { type: 'separator' },
-    { label: L.update, click: () => updater.check() },
-    { type: 'separator' },
-    { label: L.quit, click: () => { app.isQuitting = true; app.quit(); } },
-  ]));
-}
-
-function createTray() {
-  try {
-    tray = new Tray(ICON);
-  } catch (e) {
-    log('icône systray indisponible : ' + e.message);
-    return;
-  }
-  tray.setToolTip('RL Session Tracker');
-  buildTrayMenu();
-  tray.on('click', () => windows.showControl());
-  tray.on('double-click', () => windows.showControl());
-}
-
 // ───────── Stats API du jeu ─────────
 // Entraînement / piste libre : le joueur est seul dans la « partie ». Un vrai
 // match a toujours au moins 2 joueurs — en dessous, on affiche « entraînement »
@@ -341,10 +316,11 @@ function isTraining(d) {
   return !Array.isArray(d.players) || d.players.length < 2;
 }
 
+let statsApi = null;
 function startStatsApi() {
   // Le port est passé au constructeur : le poser dans process.env ne servait
   // à rien, la constante du module ayant déjà été évaluée au `require`.
-  const api = new RLStatsAPI({ port: config.get().statsApiPort });
+  const api = statsApi = new RLStatsAPI({ port: config.get().statsApiPort });
   let lastRecordedAt = 0;   // ceinture anti-doublon (fin de match + abandon)
   let matchSinceRecord = false;   // un NOUVEAU match a-t-il démarré depuis ?
 
@@ -369,10 +345,10 @@ function startStatsApi() {
     // Nouveau match : classé ou casual ? Pré-réglé sur la préférence, et
     // modifiable d'un clic sur le dashboard pendant la partie.
     if (state.live && !state.live.training && state.currentRanked === null) {
-      const r = resolveRanked();
+      const r = mmrLog.resolveRanked();
       state.currentRanked = r.ranked;
       state.currentRankedAuto = r.auto;
-      state.currentMatchmade = resolveMatchmade();
+      state.currentMatchmade = mmrLog.resolveMatchmade();
       if (state.currentMatchmade === false) {
         log('match hors file (privé ou exhibition) — il ne sera pas compté');
       }
@@ -397,7 +373,7 @@ function startStatsApi() {
   api.on('abandoned', (snap) => {
     state.live = null;
     const ranked = state.currentRanked !== null
-      ? state.currentRanked : resolveRanked().ranked;
+      ? state.currentRanked : mmrLog.resolveRanked().ranked;
     state.currentRanked = null;
     state.currentRankedAuto = null;
     // Le podium avait été atteint : le match s'est terminé pour de bon (c'est
@@ -405,7 +381,7 @@ function startStatsApi() {
     // d'écran de fin. Un vrai résultat, à compter même en casual — alors que
     // quitter une partie en cours ne se compte qu'en classé.
     const realEnd = !!snap.podium || snap.winnerTeam === 0 || snap.winnerTeam === 1;
-    if (isTraining(snap) || (!ranked && !realEnd) || !countsAsMatch('abandon')) {
+    if (isTraining(snap) || (!ranked && !realEnd) || !mmrLog.countsAsMatch('abandon')) {
       state.currentMatchmade = null;
       pushState();
       if (isTraining(snap) || !ranked) log('abandon casual / entraînement — non compté');
@@ -454,7 +430,7 @@ function startStatsApi() {
   });
   api.on('ended', (snap) => {
     state.live = null;
-    if (isTraining(snap) || !countsAsMatch('fin de match')) {
+    if (isTraining(snap) || !mmrLog.countsAsMatch('fin de match')) {
       state.currentRanked = null;
       state.currentRankedAuto = null;
       state.currentMatchmade = null;
@@ -463,7 +439,7 @@ function startStatsApi() {
       return;
     }
     snap.ranked = state.currentRanked !== null
-      ? state.currentRanked : resolveRanked().ranked;
+      ? state.currentRanked : mmrLog.resolveRanked().ranked;
     state.currentRanked = null;
     state.currentRankedAuto = null;
     state.currentMatchmade = null;
@@ -497,270 +473,6 @@ function startStatsApi() {
   api.start();
 }
 
-// ───────── Vrai MMR, lu dans le journal du jeu ─────────
-// Le relevé du journal est la VÉRITÉ : on s'en sert comme nouvelle base de
-// calibrage, horodatée au moment de la mise en file. Les matchs joués APRÈS
-// ce relevé continuent d'être estimés à ±9 (session.js ne compte que les
-// matchs postérieurs à `setAt`) — la dérive est donc remise à zéro à chaque
-// file au lieu de s'accumuler indéfiniment.
-let logReader = null;
-
-// Le match en cours est-il classé ? La playlist relevée au moment de la mise
-// en file fait autorité ; à défaut (pas chef de groupe, journal illisible,
-// playlist inconnue), on retombe sur la préférence de l'utilisateur.
-const QUEUE_FRESH_MS = 30 * 60 * 1000;
-
-// Un match privé (ou une exhibition) ne passe par aucune file : le journal ne
-// contient pas de ligne StartMatchmaking pour lui. Une mise en file ne vaut
-// donc que pour UN match — sinon le match privé joué juste après une partie
-// classée héritait de sa file, était compté, et son effectif de deux joueurs
-// le faisait passer pour un 1v1.
-// Renvoie null quand on ne peut pas savoir (journal désactivé, hors Windows,
-// aucune file jamais vue) : dans le doute, on compte, comme avant.
-function resolveMatchmade() {
-  if (config.get().mmrFromLog === false || !logReader) return null;
-  let q = null;
-  try { q = logReader.refreshQueue(); } catch (e) { q = null; }
-  if (!q || !q.at) return state.queueUsed ? false : null;
-  const key = q.playlist + '@' + q.at;
-  if (key === state.queueUsed) return false;      // file déjà consommée
-  if (Date.now() - q.at > QUEUE_FRESH_MS) return false;
-  state.queueUsed = key;
-  return true;
-}
-
-// Un match hors file compte-t-il ? Non par défaut : c'est ce que l'utilisateur
-// attend d'un match privé entre amis.
-function countsAsMatch(where) {
-  if (state.currentMatchmade !== false || config.get().countPrivate) return true;
-  log(where + ' — match hors file, non compté');
-  return false;
-}
-function resolveRanked() {
-  const pref = config.get().mmrCounts !== false;
-  if (config.get().mmrFromLog === false || !logReader) return { ranked: pref, auto: null };
-  let q = null;
-  try { q = logReader.refreshQueue(); } catch (e) { q = null; }
-  if (!q || !q.known || Date.now() - q.at > QUEUE_FRESH_MS) return { ranked: pref, auto: null };
-  return { ranked: q.ranked, auto: q.ranked };
-}
-
-// Apprend le VRAI pas MMR du joueur en comparant deux relevés successifs du
-// journal : la variation réelle de MMR, divisée par le nombre de victoires
-// nettes jouées entre les deux. Les gains varient (~6 à 12 selon l'écart de
-// MMR), donc la moyenne figée à 9 introduisait une erreur systématique entre
-// deux recalages. Lissé de moitié pour ne pas suivre le bruit d'un seul écart.
-function learnMmrStep(reading, previous) {
-  if (!previous || !previous.fromLog || !Number.isFinite(previous.base)) return;
-  const d = store.decidedBetween(reading.mode, previous.setAt, Date.now(),
-    config.get().pseudo);
-  if (!d.net) return;                      // autant de victoires que de défaites
-  // Un match non attribué (pseudo qui ne correspond pas) est absent de `net`
-  // alors qu'il a bel et bien bougé le MMR : le pas déduit serait gonflé.
-  if (d.unmatched) return;
-  const delta = reading.mmr - previous.base;
-  // Le signe doit concorder : gagner net tout en PERDANT du MMR (ou l'inverse)
-  // signale des données contradictoires — relevé manqué, playlist mal
-  // attribuée, parties jouées sur un autre compte. On n'apprend rien de ça.
-  if (Math.sign(delta) !== Math.sign(d.net)) return;
-  const observed = Math.abs(delta / d.net);
-  if (!Number.isFinite(observed) || observed < MMR_STEP_MIN || observed > MMR_STEP_MAX) return;
-  const steps = { ...(config.get().mmrStep || {}) };
-  const prev = Number(steps[reading.mode]);
-  steps[reading.mode] = Number.isFinite(prev)
-    ? Math.round(((prev + observed) / 2) * 10) / 10
-    : Math.round(observed * 10) / 10;
-  config.update({ mmrStep: steps });
-  log('pas MMR appris pour ' + reading.mode + ' : ' + steps[reading.mode]
-    + ' (observé ' + observed.toFixed(1) + ' sur ' + d.net + ' victoire(s) nette(s))');
-}
-
-// Gain moyen par match d'un mode : celui appris sur les lectures du journal
-// s'il est plausible, sinon la moyenne générale.
-function stepFor(mode) {
-  const learned = (config.get().mmrStep || {})[mode];
-  return (Number.isFinite(learned) && learned >= MMR_STEP_MIN && learned <= MMR_STEP_MAX)
-    ? learned : SessionStore.MMR_STEP;
-}
-
-function startMmrFromLog() {
-  const reader = logReader = new RLLogReader();
-  reader.on('queue', (q) => {
-    state.queue = q;
-    // Une file hors modes classiques peut tomber sur Underpass : la carte
-    // workshop qui l'occupe doit être retirée avant que le match ne charge.
-    // On peut lancer une recherche DEPUIS l'entraînement sur Underpass : le
-    // fichier est alors encore ouvert par le jeu. On réessaie quelques fois,
-    // le temps que le match trouvé fasse quitter la carte.
-    const guard = async (tries) => {
-      if (!mapLib) return;
-      const g = await mapLib.guardQueue(q);
-      if (g.restored || g.error) sendMaps('maps-changed', { guard: g });
-      if (g.error && tries > 0) setTimeout(() => guard(tries - 1), 5000).unref();
-    };
-    guard(6);
-    pushState();
-    log('mise en file détectée : playlist ' + q.playlist
-      + (q.known ? ' (' + (q.ranked ? 'classé ' + q.mode : 'casual') + ')' : ' (inconnue)'));
-  });
-  reader.on('mmr', (r) => {
-    if (config.get().mmrFromLog === false) return;
-    const cur = (config.get().mmr || {})[r.mode];
-    if (cur && cur.base === r.mmr && cur.fromLog) return;   // déjà calé là-dessus
-
-    // Garde-fou : une lecture qui s'écarte trop de ce que les matchs
-    // enregistrés prévoient n'est pas ancrée tout de suite (voir mmr-guard.js).
-    const now = Date.now();
-    const pseudo = config.get().pseudo;
-    const anchor = store.lastReading(r.mode);
-    const pend = state.mmrPending && state.mmrPending.mode === r.mode ? state.mmrPending : null;
-    const verdict = mmrGuard.judge({
-      prev: anchor, reading: r, now, step: stepFor(r.mode),
-      decided: anchor ? store.decidedBetween(r.mode, anchor.t, now, pseudo) : null,
-      pending: pend,
-      decidedPending: pend ? store.decidedBetween(r.mode, pend.at, now, pseudo) : null,
-    });
-    if (verdict.action === 'hold') {
-      state.mmrPending = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: now,
-        expected: Math.round(verdict.expected), tolerance: Math.round(verdict.tolerance) };
-      log('MMR relevé mis de côté : ' + r.mode + ' = ' + r.mmr + ', attendu ~'
-        + Math.round(verdict.expected) + ' ± ' + Math.round(verdict.tolerance)
-        + ' (' + verdict.reason + ')');
-      pushState();
-      return;
-    }
-    if (pend) state.mmrPending = null;
-    if (verdict.action === 'accept-pending') {
-      // La lecture mise de côté était juste : on l'ancre à SA date, sans
-      // apprentissage ni correction de forfait (l'intervalle qui la précède
-      // est justement celui que nos matchs n'expliquaient pas).
-      store.addMmrReading(pend.mode, pend.mmr, pend.tier, pend.at);
-      config.update({ mmrSet: { mode: pend.mode, value: pend.mmr, fromLog: true, at: pend.at } });
-      log('MMR mis de côté confirmé : ' + pend.mode + ' = ' + pend.mmr);
-    } else if (pend) {
-      log('MMR mis de côté abandonné : ' + pend.mode + ' = ' + pend.mmr + ' (' + verdict.reason + ')');
-    }
-    const curNow = (config.get().mmr || {})[r.mode];
-    learnMmrStep(r, curNow);
-    // Réconciliation AVANT d'ancrer : le relevé qui arrive est la vérité, et
-    // c'est en le comparant au bilan enregistré depuis l'ancre PRÉCÉDENTE
-    // qu'un forfait mal compté se trahit (écart de deux pas exactement).
-    const prevAnchor = store.lastReading(r.mode);
-    if (prevAnchor) {
-      const fixed = store.reconcileForfeits(r.mode, prevAnchor, Date.now(),
-        r.mmr, stepFor(r.mode), config.get().pseudo);
-      if (fixed) {
-        log('forfait réconcilié par le vrai MMR : match ' + fixed.id
-          + ' recompté ' + (fixed.flipped === 'W' ? 'victoire' : 'défaite'));
-      }
-    }
-    // L'ancre est archivée dans le journal : c'est elle qui porte la courbe.
-    // La base de configuration ne sert plus qu'au cas « aucun relevé ».
-    store.addMmrReading(r.mode, r.mmr, r.tier);
-    config.update({ mmrSet: { mode: r.mode, value: r.mmr, fromLog: true } });
-    state.mmrLog = { mode: r.mode, mmr: r.mmr, tier: r.tier, at: Date.now() };
-    refreshSession();
-    pushState();
-    log('MMR relevé dans le journal du jeu : ' + r.mode + ' = ' + r.mmr
-      + (r.tier ? ' (palier ' + r.tier + ')' : ''));
-  });
-  reader.start();
-}
-
-// Journalise le détail d'une activation de la Stats API (diagnostic).
-function logStatsApiResult(r) {
-  if (!r) { log('Stats API : résultat vide'); return; }
-  if (r.skipped) { log('Stats API : ignorée (' + (r.reason || '') + ')'); return; }
-  log('Stats API : détectées=' + JSON.stringify(r.installs || [])
-    + ' configurées=' + JSON.stringify(r.configured || null)
-    + ' profil=' + JSON.stringify(r.userIni || [])
-    + (r.ok ? '' : ' ÉCHEC : ' + (r.reason || '?')));
-}
-
-// ───────── Réparation automatique de la Stats API ─────────
-// Steam (vérification d'intégrité, grosses mises à jour) et la réparation
-// Epic réinitialisent DefaultStatsAPI.ini — jusqu'ici le tracker mourait en
-// silence et il fallait penser à cliquer « Réactiver ». Désormais : lecture
-// de l'ini (sans élévation) à chaque lancement, et réactivation automatique
-// (une invite UAC) uniquement si la panne est avérée.
-let repairing = false;
-// Une réparation demande une élévation (UAC) tant que l'ACL n'est pas posée.
-// Si l'utilisateur refuse — ou n'est pas administrateur — réessayer sans fin
-// lui collerait une invite toutes les 10 minutes pendant des jours. On borne
-// donc les tentatives automatiques ; le bouton « Réactiver » reste toujours
-// disponible, et le compteur repart à chaque réparation réussie.
-const MAX_AUTO_REPAIRS = 3;
-let autoRepairFails = 0;
-async function repairStatsApiIfNeeded(origin) {
-  if (repairing) return;            // une invite UAC à la fois
-  if (autoRepairFails >= MAX_AUTO_REPAIRS) return;
-  let check;
-  try { check = checkStatsApi(config.get().statsApiPort); } catch (e) { return; }
-  if (!check.installs.length || !check.broken.length) {
-    if (state.game.statsApiBroken) { state.game.statsApiBroken = false; pushState(); }
-    // Tout marche : on en profite pour poser TAStatsAPI.ini s'il manque. Ce
-    // fichier survit aux vérifications d'intégrité Steam ; l'écrire seulement
-    // après la panne arriverait trop tard pour l'éviter.
-    if (check.installs.length) {
-      try {
-        const w = ensureUserIni(config.get().statsApiPort);
-        if (w.length) log('Stats API : TAStatsAPI.ini posé dans ' + JSON.stringify(w));
-      } catch (e) { /* sans conséquence : DefaultStatsAPI.ini fait déjà le travail */ }
-    }
-    return;
-  }
-  log('Stats API coupée dans ' + JSON.stringify(check.broken) + ' (' + origin
-    + ') — ini réinitialisé par une mise à jour / vérification du jeu, réactivation…');
-  state.game.statsApiBroken = true;
-  pushState();
-  repairing = true;
-  let r;
-  try { r = await enableStatsApi(config.get().statsApiPort); }
-  catch (e) { r = { ok: false, reason: e.message }; }
-  finally { repairing = false; }
-  logStatsApiResult(r);
-  // On RELIT l'ini au lieu de croire le script sur parole : il rendait « ok »
-  // dès qu'UNE installation avait été écrite. Si c'est justement celle de
-  // Steam qui a échoué, le voyant passait au vert alors que rien ne marchait.
-  refreshStatsApiFlag();
-  if (state.game.statsApiBroken) {
-    autoRepairFails++;
-    if (autoRepairFails >= MAX_AUTO_REPAIRS) {
-      log('réparation automatique abandonnée après ' + autoRepairFails
-        + ' échecs — utiliser le bouton « Réactiver »');
-    }
-  } else {
-    autoRepairFails = 0;
-  }
-  pushState();
-}
-
-// Steam est le cas fragile : DefaultStatsAPI.ini vit DANS le dossier du jeu,
-// donc dans le dépôt Steam — chaque mise à jour de Rocket League et chaque
-// « vérification de l'intégrité des fichiers » le restaure. Comme le tracker
-// démarre avec Windows et tourne pendant des jours, la panne survenait en
-// pleine vie de l'application et n'était vue qu'au lancement SUIVANT.
-const STATSAPI_WATCH_MS = 10 * 60 * 1000;
-function startStatsApiWatch() {
-  if (process.platform !== 'win32') return;
-  setInterval(() => {
-    // Pendant que le jeu tourne, réparer ne servirait à rien (l'ini n'est lu
-    // qu'au démarrage du jeu) et l'invite UAC passerait par-dessus la partie.
-    // On se contente donc de rafraîchir le drapeau pour prévenir le joueur.
-    if (state.game.processRunning) refreshStatsApiFlag();
-    else repairStatsApiIfNeeded('veille');
-  }, STATSAPI_WATCH_MS).unref();
-}
-
-// Relevé sans élévation ni réparation : rafraîchit juste le drapeau pour que
-// la fenêtre de contrôle guide l'utilisateur dès le lancement du jeu.
-function refreshStatsApiFlag() {
-  try {
-    const c = checkStatsApi(config.get().statsApiPort);
-    state.game.statsApiBroken = c.installs.length > 0 && c.broken.length > 0;
-  } catch (e) { /* le drapeau garde sa valeur */ }
-}
-
 // ───────── Premier lancement ─────────
 async function firstRunSetup() {
   state.firstRun = true;
@@ -771,8 +483,8 @@ async function firstRunSetup() {
     let r;
     try { r = await enableStatsApi(config.get().statsApiPort); }
     catch (e) { r = { ok: false, reason: e.message }; }
-    logStatsApiResult(r);
-    refreshStatsApiFlag();
+    repair.logResult(r);
+    repair.refreshFlag();
   }
 }
 
@@ -792,7 +504,7 @@ ipcMain.handle('set-config', (_e, partial) => {
   if (partial && partial.overlayCfg) {
     windows.applyOverlayCfg(config.get().overlayCfg);
   }
-  if (partial && partial.lang) buildTrayMenu();
+  if (partial && partial.lang) tray.rebuild();
   if (partial && typeof partial.trayOnly === 'boolean') windows.setTrayOnly(partial.trayOnly);
   if (partial && typeof partial.discordRpc === 'boolean') {
     discord.setEnabled(partial.discordRpc, log);
@@ -824,9 +536,6 @@ ipcMain.on('preview-animation', (_e, result) => {
     obs.emit('result', fake);
   }, already ? 50 : 900);
 });
-
-// Lit un sample Alpha Boost pour le moteur audio (nom strictement filtré,
-// dossier imposé : aucun chemin arbitraire ne peut sortir d'ici).
 
 // Marque le match EN COURS comme classé ou casual.
 ipcMain.on('set-current-ranked', (_e, ranked) => {
@@ -863,16 +572,6 @@ ipcMain.handle('reset-session', () => {
   pushState();
 });
 ipcMain.handle('set-autostart', (_e, on) => { setAutostart(!!on); pushState(); });
-ipcMain.handle('enable-statsapi', async () => {
-  let r;
-  try { r = await enableStatsApi(config.get().statsApiPort); }
-  catch (e) { r = { ok: false, reason: e.message }; }
-  logStatsApiResult(r);
-  refreshStatsApiFlag();     // on relit l'ini plutôt que de croire le script
-  autoRepairFails = 0;       // action volontaire : on refait confiance à l'auto
-  pushState();
-  return r;
-});
 
 // ───────── Diagnostic ─────────
 // Deux mécanismes n'ont jamais été validés en conditions réelles : l'activation
@@ -897,8 +596,8 @@ ipcMain.handle('run-diagnostic', () => {
         ? { dirs: userConfigDirs(), files: userIniFiles() } : { dirs: [], files: [] }),
       readIni: readIni,
       logFile: RLLogReader.defaultLogPath(),
-      readQueue: () => (logReader ? logReader.refreshQueue() : null),
-      readMmr: () => (logReader ? logReader.read() : null),
+      readQueue: () => (mmrLog.reader ? mmrLog.reader.refreshQueue() : null),
+      readMmr: () => (mmrLog.reader ? mmrLog.reader.read() : null),
       mmrPending: state.mmrPending || null,
       history: state.history,
       playersSeen: state.playersSeen,
@@ -917,358 +616,6 @@ ipcMain.handle('run-diagnostic', () => {
   log('diagnostic : ' + r.checks.length + ' contrôle(s), '
     + (ko.length ? 'en échec : ' + ko.join(', ') : 'aucun échec'));
   return r;
-});
-
-// ───────── Dispositions d'overlay : export et import ─────────
-// Une disposition d'overlay se compose au pixel près pendant une heure : elle
-// doit pouvoir suivre l'utilisateur d'un PC à l'autre (et se partager), sans
-// quoi tout est à refaire après une réinstallation.
-const PRESET_MAX_BYTES = 256 * 1024;
-const PRESET_APP = 'rl-session-tracker';
-
-ipcMain.handle('export-overlay-preset', async () => {
-  try {
-    const cfg = config.get();
-    const stamp = new Date().toISOString().slice(0, 10);
-    const r = await dialog.showSaveDialog({
-      title: state.lang === 'en' ? 'Export the overlay preset'
-        : 'Exporter la disposition de l’overlay',
-      defaultPath: 'overlay-' + stamp + '.rlst.json',
-      filters: [{ name: 'RL Session Tracker', extensions: ['rlst.json', 'json'] }],
-    });
-    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
-    // L'habillage et la palette voyagent AVEC la disposition : sans eux, le
-    // fichier rouvert chez quelqu'un d'autre place bien les blocs mais ne
-    // ressemble à rien de ce qui avait été composé.
-    const preset = {
-      app: PRESET_APP,
-      v: 1,
-      at: Date.now(),
-      obsLayout: cfg.obsLayout || null,
-      skin: cfg.skin || null,
-      theme: cfg.theme || null,
-      tune: cfg.tune || null,
-      canvas: (cfg.obs && cfg.obs.canvas) || null,
-    };
-    fs.writeFileSync(r.filePath, JSON.stringify(preset, null, 2) + '\n');
-    log('disposition d’overlay exportée vers ' + r.filePath);
-    return { ok: true, file: r.filePath };
-  } catch (e) {
-    log('export de la disposition échoué : ' + e.message);
-    return { ok: false, error: e.message };
-  }
-});
-
-ipcMain.handle('import-overlay-preset', async () => {
-  try {
-    const r = await dialog.showOpenDialog({
-      title: state.lang === 'en' ? 'Import an overlay preset'
-        : 'Importer une disposition d’overlay',
-      properties: ['openFile'],
-      filters: [{ name: 'RL Session Tracker', extensions: ['rlst.json', 'json'] }],
-    });
-    if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
-    const file = r.filePaths[0];
-    // Fichier VENU DE L'EXTÉRIEUR : on borne la taille AVANT de lire (une
-    // disposition pèse quelques kilo-octets ; au-delà, ce n'en est pas une), et
-    // on revérifie après lecture — le fichier a pu grossir entre les deux.
-    let size = 0;
-    try { size = fs.statSync(file).size; } catch (e) { size = 0; }
-    if (size > PRESET_MAX_BYTES) {
-      return { ok: false, error: 'Fichier trop volumineux : ce n’est pas une disposition.' };
-    }
-    const raw = fs.readFileSync(file, 'utf8');
-    if (Buffer.byteLength(raw) > PRESET_MAX_BYTES) {
-      return { ok: false, error: 'Fichier trop volumineux : ce n’est pas une disposition.' };
-    }
-    let data;
-    try { data = JSON.parse(raw); }
-    catch (e) { return { ok: false, error: 'Fichier illisible : ce n’est pas du JSON valide.' }; }
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return { ok: false, error: 'Fichier invalide : disposition attendue.' };
-    }
-    if (data.app !== PRESET_APP) {
-      return { ok: false, error: 'Ce fichier ne vient pas de RL Session Tracker.' };
-    }
-    // Une version FUTURE peut contenir des clés dont le sens nous échappe :
-    // appliquer ce qu'on en comprend donnerait un résultat à moitié juste, plus
-    // déroutant qu'un refus franc.
-    const v = Number(data.v);
-    if (!Number.isFinite(v) || v > 1) {
-      return { ok: false, error: 'Disposition créée par une version plus récente de l’application.' };
-    }
-    // Tout passe par config.update : c'est LUI qui borne les positions, filtre
-    // l'habillage par liste blanche et rejette une couleur qui n'est pas un
-    // hexadécimal. Dupliquer cette validation ici, c'est la voir diverger.
-    const partial = {};
-    const obj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
-    if (obj(data.obsLayout)) partial.obsLayout = data.obsLayout;
-    if (typeof data.skin === 'string') partial.skin = data.skin;
-    if (obj(data.theme)) partial.theme = data.theme;
-    if (obj(data.tune)) partial.tune = data.tune;
-    if (obj(data.canvas)) partial.obs = { canvas: data.canvas };
-    // Un fichier bien formé mais vide s'appliquerait « avec succès » sans rien
-    // changer : l'utilisateur croirait avoir importé sa disposition.
-    if (!Object.keys(partial).length) {
-      return { ok: false, error: 'Ce fichier ne contient aucune disposition.' };
-    }
-    config.update(partial);
-    pushState();
-    const name = path.basename(file);
-    log('disposition d’overlay importée depuis ' + file);
-    return { ok: true, name: name };
-  } catch (e) {
-    log('import de la disposition échoué : ' + e.message);
-    return { ok: false, error: e.message };
-  }
-});
-// Export du journal : 2000 matchs ne doivent pas rester enfermés dans un
-// fichier interne. CSV (une ligne par match, ouvrable dans un tableur) ou
-// JSON complet, au choix de l'extension retenue dans la boîte de dialogue.
-function toCsv(rows, pseudo) {
-  const cell = (v) => {
-    const t = v === null || v === undefined ? '' : String(v);
-    // Un pseudo peut contenir « ; », un guillemet ou un retour à la ligne.
-    return /[";\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
-  };
-  // Coéquipiers ou adversaires, du point de vue du joueur suivi.
-  // Le joueur suivi est écarté de la colonne « coéquipiers » par son PSEUDO :
-  // le reconnaître à ses stats effaçait un coéquipier ayant fini avec les
-  // mêmes points et buts — cas courant en 2v2.
-  const me = String(pseudo || '').trim().toLowerCase();
-  const names = (m, mine) => (Array.isArray(m.players) && m.myTeam !== null
-    ? m.players.filter((p) => (p.team === m.myTeam) === mine
-        && !(mine && String(p.name || '').trim().toLowerCase() === me))
-      .map((p) => p.name).join(', ')
-    : '');
-  const head = ['date', 'mode', 'classe', 'resultat', 'score', 'prolongation',
-    'forfait', 'buts', 'passes', 'arrets', 'tirs', 'points', 'mvp',
-    'coequipiers', 'adversaires'];
-  const lines = [head.join(';')];
-  for (const m of rows) {
-    lines.push([
-      new Date(m.endedAt).toISOString(),
-      m.mode,
-      m.ranked ? 'classe' : 'casual',
-      m.result || '',
-      Array.isArray(m.score) ? m.score.join('-') : '',
-      m.isOT ? 'oui' : 'non',
-      m.forfeit ? 'oui' : 'non',
-      m.me ? m.me.goals : '', m.me ? m.me.assists : '',
-      m.me ? m.me.saves : '', m.me ? m.me.shots : '',
-      m.me ? m.me.score : '', m.me && m.me.mvp ? 'oui' : 'non',
-      // C'est ici qu'un pseudo peut contenir « ; » ou un guillemet : la
-      // fonction `cell` ci-dessus existe pour ces deux colonnes.
-      names(m, true), names(m, false),
-    ].map(cell).join(';'));
-  }
-  // BOM UTF-8 : sans lui, Excel lit le CSV en ANSI et massacre les accents.
-  return '\uFEFF' + lines.join('\r\n') + '\r\n';
-}
-
-// ───────── Cosmétiques (swaps de paquets du jeu) ─────────
-function refreshCosmetics() {
-  if (cosmetics) state.cosmetics = cosmetics.summary();
-}
-function cosmeticsResult(r) {
-  refreshCosmetics();
-  pushState();
-  return r;
-}
-// Les paquets vivent sous Program Files : la première écriture échoue tant
-// que l'utilisateur n'a pas de droits sur CookedPCConsole. Plutôt que de lui
-// demander d'aller cliquer ailleurs, on lance l'élévation (qui pose l'ACL)
-// et on rejoue l'opération une fois. Une seule invite UAC, puis plus jamais.
-async function withGameRights(op, what) {
-  const who = what || 'cosmétiques';
-  let r = await op();
-  if (r && r.ok === false && (r.code === 'EACCES' || r.code === 'EPERM')
-      && process.platform === 'win32') {
-    log(who + ' : accès refusé, élévation pour poser les droits…');
-    try { await enableStatsApi(config.get().statsApiPort, { forceElevate: true }); }
-    catch (e) { log(who + ' : élévation échouée : ' + e.message); }
-    refreshStatsApiFlag();
-    r = await op();
-  }
-  return cosmeticsResult(r);
-}
-ipcMain.handle('cosmetics-list', () => (cosmetics ? cosmetics.list()
-  : { installs: [], swaps: [], gameRunning: false }));
-ipcMain.handle('cosmetics-targets', (_e, install, query) =>
-  (cosmetics ? cosmetics.targets(String(install || ''), String(query || '')) : []));
-ipcMain.handle('cosmetics-add', async (_e, opts) => {
-  if (!cosmetics) return { ok: false, error: 'Module indisponible.' };
-  const o = opts || {};
-  if (cosmetics.isGameRunning()) {
-    return { ok: false, error: 'Rocket League est ouvert : ferme le jeu d’abord.' };
-  }
-  const ext = String(o.target || '').split('.').pop().toLowerCase();
-  const r = await dialog.showOpenDialog({
-    title: state.lang === 'en' ? 'Replacement file' : 'Fichier de remplacement',
-    properties: ['openFile'],
-    filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
-  });
-  if (r.canceled || !r.filePaths || !r.filePaths[0]) return { ok: false, canceled: true };
-  return cosmeticsResult(cosmetics.add({
-    install: o.install, target: o.target, label: o.label, sourcePath: r.filePaths[0],
-  }));
-});
-ipcMain.handle('cosmetics-presets', () => (cosmetics ? cosmetics.presets() : []));
-// ───────── Cartes workshop ─────────
-function sendMaps(channel, payload) {
-  const w = windows.getMaps();
-  if (w) { try { w.webContents.send(channel, payload); } catch (e) {} }
-}
-function mapsList() {
-  if (!mapLib) return { installs: [], maps: [], slot: null, gameRunning: false };
-  return Object.assign(mapLib.list(), { gameRunning: !!state.game.processRunning });
-}
-function mapsChanged(r) {
-  sendMaps('maps-changed', null);
-  return r;
-}
-
-// Téléchargement terminé dans le site : l'aperçu est récupéré, la carte
-// entre dans la bibliothèque, l'archive temporaire disparaît.
-async function importDownload(d) {
-  const meta = d.meta || {};
-  const preview = meta.preview ? await mapsBrowser.fetchPreview(meta.preview) : null;
-  const r = mapLib ? await mapLib.importFile(d.file, {
-    title: meta.title, author: meta.author, page: meta.page,
-    source: 'bakkesplugins', preview: preview,
-  }) : { ok: false, error: 'Module indisponible.' };
-  try { fs.rmSync(d.file, { force: true }); } catch (e) {}
-  log('cartes : téléchargement « ' + d.name + ' » ' + (r.ok ? 'ajouté' : 'refusé : ' + r.error));
-  sendMaps('maps-download', { id: d.id, name: d.name, state: r.ok ? 'imported' : 'error',
-    mapId: r.ok ? r.map.id : null, title: r.ok ? r.map.title : null,
-    duplicate: !!r.duplicate, error: r.ok ? null : r.error });
-  sendMaps('maps-changed', null);
-}
-
-function openMapsWindow() {
-  const w = windows.openMaps((win) => {
-    mapsNav = mapsBrowser.attach(win, {
-      downloadDir: mapLib ? mapLib.incomingDir : path.join(app.getPath('temp'), 'rlst-maps'),
-      onNav: (n) => sendMaps('maps-nav', n),
-      onDownload: (d) => sendMaps('maps-download', d),
-      onComplete: (d) => { importDownload(d).catch((e) => log('cartes : import échoué : ' + e.message)); },
-    });
-    win.on('close', () => { if (mapsNav) { mapsNav.destroy(); mapsNav = null; } });
-  });
-  return w;
-}
-
-ipcMain.on('open-maps', () => openMapsWindow());
-ipcMain.handle('maps-list', () => mapsList());
-ipcMain.handle('maps-preview', (_e, id) => (mapLib ? mapLib.preview(String(id || '')) : null));
-ipcMain.handle('maps-load', (_e, id) =>
-  withGameRights(() => (mapLib ? mapLib.load(String(id || '')) : { ok: false, error: 'Module indisponible.' }), 'cartes')
-    .then(mapsChanged));
-ipcMain.handle('maps-restore', () =>
-  withGameRights(() => (mapLib ? mapLib.restore() : { ok: false, error: 'Module indisponible.' }), 'cartes')
-    .then(mapsChanged));
-ipcMain.handle('maps-remove', (_e, id) =>
-  withGameRights(() => (mapLib ? mapLib.remove(String(id || '')) : { ok: false, error: 'Module indisponible.' }), 'cartes')
-    .then(mapsChanged));
-async function importPaths(paths) {
-  const out = [];
-  for (const p of paths.slice(0, 20)) {
-    if (typeof p !== 'string' || !/\.(udk|upk|zip)$/i.test(p)) {
-      out.push({ ok: false, error: 'Format non pris en charge : il faut un .udk, un .upk ou un .zip.' });
-      continue;
-    }
-    out.push(mapLib ? await mapLib.importFile(p, { source: 'fichier' }) : { ok: false, error: 'Module indisponible.' });
-  }
-  mapsChanged(null);
-  return out;
-}
-ipcMain.handle('maps-import', async () => {
-  const w = windows.getMaps();
-  const r = await dialog.showOpenDialog(w || undefined, {
-    title: state.lang === 'en' ? 'Import a map' : 'Importer une carte',
-    properties: ['openFile', 'multiSelections'],
-    filters: [{ name: state.lang === 'en' ? 'Maps' : 'Cartes', extensions: ['udk', 'upk', 'zip'] }],
-  });
-  if (r.canceled || !r.filePaths || !r.filePaths.length) return { canceled: true, results: [] };
-  return { results: await importPaths(r.filePaths) };
-});
-// Glisser-déposer : les chemins viennent de webUtils.getPathForFile, côté
-// preload ; ils sont revérifiés ici (extension) puis à l'import (contenu).
-ipcMain.handle('maps-import-paths', async (_e, paths) =>
-  ({ results: await importPaths(Array.isArray(paths) ? paths : []) }));
-ipcMain.on('maps-view-bounds', (_e, r) => { if (mapsNav) mapsNav.setBounds(r); });
-ipcMain.on('maps-view', (_e, cmd) => { if (mapsNav) mapsNav.command(String(cmd || '')); });
-
-// Aperçu d'un habillage : rediffusé tel quel aux fenêtres, jamais écrit dans
-// la configuration. C'est la fenêtre qui l'a lancé qui décide d'appliquer.
-ipcMain.on('preview-look', (_e, look) => {
-  const clean = look && typeof look === 'object'
-    ? { skin: String(look.skin || '').slice(0, 24), theme: look.theme } : null;
-  windows.broadcast('look-preview', clean);
-});
-
-
-ipcMain.handle('media-command', (_e, cmd) =>
-  (media ? media.command(String(cmd || '')) : { ok: false, error: 'indisponible' }));
-
-ipcMain.on('open-control', (_e, section) => {
-  windows.showControl();
-  const w = windows.getControl();
-  if (w && typeof section === 'string') {
-    try { w.webContents.send('goto-section', section.slice(0, 24)); } catch (e) {}
-  }
-});
-
-ipcMain.on('open-overlay-composer', () => {
-  const w = windows.openOverlayComposer();
-  // La fenêtre reçoit l'état comme les autres (windows.broadcast la couvre
-  // dès qu'elle existe) ; on pousse tout de suite pour ne pas attendre.
-  if (w) w.webContents.once('did-finish-load', () => pushState());
-});
-
-ipcMain.handle('cosmetics-check-targets', (_e, id, install) =>
-  (cosmetics ? cosmetics.checkTargets(id, install) : { ok: false, error: 'indisponible' }));
-
-ipcMain.handle('cosmetics-add-preset', (_e, id, opts) =>
-  cosmeticsResult(cosmetics ? cosmetics.addPreset(String(id || ''), opts || {})
-    : { ok: false, error: 'Module indisponible.' }));
-ipcMain.handle('cosmetics-apply', (_e, id) =>
-  withGameRights(() => (cosmetics ? cosmetics.apply(String(id || '')) : { ok: false, error: 'Module indisponible.' })));
-ipcMain.handle('cosmetics-restore', (_e, id) =>
-  withGameRights(() => (cosmetics ? cosmetics.restore(String(id || '')) : { ok: false, error: 'Module indisponible.' })));
-ipcMain.handle('cosmetics-remove', (_e, id) =>
-  cosmeticsResult(cosmetics ? cosmetics.remove(String(id || '')) : { ok: false, error: 'Module indisponible.' }));
-ipcMain.handle('cosmetics-toggle', (_e, id, enabled) =>
-  cosmeticsResult(cosmetics ? cosmetics.toggle(String(id || ''), !!enabled) : { ok: false, error: 'Module indisponible.' }));
-ipcMain.handle('cosmetics-apply-all', () =>
-  withGameRights(() => (cosmetics ? cosmetics.applyAll() : { ok: false, error: 'Module indisponible.' })));
-ipcMain.handle('cosmetics-restore-all', () =>
-  withGameRights(() => (cosmetics ? cosmetics.restoreAll() : { ok: false, error: 'Module indisponible.' })));
-
-ipcMain.handle('export-matches', async () => {
-  try {
-    const stamp = new Date().toISOString().slice(0, 10);
-    const r = await dialog.showSaveDialog({
-      title: state.lang === 'en' ? 'Export matches' : 'Exporter les matchs',
-      defaultPath: 'rl-matchs-' + stamp + '.csv',
-      filters: [
-        { name: 'CSV', extensions: ['csv'] },
-        { name: 'JSON', extensions: ['json'] },
-      ],
-    });
-    if (r.canceled || !r.filePath) return { ok: false, canceled: true };
-    // Le point de vue du joueur (victoire/défaite, stats perso) est dérivé au
-    // calcul : on exporte donc l'historique évalué, pas les données brutes.
-    const rows = store.exportRows(config.get().pseudo);
-    const json = /\.json$/i.test(r.filePath);
-    fs.writeFileSync(r.filePath,
-      json ? JSON.stringify(rows, null, 2) + '\n' : toCsv(rows, config.get().pseudo));
-    log('export de ' + rows.length + ' match(s) vers ' + r.filePath);
-    return { ok: true, file: r.filePath, count: rows.length };
-  } catch (e) {
-    log('export échoué : ' + e.message);
-    return { ok: false, error: e.message };
-  }
 });
 
 ipcMain.on('open-dashboard', () => openDashboard());
@@ -1330,7 +677,7 @@ if (!gotLock) {
       isGameRunning: () => !!state.game.processRunning,
       log: log,
     });
-    refreshCosmetics();
+    cosmeticsIpc.refresh();
     mapLib = new MapLibrary(app.getPath('userData'), {
       detectInstalls: () => (process.platform === 'win32' ? detectInstalls() : []),
       log: log,
@@ -1342,7 +689,7 @@ if (!gotLock) {
     state.autostart = autostartEnabled();
     refreshSession();
 
-    createTray();
+    tray.create();
     windows.setTrayOnly(config.get().trayOnly !== false);
     windows.createControl(!SILENT, () => pushState(), {
       bounds: config.get().controlBounds,
@@ -1371,29 +718,29 @@ if (!gotLock) {
         // Le jeu démarre : l'ini a pu être réinitialisé par une mise à jour
         // pendant que l'application tournait — on rafraîchit le drapeau (sans
         // élévation) pour guider tout de suite au lieu du délai de 2 min.
-        refreshStatsApiFlag();
+        repair.refreshFlag();
       } else if (process.platform === 'win32') {
         // Le jeu vient de se fermer : c'est LE bon moment pour réparer. L'ini
         // n'est relu qu'au démarrage du jeu, donc réparer maintenant rend la
         // prochaine session saine, et l'invite UAC ne tombe pas en pleine
         // partie. Sans ça, une mise à jour Steam coûtait une session entière.
-        repairStatsApiIfNeeded('fermeture du jeu');
+        repair.repairIfNeeded('fermeture du jeu');
         // Même logique pour les swaps cosmétiques : si une mise à jour a remis
         // les originaux, on les réapplique maintenant, jeu fermé.
-        if (cosmetics) { cosmetics.reapplyReverted(); refreshCosmetics(); }
+        if (cosmetics) { cosmetics.reapplyReverted(); cosmeticsIpc.refresh(); }
       }
       recomputeRunning();
     });
     watcher.start();
-    startStatsApiWatch();
-    startMmrFromLog();
+    repair.startWatch();
+    mmrLog.start();
 
     if (firstRun) {
       await firstRunSetup();
       windows.showControl();           // premier lancement : on se montre
       pushState();
     } else if (process.platform === 'win32') {
-      await repairStatsApiIfNeeded('lancement');
+      await repair.repairIfNeeded('lancement');
     }
 
     // PAS de réapplication automatique au lancement de l'application. Leçon
@@ -1411,3 +758,13 @@ function configExists() {
     return fs.existsSync(path.join(app.getPath('userData'), 'config.json'));
   } catch (e) { return false; }
 }
+
+// Pour e2e/smoke.js : le test ne peut ni lancer Rocket League ni recevoir un
+// vrai flux de match. Il rejoue donc des évènements de la Stats API dans le
+// connecteur réel, et simule l'ouverture et la fermeture du jeu, pour que
+// tout le câblage en aval (session, fenêtres, overlay) soit parcouru.
+module.exports = {
+  feedStatsApi: (event, data) => { if (statsApi) statsApi._handle({ event: event, data: data }); },
+  simulateGame: (running) => { state.game.processRunning = !!running; recomputeRunning(); },
+  ctx: ctx,
+};

@@ -162,6 +162,10 @@ class RLLogReader extends EventEmitter {
     const o = opts || {};
     // Chemin imposé (tests) ou résolu à chaque lecture.
     this._fixedFile = o.file || null;
+    this._anyPlatform = !!o.anyPlatform;   // tests : surveiller hors Windows
+    this._watcher = null;
+    this._watchedDir = null;
+    this._soon = null;
     this._timer = null;
     this._lastSize = -1;
     this._lastKey = '';       // dernier relevé émis (évite les doublons)
@@ -210,15 +214,51 @@ class RLLogReader extends EventEmitter {
   }
 
   start() {
-    if (process.platform !== 'win32') return;   // journal propre à la version PC
-    const tick = () => this._tick();
-    tick();
-    this._timer = setInterval(tick, POLL_MS);
+    // Journal propre à la version PC.
+    if (process.platform !== 'win32' && !this._anyPlatform) return;
+    this._tick();
+    this._watch();
+    this._timer = setInterval(() => { this._watch(); this._tick(); }, POLL_MS);
     if (this._timer.unref) this._timer.unref();
   }
 
   stop() {
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._soon) { clearTimeout(this._soon); this._soon = null; }
+    this._unwatch();
+  }
+
+  // Surveillance du dossier du journal : une mise en file est vue dans la
+  // seconde, au lieu d'attendre la scrutation suivante (jusqu'à 20 s). Les
+  // cartes workshop en dépendent : un match trouvé vite chargeait l'arène
+  // avant que l'original ne soit remis. La scrutation reste en filet, car
+  // fs.watch peut se taire (dossier recréé au lancement du jeu, disque
+  // réseau…), et c'est elle qui rattache la surveillance si le chemin change.
+  _watch() {
+    const dir = path.dirname(this.file);
+    if (this._watcher && this._watchedDir === dir) return;
+    this._unwatch();
+    try {
+      this._watcher = fs.watch(dir, () => this._tickSoon());
+      this._watcher.on('error', () => this._unwatch());
+      if (this._watcher.unref) this._watcher.unref();
+      this._watchedDir = dir;
+    } catch (e) { /* dossier absent pour l'instant : la scrutation prend le relais */ }
+  }
+
+  _unwatch() {
+    if (this._watcher) { try { this._watcher.close(); } catch (e) { /* déjà fermé */ } }
+    this._watcher = null;
+    this._watchedDir = null;
+  }
+
+  // Le jeu écrit son journal en rafales : une lecture au plus toutes les
+  // 300 ms, et jamais repoussée indéfiniment (un anti-rebond classique ne se
+  // déclencherait pas tant que les écritures continuent).
+  _tickSoon() {
+    if (this._soon) return;
+    this._soon = setTimeout(() => { this._soon = null; this._tick(); }, 300);
+    if (this._soon.unref) this._soon.unref();
   }
 
   _tick() {

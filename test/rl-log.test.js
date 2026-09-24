@@ -188,3 +188,28 @@ test('MMR sans sa ligne de file : jamais rattaché à la file suivante', () => {
   const r = parseLatest(orphan + queue('25', 18, 11));
   assert.equal(r.mmr, 600);          // le MMR orphelin est ignoré
 });
+
+test('mise en file vue dans la seconde, sans attendre la scrutation de 20 s', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rllog-watch-'));
+  const file = path.join(dir, 'Launch.log');
+  fs.writeFileSync(file, '[0001.00] Log: démarrage du jeu\n');
+  const r = new RLLogReader({ file: file, anyPlatform: true });
+  r.start();
+  try {
+    const seen = new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('file non vue en 3 s')), 3000);
+      r.on('queue', (q) => { clearTimeout(t); resolve(q); });
+    });
+    // Écritures en rafale, comme le jeu : la lecture ne doit pas être
+    // repoussée tant qu'elles continuent.
+    for (let i = 0; i < 5; i++) {
+      fs.appendFileSync(file, '[0002.00] Log: bruit\n');
+      await new Promise((res) => setTimeout(res, 100));
+    }
+    fs.appendFileSync(file, queue('24', 18, 15) + '\n');
+    const q = await seen;
+    assert.equal(q.playlist, 15);
+  } finally {
+    r.stop();
+  }
+});

@@ -60,13 +60,14 @@ contextBridge.exposeInMainWorld('rl', {
   cosmeticsRestoreAll: () => ipcRenderer.invoke('cosmetics-restore-all'),
 
 
-  // Cartes workshop : bibliothèque, emplacement Underpass, et le site
+  // Cartes workshop : bibliothèque, emplacements (arènes Labs), et le site
   // bakkesplugins affiché dans la fenêtre Cartes.
   openMaps: () => ipcRenderer.send('open-maps'),
   mapsList: () => ipcRenderer.invoke('maps-list'),
   mapsPreview: (id) => ipcRenderer.invoke('maps-preview', id),
-  mapsLoad: (id) => ipcRenderer.invoke('maps-load', id),
-  mapsRestore: () => ipcRenderer.invoke('maps-restore'),
+  mapsLoad: (id, slot) => ipcRenderer.invoke('maps-load', id, slot),
+  mapsRestore: (slot) => ipcRenderer.invoke('maps-restore', slot),
+  mapsFavorite: (id, on) => ipcRenderer.invoke('maps-favorite', id, on),
   mapsRemove: (id) => ipcRenderer.invoke('maps-remove', id),
   mapsImport: () => ipcRenderer.invoke('maps-import'),
   // Un fichier glissé dans la fenêtre : avec contextIsolation, la page n'a

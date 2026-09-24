@@ -85,7 +85,9 @@ function file(name, content) {
   return f;
 }
 
-const slotOf = (install) => path.join(install, 'TAGame', 'CookedPCConsole', SLOT);
+const slotOf = (install, file) => path.join(install, 'TAGame', 'CookedPCConsole', file || SLOT);
+// État d'un emplacement (Underpass par défaut).
+const slotState = (l, id) => l.slotStatus().find((s) => s.id === (id || 'underpass'));
 
 test('zip : entrées stockées et compressées, chemins jamais utilisés', async () => {
   const big = Buffer.alloc(5000, 7);
@@ -141,7 +143,7 @@ test('Underpass : charger, changer de carte, remettre l\'original intact', async
 
   assert.equal((await l.load(a.id)).ok, true);
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('MAP-A')));
-  assert.deepEqual(l.slotStatus().loaded, { id: a.id, title: 'A' });
+  assert.deepEqual(slotState(l).loaded, { id: a.id, title: 'A' });
 
   // Passer de A à B ne doit PAS sauvegarder A comme « original ».
   assert.equal((await l.load(b.id)).ok, true);
@@ -149,7 +151,7 @@ test('Underpass : charger, changer de carte, remettre l\'original intact', async
 
   assert.equal((await l.restore()).ok, true);
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
-  assert.equal(l.slotStatus().loaded, null);
+  assert.equal(slotState(l).loaded, null);
 });
 
 test('Underpass : une mise à jour du jeu remet son fichier, la sauvegarde périmée est jetée', async () => {
@@ -160,7 +162,7 @@ test('Underpass : une mise à jour du jeu remet son fichier, la sauvegarde péri
 
   // Le jeu se met à jour et réécrit Underpass (nouvelle version).
   fs.writeFileSync(slotOf(install), pkg('UNDERPASS-V2-PLUS-LONG'));
-  const s = l.slotStatus();
+  const s = slotState(l);
   assert.equal(s.loaded, null);
   assert.equal(s.reverted.title, 'A');
 
@@ -187,7 +189,7 @@ test('Underpass : état conservé d\'un lancement de l\'application à l\'autre'
   const a = (await l1.importFile(file('A.udk', pkg('MAP-A')), { title: 'A' })).map;
   await l1.load(a.id);
   const l2 = new MapLibrary(data, { detectInstalls: () => [install] });
-  assert.equal(l2.slotStatus().loaded.title, 'A');
+  assert.equal(slotState(l2).loaded.title, 'A');
   await l2.restore();
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
 });
@@ -197,12 +199,12 @@ test('garde des files : modes classiques tranquilles, tout le reste remet Underp
   const l = lib(install);
   const a = (await l.importFile(file('A.udk', pkg('MAP-A')))).map;
   await l.load(a.id);
-  assert.equal((await l.guardQueue({ playlist: 11 })).restored, false);   // Doubles classé
-  assert.equal((await l.guardQueue({ playlist: 3 })).restored, false);    // Standard casual
-  assert.equal(l.slotStatus().loaded.id, a.id);
-  assert.equal((await l.guardQueue({ playlist: 15 })).restored, true);    // Rumble
+  assert.deepEqual((await l.guardQueue({ playlist: 11 })).restored, []);   // Doubles classé
+  assert.deepEqual((await l.guardQueue({ playlist: 3 })).restored, []);    // Standard casual
+  assert.equal(slotState(l).loaded.id, a.id);
+  assert.deepEqual((await l.guardQueue({ playlist: 15 })).restored, ['Underpass']);   // Rumble
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
-  assert.equal((await l.guardQueue({ playlist: 15 })).restored, false);   // plus rien à remettre
+  assert.deepEqual((await l.guardQueue({ playlist: 15 })).restored, []);   // plus rien à remettre
 });
 
 test('Underpass : sans installation, ou sans Underpass, erreur claire', async () => {
@@ -234,7 +236,7 @@ test('lire l\'état PENDANT une copie ne fait pas passer la carte pour une remis
   const guard = l.guardQueue({ playlist: 28 });   // Rumble classé, en file derrière
   for (let i = 0; i < 5; i++) { l.list(); await new Promise((r) => setImmediate(r)); }
   assert.equal((await p).ok, true);
-  assert.equal((await guard).restored, true);
+  assert.deepEqual((await guard).restored, ['Underpass']);
   // Le vrai original a survécu aux lectures concurrentes.
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
 });
@@ -263,10 +265,95 @@ test('copie interrompue : l\'original est remis, la sauvegarde n\'est jamais per
   assert.equal(r.ok, false);
   assert.match(r.error, /Disque plein/);
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
-  assert.equal(l.slotStatus().loaded, null);
+  assert.equal(slotState(l).loaded, null);
 
   // Et ensuite, tout refonctionne normalement.
   assert.equal((await l.load(a.id)).ok, true);
   assert.equal((await l.restore()).ok, true);
+  assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
+});
+
+// Installation avec une seconde arène Labs (Octagon), pour les emplacements.
+function twoSlotInstall() {
+  const install = fakeInstall();
+  fs.writeFileSync(slotOf(install, 'Labs_Octagon_02_P.upk'), pkg('OCTAGON-ORIGINAL'));
+  return install;
+}
+
+test('emplacements : seules les arènes présentes dans le jeu sont proposées', async () => {
+  const l = lib(twoSlotInstall());
+  assert.deepEqual(l.slotStatus().map((s) => s.id), ['underpass', 'octagon']);
+  assert.deepEqual(l.slotStatus().map((s) => s.guard), ['extra', 'any']);
+});
+
+test('emplacements : deux cartes chargées à la fois, remises chacune de son côté', async () => {
+  const install = twoSlotInstall();
+  const l = lib(install);
+  const a = (await l.importFile(file('A.udk', pkg('MAP-A')), { title: 'A' })).map;
+  const b = (await l.importFile(file('B.udk', pkg('MAP-B')), { title: 'B' })).map;
+  assert.equal((await l.load(a.id, 'underpass')).ok, true);
+  assert.equal((await l.load(b.id, 'octagon')).ok, true);
+  assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('MAP-A')));
+  assert.ok(fs.readFileSync(slotOf(install, 'Labs_Octagon_02_P.upk')).equals(pkg('MAP-B')));
+  const listed = l.list().maps;
+  assert.deepEqual(listed.find((m) => m.id === b.id).loadedIn, ['octagon']);
+
+  assert.equal((await l.restore('octagon')).ok, true);
+  assert.ok(fs.readFileSync(slotOf(install, 'Labs_Octagon_02_P.upk')).equals(pkg('OCTAGON-ORIGINAL')));
+  assert.equal(slotState(l).loaded.id, a.id);          // Underpass intact
+
+  assert.equal((await l.load(b.id, 'octagon')).ok, true);
+  assert.equal((await l.restore()).ok, true);           // tout remettre
+  assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
+  assert.ok(fs.readFileSync(slotOf(install, 'Labs_Octagon_02_P.upk')).equals(pkg('OCTAGON-ORIGINAL')));
+});
+
+test('garde des files : les autres arènes repartent à TOUTE recherche, Underpass seulement hors modes classiques', async () => {
+  const install = twoSlotInstall();
+  const l = lib(install);
+  const a = (await l.importFile(file('A.udk', pkg('MAP-A')))).map;
+  const b = (await l.importFile(file('B.udk', pkg('MAP-B')))).map;
+  await l.load(a.id, 'underpass');
+  await l.load(b.id, 'octagon');
+  const g = await l.guardQueue({ playlist: 11 });          // Doubles classé
+  assert.deepEqual(g.restored, ['Octagon']);
+  assert.ok(fs.readFileSync(slotOf(install, 'Labs_Octagon_02_P.upk')).equals(pkg('OCTAGON-ORIGINAL')));
+  assert.equal(slotState(l).loaded.id, a.id);
+});
+
+test('emplacement inconnu ou absent du jeu : refus clair', async () => {
+  const l = lib(fakeInstall());
+  const a = (await l.importFile(file('A.udk', pkg('MAP-A')))).map;
+  assert.match((await l.load(a.id, 'nimporte')).error, /Emplacement inconnu/);
+  assert.match((await l.load(a.id, 'octagon')).error, /Octagon introuvable/);
+});
+
+test('favoris : en tête de liste, conservés', async () => {
+  const data = tmp('rlst-maps-data-');
+  const l = new MapLibrary(data, { detectInstalls: () => [] });
+  const a = (await l.importFile(file('A.udk', pkg('MAP-A')), { title: 'A' })).map;
+  await l.importFile(file('B.udk', pkg('MAP-B')), { title: 'B' });
+  assert.equal(l.list().maps[0].title, 'B');               // la plus récente d'abord
+  assert.equal(l.setFavorite(a.id, true).ok, true);
+  assert.equal(l.list().maps[0].title, 'A');
+  const again = new MapLibrary(data, { detectInstalls: () => [] });
+  assert.equal(again.list().maps[0].favorite, true);
+});
+
+test('reprise du format 3.33 : l\'Underpass chargé reste connu et se remet', async () => {
+  const install = fakeInstall();
+  const data = tmp('rlst-maps-data-');
+  const l = new MapLibrary(data, { detectInstalls: () => [install] });
+  const a = (await l.importFile(file('A.udk', pkg('MAP-A')), { title: 'A' })).map;
+  await l.load(a.id);
+  // Réécrit le fichier comme la 3.33 l'aurait laissé.
+  const lib33 = JSON.parse(fs.readFileSync(path.join(data, 'maps', 'library.json'), 'utf8'));
+  const st = lib33.slots.underpass;
+  for (const k of Object.keys(st.installs)) delete st.installs[k].file;
+  fs.writeFileSync(path.join(data, 'maps', 'library.json'),
+    JSON.stringify({ maps: lib33.maps, slot: { loaded: st.loaded, installs: st.installs }, reverted: null }));
+  const l2 = new MapLibrary(data, { detectInstalls: () => [install] });
+  assert.equal(slotState(l2).loaded.title, 'A');
+  assert.equal((await l2.restore()).ok, true);
   assert.ok(fs.readFileSync(slotOf(install)).equals(pkg('UNDERPASS-ORIGINAL')));
 });

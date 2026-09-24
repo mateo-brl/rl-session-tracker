@@ -45,42 +45,56 @@
   }
   .cond { font-family:var(--ui-font); }
 
-  /* ─── Emplacement : LE point focal de la fenêtre ───
-     Ce qui est dans Underpass en ce moment, c'est ce que le joueur va
-     retrouver en jeu. Tout le reste (site, bibliothèque) sert à changer
-     cette ligne-là. D'où sa place en haut, son titre en grand, et le filet
-     bleu vers orange de l'application en dessous. */
-  .slot {
-    position:relative; flex:none; display:flex; align-items:center; gap:18px;
-    padding:14px 20px 16px;
+  /* ─── Emplacements : LE point focal de la fenêtre ───
+     Ce qui occupe chaque arène en ce moment, c'est ce que le joueur va
+     retrouver en jeu. Tout le reste (site, bibliothèque) sert à changer ces
+     cartes-là. D'où leur place en haut, et le filet bleu vers orange de
+     l'application en dessous. L'emplacement choisi est la cible du bouton
+     « Charger » de la bibliothèque : il porte l'accent. */
+  .slots {
+    position:relative; flex:none; padding:12px 20px 14px;
     background:linear-gradient(90deg, var(--panel2), var(--panel) 55%);
   }
-  .slot::after {
+  .slots::after {
     content:''; position:absolute; left:0; right:0; bottom:0; height:2px;
     background:linear-gradient(90deg, var(--blue) 0 34%, var(--orange) 66% 100%);
   }
-  /* Plaque inclinée « Underpass » : même geste que le sigle RL de la barre
-     de titre, pour dire « emplacement du jeu » d'un coup d'œil. */
+  .slot-row { display:flex; gap:10px; flex-wrap:wrap; }
+  .slot-card {
+    flex:1 1 170px; min-width:0; max-width:340px; display:flex; flex-direction:column; gap:8px;
+    background:var(--panel); border:1px solid var(--line); padding:10px 12px 12px;
+  }
+  .slot-card.on { border-color:var(--blue); box-shadow:inset 0 -3px 0 var(--blue); }
+  .slot-card.warn { border-color:var(--orange); }
+  .slot-pick {
+    display:flex; flex-direction:column; align-items:flex-start; gap:6px;
+    border:0; background:transparent; color:inherit; cursor:pointer;
+    text-align:left; padding:0; min-height:44px; font:inherit; width:100%;
+  }
+  /* Plaque inclinée au nom de l'arène : même geste que le sigle RL de la
+     barre de titre. Pleine sur l'emplacement choisi, en creux sur les autres. */
   .slot-plate {
-    flex:none; transform:skewX(var(--skew)); background:var(--blue-deep);
-    border-left:4px solid var(--blue); padding:6px 14px 6px 12px;
+    transform:skewX(var(--skew)); background:var(--panel2);
+    border-left:4px solid var(--line); padding:3px 12px 3px 10px;
   }
   .slot-plate > span {
     display:inline-block; transform:skewX(calc(var(--skew) * -1));
     font-family:var(--ui-font); font-style:italic; font-weight:800;
-    font-size:15px; letter-spacing:.14em; text-transform:uppercase; color:#fff;
+    font-size:14px; letter-spacing:.12em; text-transform:uppercase; color:var(--text);
   }
-  .slot.warn .slot-plate { background:var(--orange-deep); border-left-color:var(--orange); }
-  .slot-main { flex:1; min-width:0; }
+  .slot-card.on .slot-plate { background:var(--blue-deep); border-left-color:var(--blue); }
+  .slot-card.on .slot-plate > span { color:#fff; }
+  .slot-card.warn .slot-plate { border-left-color:var(--orange); }
   .slot-title {
     font-family:var(--ui-font); font-style:var(--num-style); font-weight:800;
-    font-size:26px; line-height:1.1; letter-spacing:.02em;
+    font-size:20px; line-height:1.15; max-width:100%;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .slot-title.none { color:var(--muted); }
-  .slot-sub { margin-top:3px; font-size:13px; color:var(--muted); line-height:1.45; }
+  .slot-card .ghost { min-height:34px; padding:6px 12px; align-self:flex-start; }
+  .slot-sub { margin-top:10px; font-size:13px; color:var(--muted); line-height:1.5; }
   .slot-sub b { color:var(--text); font-weight:600; }
-  .slot-actions { flex:none; display:flex; gap:8px; }
+  .slot-sub.warn { color:var(--orange); }
 
   /* ─── Boutons (mêmes familles que la fenêtre de contrôle) ─── */
   .btn {
@@ -168,6 +182,14 @@
   .lib-head { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
   .lib-head .count { flex:1; font-size:13px; color:var(--muted); min-width:180px; }
   .lib-head .hint { flex-basis:100%; font-size:12px; color:var(--muted); line-height:1.5; }
+  .search {
+    flex:0 1 320px; min-width:180px; min-height:40px; background:var(--panel);
+    border:1px solid var(--line); color:var(--text); font:inherit; font-size:14px;
+    padding:8px 11px; border-radius:0;
+  }
+  .search::placeholder { color:var(--muted); opacity:1; }
+  .ghost[aria-pressed="true"] { border-color:var(--blue); color:var(--text);
+    box-shadow:inset 0 -3px 0 var(--blue); }
   .grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:16px; }
 
   /* Tuile : la plaque chanfreinée de l'application, aperçu en tête. Celle
@@ -195,11 +217,21 @@
   /* Pastille d'état réelle (la carte EST dans Underpass), pas une décoration. */
   .here {
     position:absolute; left:10px; top:10px; transform:skewX(var(--skew));
-    background:var(--blue-deep); padding:3px 10px;
+    background:var(--blue-deep); padding:3px 10px; max-width:calc(100% - 64px);
   }
   .here > span { display:inline-block; transform:skewX(calc(var(--skew) * -1));
     font-family:var(--ui-font); font-style:italic; font-weight:800; font-size:13px;
     letter-spacing:.1em; text-transform:uppercase; color:#fff; }
+  /* Étoile des favoris : le symbole que tout le monde lit comme « favori »,
+     dans le coin de l'aperçu pour ne pas voler de place aux actions. Pleine
+     et dorée quand la carte est en favori. */
+  .fav {
+    position:absolute; right:8px; top:8px; width:40px; height:40px;
+    border:1px solid var(--line); cursor:pointer; font-size:19px; line-height:1;
+    background:color-mix(in srgb, var(--bg) 78%, transparent); color:var(--text);
+  }
+  .fav[aria-pressed="true"] { color:var(--gold); border-color:var(--gold); }
+  .fav:hover { border-color:var(--blue); }
   .body { padding:12px 14px 14px; display:flex; flex-direction:column; gap:6px; flex:1; }
   .name { font-family:var(--ui-font); font-style:var(--num-style); font-weight:800;
     font-size:20px; line-height:1.15; overflow-wrap:anywhere; }
@@ -236,8 +268,6 @@
   .toast .x { margin-left:auto; }
 
   @media (max-width:980px) {
-    .slot { flex-wrap:wrap; }
-    .slot-actions { width:100%; }
     .prog { width:90px; }
   }
   @media (prefers-reduced-motion:no-preference) {
@@ -248,15 +278,9 @@
 </head>
 <body>
 
-  <header class="slot" id="slot">
-    <div class="slot-plate"><span>Underpass</span></div>
-    <div class="slot-main">
-      <div class="slot-title none" id="slotTitle">&nbsp;</div>
-      <div class="slot-sub" id="slotSub">&nbsp;</div>
-    </div>
-    <div class="slot-actions">
-      <button class="ghost" id="restoreBtn" hidden></button>
-    </div>
+  <header class="slots">
+    <div class="slot-row" id="slotRow" role="radiogroup"></div>
+    <div class="slot-sub" id="slotSub">&nbsp;</div>
   </header>
 
   <div class="tabs" role="tablist" id="tabs">
@@ -284,6 +308,8 @@
   <section class="pane" id="paneLib" role="tabpanel" aria-labelledby="tabLib">
     <div class="lib" id="lib">
       <div class="lib-head">
+        <input type="search" class="search" id="libSearch" autocomplete="off" spellcheck="false">
+        <button class="ghost" id="favOnly" aria-pressed="false"></button>
         <div class="count" id="libCount"></div>
         <button class="ghost" id="importBtn"></button>
         <p class="hint" id="eacHint"></p>
@@ -310,13 +336,20 @@
       siteErrorHint: 'Vérifie ta connexion internet, puis réessaie. Ta bibliothèque reste utilisable.',
       close: 'Fermer le message',
       loading: 'Chargement…',
-      slotNone: 'Underpass d’origine',
-      slotNoneSub: 'Choisis une carte dans ta bibliothèque : elle remplacera Underpass jusqu’à ce que tu la remettes.',
-      slotLoadedSub: 'En jeu : <b>Entraînement libre</b>, carte <b>Underpass</b>.',
-      slotLoadedRun: 'Rocket League est ouvert : lance <b>Entraînement libre</b>, carte <b>Underpass</b>. Si tu y étais déjà, ressors et relance-la.',
-      slotReverted: 'Une mise à jour du jeu a remis Underpass',
-      slotRevertedSub: 'Ta carte « {t} » n’est plus en place. Recharge-la depuis ta bibliothèque.',
-      restore: 'Remettre Underpass', reload2: 'Recharger « {t} »',
+      slots: 'Emplacements',
+      slotOriginal: 'd’origine', slotAbsent: 'absente du jeu',
+      slotPickSub: 'Choisis une carte dans ta bibliothèque : « Charger » la pose dans <b>{s}</b>.',
+      slotLoadedSub: 'En jeu : <b>Entraînement libre</b>, arène <b>{s}</b>.',
+      slotLoadedRun: 'Rocket League est ouvert : lance <b>Entraînement libre</b>, arène <b>{s}</b>. Si tu y étais déjà, ressors et relance-la.',
+      guardExtra: 'Elle reste en place pendant tes files classiques (1v1, 2v2, 3v3), en casual comme en classé.',
+      guardAny: 'Remise à chaque recherche de match, car cette arène peut sortir en ligne. Underpass, lui, reste en place.',
+      slotReverted: 'Une mise à jour du jeu a remis {s} d’origine : « {t} » n’est plus en place.',
+      restore: 'Remettre', reload2: 'Recharger',
+      search: 'Rechercher une carte ou un auteur', favOnly: '★ Favoris',
+      favAdd: 'Ajouter « {t} » aux favoris', favDel: 'Retirer « {t} » des favoris',
+      countOf: '{n} sur {t} cartes', noMatch: 'Aucune carte ne correspond à « {q} ».',
+      noFav: 'Aucune carte en favori. L’étoile d’une carte l’ajoute ici.',
+      clearFilter: 'Tout afficher',
       noInstall: 'Aucune installation de Rocket League détectée sur ce PC.',
       libLoading: 'Lecture de la bibliothèque…',
       libError: 'Bibliothèque illisible : {e}',
@@ -325,7 +358,7 @@
       emptyTitle: 'Ta bibliothèque est vide',
       emptyText: 'Ouvre la fiche d’une carte sur bakkesplugins et clique sur son bouton de téléchargement : elle arrive ici toute seule. Tu peux aussi importer un .udk ou un .zip déjà sur ton PC, ou le glisser dans cette fenêtre.',
       emptyBrowse: 'Parcourir bakkesplugins',
-      load: 'Charger dans Underpass', loaded: 'Dans Underpass', loadingMap: 'Copie…',
+      load: 'Charger dans {s}', loaded: 'Dans {s}', loadingMap: 'Copie…',
       page: 'Voir la fiche', remove: 'Supprimer', confirm: 'Confirmer',
       noPreview: 'Pas d’aperçu', missing: 'Fichier disparu de la bibliothèque : supprime-la puis télécharge-la à nouveau.',
       srcBp: 'bakkesplugins', srcFile: 'fichier importé', by: 'par {a}',
@@ -334,12 +367,12 @@
       dlFailed: 'Téléchargement interrompu', dlCancelled: 'Annulé',
       dlImporting: 'Ajout à la bibliothèque…', dlImported: 'Ajoutée à ta bibliothèque',
       dlDuplicate: 'Déjà dans ta bibliothèque',
-      toastLoaded: '« {t} » est dans Underpass. En jeu : Entraînement libre, carte Underpass.',
-      toastRestored: 'Underpass d’origine remis en place.',
+      toastLoaded: '« {t} » est dans {s}. En jeu : Entraînement libre, arène {s}.',
+      toastRestored: '{s} d’origine remis en place.',
       toastRemoved: 'Carte supprimée.',
       toastImported: '{n} carte(s) ajoutée(s).',
-      toastGuard: 'Recherche de match hors modes classiques : Underpass d’origine remis par sécurité.',
-      toastGuardFail: 'Recherche de match détectée, mais Underpass n’a pas pu être remis : {e}',
+      toastGuard: 'Recherche de match : arène(s) d’origine remise(s) par sécurité ({s}).',
+      toastGuardFail: 'Recherche de match détectée, mais une arène n’a pas pu être remise : {e}',
       errPrefix: 'Échec : ',
       blocked: 'Le site veut ouvrir {h}, hors de bakkesplugins.',
       openIt: 'Ouvrir dans le navigateur',
@@ -354,13 +387,20 @@
       siteErrorHint: 'Check your internet connection, then try again. Your library still works.',
       close: 'Close message',
       loading: 'Loading…',
-      slotNone: 'Original Underpass',
-      slotNoneSub: 'Pick a map from your library: it replaces Underpass until you put the original back.',
-      slotLoadedSub: 'In game: <b>Free Play</b>, map <b>Underpass</b>.',
-      slotLoadedRun: 'Rocket League is running: start <b>Free Play</b> on <b>Underpass</b>. If you were already there, leave and start it again.',
-      slotReverted: 'A game update put Underpass back',
-      slotRevertedSub: 'Your map “{t}” is no longer in place. Load it again from your library.',
-      restore: 'Restore Underpass', reload2: 'Load “{t}” again',
+      slots: 'Slots',
+      slotOriginal: 'original', slotAbsent: 'missing from the game',
+      slotPickSub: 'Pick a map in your library: “Load” puts it in <b>{s}</b>.',
+      slotLoadedSub: 'In game: <b>Free Play</b>, arena <b>{s}</b>.',
+      slotLoadedRun: 'Rocket League is running: start <b>Free Play</b> on <b>{s}</b>. If you were already there, leave and start it again.',
+      guardExtra: 'It stays in place during standard queues (1v1, 2v2, 3v3), casual and ranked.',
+      guardAny: 'Restored on every queue, since this arena can show up online. Underpass stays in place.',
+      slotReverted: 'A game update restored the original {s}: “{t}” is no longer in place.',
+      restore: 'Restore', reload2: 'Load again',
+      search: 'Search a map or an author', favOnly: '★ Favorites',
+      favAdd: 'Add “{t}” to favorites', favDel: 'Remove “{t}” from favorites',
+      countOf: '{n} of {t} maps', noMatch: 'No map matches “{q}”.',
+      noFav: 'No favorite maps yet. A map’s star adds it here.',
+      clearFilter: 'Show all',
       noInstall: 'No Rocket League install found on this PC.',
       libLoading: 'Reading the library…',
       libError: 'Library unreadable: {e}',
@@ -369,7 +409,7 @@
       emptyTitle: 'Your library is empty',
       emptyText: 'Open a map page on bakkesplugins and click its download button: it lands here by itself. You can also import a .udk or .zip already on your PC, or drag it into this window.',
       emptyBrowse: 'Browse bakkesplugins',
-      load: 'Load into Underpass', loaded: 'In Underpass', loadingMap: 'Copying…',
+      load: 'Load into {s}', loaded: 'In {s}', loadingMap: 'Copying…',
       page: 'Open page', remove: 'Delete', confirm: 'Confirm',
       noPreview: 'No preview', missing: 'File gone from the library: delete it and download it again.',
       srcBp: 'bakkesplugins', srcFile: 'imported file', by: 'by {a}',
@@ -378,12 +418,12 @@
       dlFailed: 'Download interrupted', dlCancelled: 'Cancelled',
       dlImporting: 'Adding to the library…', dlImported: 'Added to your library',
       dlDuplicate: 'Already in your library',
-      toastLoaded: '“{t}” is in Underpass. In game: Free Play, map Underpass.',
-      toastRestored: 'Original Underpass restored.',
+      toastLoaded: '“{t}” is in {s}. In game: Free Play, arena {s}.',
+      toastRestored: 'Original {s} restored.',
       toastRemoved: 'Map deleted.',
       toastImported: '{n} map(s) added.',
-      toastGuard: 'Queue outside the standard modes: original Underpass restored to be safe.',
-      toastGuardFail: 'Queue detected, but Underpass could not be restored: {e}',
+      toastGuard: 'Queue detected: original arena(s) restored to be safe ({s}).',
+      toastGuardFail: 'Queue detected, but an arena could not be restored: {e}',
       errPrefix: 'Failed: ',
       blocked: 'The site wants to open {h}, outside bakkesplugins.',
       openIt: 'Open in browser',
@@ -577,6 +617,7 @@
   function fmtSize(n) {
     if (!(n > 0)) return '';
     var mb = n / (1024 * 1024);
+    if (mb < 0.1) return lang === 'en' ? '< 0.1 MB' : '< 0,1 Mo';
     var v = mb >= 10 ? Math.round(mb) : Math.round(mb * 10) / 10;
     return v.toLocaleString(lang === 'en' ? 'en-US' : 'fr-FR') + (lang === 'en' ? ' MB' : ' Mo');
   }
@@ -594,7 +635,8 @@
       } else if (d.state === 'imported') {
         cls += ' ok';
         st = d.duplicate ? T('dlDuplicate') : T('dlImported');
-        extra = '<button class="btn" data-load="' + esc(d.mapId) + '">' + esc(T('load')) + '</button>';
+        var cur = current();
+        extra = cur ? '<button class="btn" data-load="' + esc(d.mapId) + '">' + esc(T('load', { s: cur.name })) + '</button>' : '';
       } else {
         cls += ' bad';
         st = d.state === 'refused' ? T('dlRefused') : d.state === 'cancelled' ? T('dlCancelled')
@@ -623,40 +665,100 @@
   // ─────────── Bibliothèque ───────────
   var data = null, gameRunning = false, busy = false;
   var previews = {};   // id -> data: URL (ou '' si aucune)
+  var query = '', favOnly = false;
 
-  function renderSlot() {
-    var slot = data && data.slot;
-    var el = $('slot'), title = $('slotTitle'), sub = $('slotSub'), btn = $('restoreBtn');
-    el.classList.remove('warn');
-    btn.hidden = true;
+  // Emplacement choisi : la cible de « Charger ». Retenu d'une ouverture à
+  // l'autre (confort seulement : sans stockage, Underpass par défaut).
+  var PICK_KEY = 'rlst.maps.slot';
+  var picked = null;
+  try { picked = localStorage.getItem(PICK_KEY); } catch (e) { picked = null; }
+  function slots() { return (data && data.slots) || []; }
+  function current() {
+    var list = slots().filter(function (x) { return x.available; });
+    return list.find(function (x) { return x.id === picked; }) || list[0] || null;
+  }
+  function pick(id, focus) {
+    picked = id;
+    try { localStorage.setItem(PICK_KEY, id); } catch (e) { /* stockage indisponible */ }
+    renderSlots();
+    renderLib();
+    renderDownloads();
+    if (focus) {
+      var b = document.querySelector('.slot-pick[data-slot="' + id + '"]');
+      if (b) b.focus();
+    }
+  }
+
+  function renderSlots() {
+    var row = $('slotRow'), sub = $('slotSub');
+    row.setAttribute('aria-label', T('slots'));
+    sub.classList.remove('warn');
     if (data && !data.installs.length) {
-      title.className = 'slot-title none';
-      title.textContent = T('slotNone');
+      row.innerHTML = '';
       sub.textContent = T('noInstall');
       return;
     }
-    if (slot && slot.loaded) {
-      title.className = 'slot-title';
-      title.textContent = slot.loaded.title;
-      sub.innerHTML = gameRunning ? T('slotLoadedRun') : T('slotLoadedSub');
-      btn.hidden = false;
-      btn.textContent = T('restore');
-      btn.onclick = function () { restore(btn); };
-    } else if (slot && slot.reverted) {
-      el.classList.add('warn');
-      title.className = 'slot-title';
-      title.textContent = T('slotReverted');
-      sub.textContent = T('slotRevertedSub', { t: slot.reverted.title });
-      if (data.maps.some(function (m) { return m.id === slot.reverted.id; })) {
-        btn.hidden = false;
-        btn.textContent = T('reload2', { t: slot.reverted.title });
-        btn.onclick = function () { loadMap(slot.reverted.id, btn); };
+    var cur = current();
+    row.innerHTML = slots().map(function (x) {
+      var on = cur && cur.id === x.id;
+      var cls = 'slot-card' + (on ? ' on' : '') + (x.reverted ? ' warn' : '');
+      var title = x.loaded ? '<span class="slot-title">' + esc(x.loaded.title) + '</span>'
+        : '<span class="slot-title none">' + esc(x.available ? T('slotOriginal') : T('slotAbsent')) + '</span>';
+      var act = '';
+      if (x.loaded) act = '<button class="ghost" data-restore="' + esc(x.id) + '">' + esc(T('restore')) + '</button>';
+      else if (x.reverted && data.maps.some(function (m) { return m.id === x.reverted.id; })) {
+        act = '<button class="ghost" data-reload="' + esc(x.id) + '" data-map="' + esc(x.reverted.id) + '">'
+          + esc(T('reload2')) + '</button>';
       }
-    } else {
-      title.className = 'slot-title none';
-      title.textContent = T('slotNone');
-      sub.textContent = T('slotNoneSub');
+      return '<div class="' + cls + '">'
+        + '<button class="slot-pick" role="radio" data-slot="' + esc(x.id) + '" aria-checked="' + (on ? 'true' : 'false')
+        + '" tabindex="' + (on ? '0' : '-1') + '"' + (x.available ? '' : ' disabled') + '>'
+        + '<span class="slot-plate"><span>' + esc(x.name) + '</span></span>' + title + '</button>'
+        + act + '</div>';
+    }).join('');
+    if (!cur) { sub.textContent = ''; return; }
+    if (cur.reverted) {
+      sub.classList.add('warn');
+      sub.textContent = T('slotReverted', { s: cur.name, t: cur.reverted.title });
+      return;
     }
+    var first = cur.loaded ? T(gameRunning ? 'slotLoadedRun' : 'slotLoadedSub', { s: esc(cur.name) })
+      : T('slotPickSub', { s: esc(cur.name) });
+    sub.innerHTML = first + ' ' + esc(T(cur.guard === 'extra' ? 'guardExtra' : 'guardAny'));
+  }
+  $('slotRow').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-restore]');
+    if (r) { restore(r.dataset.restore, r); return; }
+    var l = e.target.closest('[data-reload]');
+    if (l) { loadMap(l.dataset.map, l, l.dataset.reload); return; }
+    var p = e.target.closest('.slot-pick');
+    if (p && !p.disabled) pick(p.dataset.slot);
+  });
+  // Motif « groupe de boutons radio » : les flèches passent d'un emplacement
+  // à l'autre et le choisissent ; Tab n'entre que sur celui qui est choisi.
+  $('slotRow').addEventListener('keydown', function (e) {
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].indexOf(e.key) < 0) return;
+    if (!e.target.closest('.slot-pick')) return;
+    e.preventDefault();
+    var list = slots().filter(function (x) { return x.available; });
+    var cur = current();
+    if (!list.length || !cur) return;
+    var i = list.findIndex(function (x) { return x.id === cur.id; });
+    var step = (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 1;
+    pick(list[(i + step + list.length) % list.length].id, true);
+  });
+
+  // Recherche insensible aux accents et à la casse : « leth » trouve
+  // « Lethamyr », « etoile » trouve « Étoile ».
+  function fold(s) {
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+  function visibleMaps() {
+    var q = fold(query.trim());
+    return data.maps.filter(function (m) {
+      if (favOnly && !m.favorite) return false;
+      return !q || fold(m.title).indexOf(q) >= 0 || fold(m.author).indexOf(q) >= 0;
+    });
   }
 
   function renderLib() {
@@ -664,8 +766,9 @@
     if (!data) { body.innerHTML = '<div class="empty">' + esc(T('libLoading')) + '</div>'; return; }
     var n = data.maps.length;
     $('tabLib').innerHTML = esc(T('tabLib')) + (n ? '<span class="n">' + n + '</span>' : '');
-    $('libCount').textContent = n === 0 ? T('count0') : n === 1 ? T('count1') : T('countN', { n: n });
+    $('favOnly').setAttribute('aria-pressed', favOnly ? 'true' : 'false');
     if (!n) {
+      $('libCount').textContent = T('count0');
       body.innerHTML = '<div class="empty"><h2>' + esc(T('emptyTitle')) + '</h2>' + esc(T('emptyText'))
         + '<div class="row"><button class="btn" id="emptyBrowse">' + esc(T('emptyBrowse')) + '</button>'
         + '<button class="ghost" id="emptyImport">' + esc(T('importBtn')) + '</button></div></div>';
@@ -673,7 +776,24 @@
       $('emptyImport').onclick = importFiles;
       return;
     }
-    body.innerHTML = '<div class="grid">' + data.maps.map(function (m) {
+    var shown = visibleMaps();
+    $('libCount').textContent = shown.length === n
+      ? (n === 1 ? T('count1') : T('countN', { n: n }))
+      : T('countOf', { n: shown.length, t: n });
+    if (!shown.length) {
+      body.innerHTML = '<div class="empty">' + esc(query.trim() ? T('noMatch', { q: query.trim() }) : T('noFav'))
+        + '<div class="row"><button class="ghost" id="clearFilter">' + esc(T('clearFilter')) + '</button></div></div>';
+      $('clearFilter').onclick = function () {
+        query = ''; favOnly = false; $('libSearch').value = '';
+        renderLib();
+        $('libSearch').focus();
+      };
+      return;
+    }
+    var cur = current();
+    var names = {};
+    slots().forEach(function (x) { names[x.id] = x.name; });
+    body.innerHTML = '<div class="grid">' + shown.map(function (m) {
       var meta = [];
       if (m.author) meta.push(T('by', { a: m.author }));
       if (m.size) meta.push(fmtSize(m.size));
@@ -681,21 +801,30 @@
       var img = previews[m.id]
         ? '<img alt="" src="' + esc(previews[m.id]) + '">'
         : '<div class="noimg">' + esc(m.hasPreview ? '' : T('noPreview')) + '</div>';
-      return '<article class="card' + (m.loaded ? ' on' : '') + '" data-id="' + esc(m.id) + '">'
-        + '<div class="thumb">' + img
-        + (m.loaded ? '<div class="here"><span>' + esc(T('loaded')) + '</span></div>' : '') + '</div>'
+      var inCur = cur && m.loadedIn.indexOf(cur.id) >= 0;
+      var here = m.loadedIn.length
+        ? '<div class="here"><span>' + esc(T('loaded', { s: m.loadedIn.map(function (id) { return names[id] || id; }).join(' · ') }))
+          + '</span></div>' : '';
+      var favLabel = T(m.favorite ? 'favDel' : 'favAdd', { t: m.title });
+      return '<article class="card' + (m.loadedIn.length ? ' on' : '') + '" data-id="' + esc(m.id) + '">'
+        + '<div class="thumb">' + img + here
+        + '<button class="fav" data-act="fav" aria-pressed="' + (m.favorite ? 'true' : 'false')
+        + '" aria-label="' + esc(favLabel) + '" title="' + esc(favLabel) + '">' + (m.favorite ? '&#9733;' : '&#9734;') + '</button>'
+        + '</div>'
         + '<div class="body"><div class="name">' + esc(m.title) + '</div>'
         + '<div class="meta">' + esc(meta.join(' · ')) + '</div>'
         + (m.missing ? '<div class="meta bad">' + esc(T('missing')) + '</div>' : '')
         + '<div class="acts">'
-        + (m.loaded ? '' : '<button class="btn" data-act="load"' + (m.missing ? ' disabled' : '') + '>'
-          + esc(T('load')) + '</button>')
+        + (inCur || !cur ? '' : '<button class="btn" data-act="load"' + (m.missing ? ' disabled' : '') + '>'
+          + esc(T('load', { s: cur.name })) + '</button>')
         + (m.page ? '<button class="ghost" data-act="page">' + esc(T('page')) + '</button>' : '')
         + '<button class="ghost danger" data-act="remove">' + esc(T('remove')) + '</button>'
         + '</div></div></article>';
     }).join('') + '</div>';
     fetchPreviews();
   }
+  $('libSearch').addEventListener('input', function (e) { query = e.target.value; renderLib(); });
+  $('favOnly').onclick = function () { favOnly = !favOnly; renderLib(); };
 
   // Aperçus demandés un par un, puis gardés : la liste se redessine souvent
   // (chaque changement d'état), les images ne se relisent qu'une fois.
@@ -722,8 +851,9 @@
     return rl.mapsList().then(function (d) {
       data = d;
       gameRunning = !!d.gameRunning;
-      renderSlot();
+      renderSlots();
       renderLib();
+      renderDownloads();
     }).catch(function (e) {
       $('libBody').innerHTML = '<div class="empty">' + esc(T('libError', { e: e && e.message })) + '</div>';
     });
@@ -744,20 +874,39 @@
     });
   }
 
-  function loadMap(id, btn) {
+  function slotName(id) {
+    var x = slots().find(function (y) { return y.id === id; });
+    return x ? x.name : id;
+  }
+  // `slotId` : l'emplacement visé ; par défaut, celui qui est choisi en haut.
+  function loadMap(id, btn, slotId) {
     if (busy) return;
+    var cur = slotId || (current() && current().id);
+    if (!cur) return;
     var m = data && data.maps.find(function (x) { return x.id === id; });
-    withBusy(btn, T('loadingMap'), rl.mapsLoad(id).then(function (r) {
-      report(r, T('toastLoaded', { t: m ? m.title : '' }));
+    withBusy(btn, T('loadingMap'), rl.mapsLoad(id, cur).then(function (r) {
+      report(r, T('toastLoaded', { t: m ? m.title : '', s: slotName(cur) }));
       return refresh();
     }));
   }
-  function restore(btn) {
+  function restore(slotId, btn) {
     if (busy) return;
-    withBusy(btn, null, rl.mapsRestore().then(function (r) {
-      report(r, T('toastRestored'));
+    withBusy(btn, null, rl.mapsRestore(slotId).then(function (r) {
+      report(r, T('toastRestored', { s: slotName(slotId) }));
       return refresh();
     }));
+  }
+  function toggleFav(id) {
+    var m = data && data.maps.find(function (x) { return x.id === id; });
+    if (!m) return;
+    rl.mapsFavorite(id, !m.favorite).then(function (r) {
+      if (r && r.ok === false) report(r);
+      return refresh();
+    }).then(function () {
+      // Le bouton a été redessiné : on remet le focus sur le nouveau.
+      var b = document.querySelector('.card[data-id="' + id + '"] [data-act="fav"]');
+      if (b) b.focus();
+    });
   }
   // Suppression en deux temps, sans boîte de dialogue : le bouton passe en
   // « Confirmer » quatre secondes. Une fenêtre modale bloquerait la vue du site.
@@ -783,6 +932,7 @@
     var id = b.closest('.card').dataset.id;
     var act = b.dataset.act;
     if (act === 'load') loadMap(id, b);
+    else if (act === 'fav') toggleFav(id);
     else if (act === 'remove') removeMap(id, b);
     else if (act === 'page') {
       var m = data.maps.find(function (x) { return x.id === id; });
@@ -825,8 +975,10 @@
 
   rl.onMapsChanged(function (c) {
     if (c && c.guard) {
-      if (c.guard.restored) toast(T('toastGuard'));
-      else if (c.guard.error) toast(T('toastGuardFail', { e: c.guard.error }), true);
+      if (c.guard.error) toast(T('toastGuardFail', { e: c.guard.error }), true);
+      else if (c.guard.restored && c.guard.restored.length) {
+        toast(T('toastGuard', { s: c.guard.restored.join(', ') }));
+      }
     }
     refresh();
   });
@@ -842,11 +994,14 @@
     $('navHome').textContent = T('home');
     $('navExt').textContent = T('ext');
     $('importBtn').textContent = T('importBtn');
+    $('libSearch').placeholder = T('search');
+    $('libSearch').setAttribute('aria-label', T('search'));
+    $('favOnly').textContent = T('favOnly');
     $('eacHint').textContent = T('eac');
     $('drop').textContent = T('drop');
     renderNav();
     renderDownloads();
-    renderSlot();
+    renderSlots();
     renderLib();
   }
 
@@ -856,7 +1011,7 @@
     var l = s.lang === 'en' ? 'en' : 'fr';
     var run = !!(s.game && s.game.processRunning);
     if (l !== lang) { lang = l; renderStatic(); }
-    if (run !== gameRunning) { gameRunning = run; renderSlot(); }
+    if (run !== gameRunning) { gameRunning = run; renderSlots(); }
   }
   rl.onState(onState);
   renderStatic();
