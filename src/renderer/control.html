@@ -1426,6 +1426,7 @@
       lMatch: 'Match en cours', lLast: 'Dernier match',
       noMatch: 'aucun match',
       streakOf: function (n, w) { return ' \u00b7 s\u00e9rie de ' + n + (w ? ' victoires' : ' d\u00e9faites'); },
+      wShort: 'V', lShort: 'D',
       updAvail: function (v) { return 'Nouvelle version <b>v' + v + '</b> disponible.'; },
       updGo: 'Mettre \u00e0 jour',
       updDl: function (v, p) { return 'T\u00e9l\u00e9chargement de <b>v' + v + '</b>\u2026 ' + p + ' %'; },
@@ -1709,6 +1710,8 @@
       lMatch: 'Live match', lLast: 'Last match',
       noMatch: 'no matches',
       streakOf: function (n, w) { return ' \u00b7 streak of ' + n + (w ? ' wins' : ' losses'); },
+      wShort: 'W', lShort: 'L',
+      tiers: ['Unranked', 'Bronze I', 'Bronze II', 'Bronze III', 'Silver I', 'Silver II', 'Silver III', 'Gold I', 'Gold II', 'Gold III', 'Platinum I', 'Platinum II', 'Platinum III', 'Diamond I', 'Diamond II', 'Diamond III', 'Champion I', 'Champion II', 'Champion III', 'Grand Champion I', 'Grand Champion II', 'Grand Champion III', 'Supersonic Legend'],
       updAvail: function (v) { return 'New version <b>v' + v + '</b> available.'; },
       updGo: 'Update',
       updDl: function (v, p) { return 'Downloading <b>v' + v + '</b>\u2026 ' + p + '%'; },
@@ -1842,6 +1845,13 @@
     },
   };
   var T = I18N.fr;
+
+  // Le processus principal nomme les rangs en français : la langue anglaise
+  // les retraduit à partir du palier numérique.
+  function rankName(r) {
+    if (!r || !r.rank) return '';
+    return (T.tiers && T.tiers[r.tier]) || r.rank;
+  }
   var langApplied = '';
   function applyLang(lang) {
     lang = I18N[lang] ? lang : 'fr';
@@ -2360,8 +2370,8 @@
 
     var ses = s.session;
     if (ses && ses.played) {
-      $('rSession').innerHTML = '<span class="w">' + ses.wins + ' V</span> — '
-        + '<span class="l">' + ses.losses + ' D</span>'
+      $('rSession').innerHTML = '<span class="w">' + ses.wins + ' ' + T.wShort + '</span> — '
+        + '<span class="l">' + ses.losses + ' ' + T.lShort + '</span>'
         + (ses.streak.count >= 2
           ? T.streakOf(ses.streak.count, ses.streak.type === 'W')
           : '');
@@ -2521,7 +2531,7 @@
       // vaut null), on n'affiche RIEN — surtout pas "Non classé", qui
       // laisserait croire à une info fiable alors qu'on n'en sait rien.
       var rankEl = $('mmrRank' + mode);
-      var rank = est[mode] && est[mode].rank;
+      var rank = rankName(est[mode]);
       if (rank) {
         rankEl.textContent = rank;
         rankEl.style.display = 'block';

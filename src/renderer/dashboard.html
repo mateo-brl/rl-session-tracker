@@ -28,8 +28,7 @@
     --orange:#e0741a; --orange-deep:#a34f00;
     --gold:#ffc233;
     /* Couleurs de palier de rang (Bronze → Supersonic Legend).
-       R-29 plafonne la palette à trois couleurs de base plus un accent, et
-       huit teintes de palier la dépassent. Elles restent, et voici pourquoi :
+       Huit teintes de plus que la palette de base, et c'est voulu :
        ce ne sont pas des choix de décoration mais une DONNÉE, l'échelle de
        rang du jeu, que le joueur reconnaît au premier regard. Les réduire
        supprimerait de l'information. Elles ne servent d'ailleurs plus de
@@ -999,12 +998,16 @@
      alerte il ne doit rester NI cadre vide sur le dashboard, NI rectangle
      opaque par-dessus le jeu dans OBS. Seule la plaque est peinte, et
      seulement quand il y a quelque chose à dire. */
-  .card.alerts {
+  /* Le sélecteur [data-skin] passe devant les règles .card de skins.css,
+     chargé après : sans lui, chaque habillage repeignait un cadre vide. */
+  .card.alerts, [data-skin] .card.alerts {
     background:none; border:0; box-shadow:none; clip-path:none;
+    backdrop-filter:none; margin:0;
     padding:0; overflow:visible; z-index:20; pointer-events:none;
     justify-content:center; align-items:flex-start;
   }
-  .card.alerts::before, .card.alerts::after { display:none; }
+  .card.alerts::before, .card.alerts::after,
+  [data-skin] .card.alerts::before, [data-skin] .card.alerts::after { display:none; }
   /* L'étiquette et les poignées ne servent qu'à placer le bloc : hors mode
      « Personnaliser », elles laisseraient une trace là où il ne doit rien y
      avoir. */
@@ -1759,6 +1762,7 @@
       alStreakT: function (n) { return n + ' wins in a row'; },
       alRankK: 'Rank up',
       alRankT: function (mode, rank) { return mode + ' · ' + rank; },
+      tiers: ['Unranked', 'Bronze I', 'Bronze II', 'Bronze III', 'Silver I', 'Silver II', 'Silver III', 'Gold I', 'Gold II', 'Gold III', 'Platinum I', 'Platinum II', 'Platinum III', 'Diamond I', 'Diamond II', 'Diamond III', 'Champion I', 'Champion II', 'Champion III', 'Grand Champion I', 'Grand Champion II', 'Grand Champion III', 'Supersonic Legend'],
       alMvpK: 'MVP',
       alMvpT: 'Best player of the match',
       alRecK: 'Record broken',
@@ -1821,6 +1825,13 @@
     },
   };
   var T = I18N.fr;
+
+  // Le processus principal nomme les rangs en français : la langue anglaise
+  // les retraduit à partir du palier numérique.
+  function rankName(r) {
+    if (!r || !r.rank) return '';
+    return (T.tiers && T.tiers[r.tier]) || r.rank;
+  }
   var langApplied = '';
   function applyLang(lang) {
     lang = I18N[lang] ? lang : 'fr';
@@ -1835,6 +1846,15 @@
     // langue : la boucle ci-dessus vient de le remettre à « Simuler ».
     syncSimBtn();
     tickClock();
+    // Le compositeur a pu se dessiner avant de recevoir la langue : ses
+    // pastilles de blocs masqués et l'alerte d'exemple sont refaites.
+    if (editing) {
+      renderHiddenChips();
+      if (widgetEl('alerts') && widgetEl('alerts').classList.contains('on') && !alertTimer && !alertWait) {
+        paintAlert(null);
+        syncAlertDemo();
+      }
+    }
   }
 
   // ─── Thème : 4 couleurs, le reste est dérivé (panneaux, liserés) ───
@@ -2390,7 +2410,7 @@
       alertRank[k] = r.tier;
       if (prev == null || r.tier <= prev) return;
       out.push({ key: 'rankUp', sig: 'rk:' + k + ':' + r.tier, gold: true,
-        kick: T.alRankK, text: T.alRankT(k, r.rank) });
+        kick: T.alRankK, text: T.alRankT(k, rankName(r)) });
     });
 
     var last = hist[0];
@@ -2874,7 +2894,7 @@
       // du MMR je n'ai même pas le rang actuel ». On n'affiche RIEN si le
       // rang est inconnu (jamais de « Non classé » deviné à tort).
       var rankPill = (r && r.rank)
-        ? '<span class="rank-pill ' + tCls + '"><span>' + esc(r.rank) + '</span></span>'
+        ? '<span class="rank-pill ' + tCls + '"><span>' + esc(rankName(r)) + '</span></span>'
         : '';
       var mmrLine = '';
       if (r && r.value != null) {
@@ -3258,7 +3278,7 @@
       var rankEl = $('evoCurRank');
       if (mmrCur.rank) {
         rankEl.className = 'rank-pill sm ' + tierClass(mmrCur.tier);
-        rankEl.innerHTML = '<span>' + esc(mmrCur.rank) + '</span>';
+        rankEl.innerHTML = '<span>' + esc(rankName(mmrCur)) + '</span>';
       } else {
         rankEl.className = 'rank-pill sm';
         rankEl.innerHTML = '';

@@ -80,7 +80,12 @@ test('tolérance : grandit avec le nombre de matchs et les matchs sans verdict',
 });
 
 test('documents : dossier connu de Windows en premier, OneDrive ensuite, journal le plus récent', (t) => {
-  const saved = { USERPROFILE: process.env.USERPROFILE, OneDrive: process.env.OneDrive };
+  const saved = {
+    USERPROFILE: process.env.USERPROFILE,
+    OneDrive: process.env.OneDrive,
+    OneDriveConsumer: process.env.OneDriveConsumer,
+    OneDriveCommercial: process.env.OneDriveCommercial,
+  };
   t.after(() => {
     documents.setKnown(null);
     for (const k of Object.keys(saved)) {
@@ -93,6 +98,10 @@ test('documents : dossier connu de Windows en premier, OneDrive ensuite, journal
   const moved = path.join(root, 'D', 'Mes documents');
   process.env.USERPROFILE = home;
   process.env.OneDrive = drive;
+  // Un OneDrive professionnel ou personnel sur la machine de test ajouterait
+  // son propre dossier Documents à la liste attendue.
+  delete process.env.OneDriveConsumer;
+  delete process.env.OneDriveCommercial;
   documents.setKnown(moved);
   assert.deepEqual(documents.documentsDirs(),
     [moved, path.join(home, 'Documents'), path.join(drive, 'Documents')]);
