@@ -1,691 +1,289 @@
 <div align="center">
 
-<img src="docs/logo.png" width="96" alt="RL Session Tracker" />
+<img src="docs/logo.png" width="96" alt="RL Session Tracker logo" />
 
 # RL Session Tracker
 
-**BakkesMod est banni. Pas tes stats.**
-**BakkesMod is banned. Your stats aren't.**
+**Your Rocket League session, live on your second screen.**
 
-Le tracker de session Rocket League nouvelle génération — temps réel, 100 % local, compatible anti-triche.
-The next-generation Rocket League session tracker — real-time, 100% local, anti-cheat safe.
+Wins, streaks, real MMR and stats, straight from the game's official Stats API.<br/>
+100% local. No account. Nothing injected into the game.
 
-[![Release](https://img.shields.io/github/v/release/mateo-brl/rl-session-tracker?style=flat-square&label=version&color=2f9bff)](https://github.com/mateo-brl/rl-session-tracker/releases/latest)
-[![CI](https://img.shields.io/github/actions/workflow/status/mateo-brl/rl-session-tracker/ci.yml?style=flat-square&label=tests)](https://github.com/mateo-brl/rl-session-tracker/actions)
-[![License](https://img.shields.io/badge/licence-MIT-blue?style=flat-square)](LICENSE)
-![Windows](https://img.shields.io/badge/Windows-10%2F11-0078d4?style=flat-square&logo=windows&logoColor=white)
-![Local](https://img.shields.io/badge/100%25-local-2ee6a6?style=flat-square)
+[![Latest release](https://img.shields.io/github/v/release/mateo-brl/rl-session-tracker?style=flat-square&label=release&color=2f9bff)](https://github.com/mateo-brl/rl-session-tracker/releases/latest)
+[![Tests](https://img.shields.io/github/actions/workflow/status/mateo-brl/rl-session-tracker/ci.yml?branch=main&style=flat-square&label=tests)](https://github.com/mateo-brl/rl-session-tracker/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ee6a6?style=flat-square)](LICENSE)
+![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows&logoColor=white)
+![Epic and Steam](https://img.shields.io/badge/Epic%20%26%20Steam-supported-555?style=flat-square)
 
-**[⬇️ Télécharger / Download](https://github.com/mateo-brl/rl-session-tracker/releases/latest) · [🇫🇷 Français](#-français) · [🇬🇧 English](#-english)**
+<a href="https://github.com/mateo-brl/rl-session-tracker/releases/latest"><img src="https://img.shields.io/badge/Download%20for%20Windows-free-2f9bff?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" height="40" /></a>
+
+**English** · [Français](README.fr.md)
 
 <br/>
 
-![Dashboard — vue session avec match en direct](docs/dashboard.png)
+<img src="docs/en/dashboard.png" width="100%" alt="RL Session Tracker dashboard during a live 2v2 match: session record, win rate, per-mode MMR, MMR curve and recent matches" />
 
 </div>
 
----
+## Why
 
-## 🇫🇷 Français
+Since Easy Anti-Cheat arrived in Rocket League (April 2026), BakkesMod and its plugins no longer run online. That took session trackers and overlays with them.
 
-> **Avril 2026.** L'anti-triche de Rocket League débarque et emporte BakkesMod
-> avec lui. Plus d'overlays, plus de trackers de session.
->
-> **Sauf que.** Le jeu expose désormais une **Stats API native** — un flux
-> local, officiel, compatible anti-triche. RL Session Tracker s'en sert pour
-> tout reconstruire, en mieux : un vrai dashboard de session sur ton 2ᵉ écran,
-> qui s'ouvre tout seul quand tu lances le jeu, et qui n'envoie **rien** sur
-> internet.
+The game now ships a **native Stats API**: a local feed, official and anti-cheat friendly. RL Session Tracker is built on it. Launch the game and your session dashboard opens on your second screen. Close the game and it goes away. Your data never leaves your PC.
 
-Victoires · défaites · série · stats par mode · MMR · bilan contre tes rivaux
-— détectés à la seconde, directement depuis le jeu. Aucune inscription, aucun
-site externe, aucun risque de ban.
+## Highlights
 
-⭐ **L'app te sert ? Une étoile sur le dépôt aide d'autres joueurs à la
-trouver — et c'est le seul « merci » qu'elle demandera jamais.**
+<table>
+<tr>
+<td width="33%" valign="top">
 
-### 📸 Aperçu
+### 🖥️ Hands-free dashboard
+Opens fullscreen on your second monitor when Rocket League starts, closes when you quit. It finds your in-game name by itself after a couple of matches.
 
-![Écran de victoire — animation Broadcast](docs/victory.png)
+</td>
+<td width="33%" valign="top">
+
+### 📈 Real MMR and rank
+The game writes your true MMR to its own log every time you queue ranked. The app reads it, draws your curve and shows your rank and the points left to the next one.
+
+</td>
+<td width="33%" valign="top">
+
+### ⚡ Live match
+Score, clock and overtime to the second. Facing someone you've played before? Your record against them shows up next to their name.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎬 Built for streaming
+A transparent OBS overlay served locally, laid out in a drag-and-drop composer at your exact canvas size. Win banners, goal flashes and alerts included.
+
+</td>
+<td valign="top">
+
+### 🎨 Make it yours
+Six complete skins, eight color themes, movable and resizable blocks, three layout profiles, and looks you can share with a code.
+
+</td>
+<td valign="top">
+
+### 🔒 Private by design
+No sign-up, no third-party site, no telemetry. Matches are stored in a local JSON file. The only outbound request is the update check on GitHub.
+
+</td>
+</tr>
+</table>
+
+## Screenshots
+
+### Every win gets its moment
+
+<img src="docs/en/victory.gif" width="100%" alt="Animated end-of-match victory screen on the dashboard" />
+
+### Six skins, not just six palettes
+
+Each skin changes the typography, card shapes, borders, shadows and background. Shown here: Neon, Paper, Console and Brut. Arena (top of the page) and Calm complete the set.
+
+<img src="docs/en/skins.png" width="100%" alt="The dashboard in four skins: Neon, Paper, Console and Brut" />
+
+### Compose your stream overlay
+
+The OBS overlay uses the same blocks as the dashboard, with its own layout. Move, resize, hide and configure each one over a checkerboard at your source's exact size, then press **Simulate** to replay a fake match and check goals, overtime, banners and alerts without playing.
+
+<img src="docs/en/overlay-composer.png" width="100%" alt="Overlay composer with session, per-mode, alerts and now-playing blocks on a transparent canvas" />
+
+### Settings that stay out of the way
 
 <p align="center">
-  <img src="docs/control.png" width="38%" alt="Fenêtre de réglages" />
-  &nbsp;&nbsp;
-  <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
+  <img src="docs/en/settings.png" width="49%" alt="Settings window, Home section: game detected, Stats API status, live match and diagnostic" />
+  <img src="docs/en/skins-showcase.png" width="49%" alt="Skins showcase: Arena, Console, Paper, Neon, Brut and Calm with live preview" />
 </p>
 
-<p align="center">
-  <img src="docs/obs.png" width="58%" alt="Overlay OBS — styles Broadcast, Compact et Vertical, puis bannière de victoire" /><br/>
-  <i>Mode streamer : l'overlay OBS en 3 styles — Broadcast, Compact, Vertical — et sa bannière de fin de match. Style, taille, fond et contenu se règlent depuis l'application, appliqués en direct dans OBS.</i>
-</p>
+The app lives in the system tray. **Ctrl+Alt+R** opens the settings from anywhere, in-game included.
 
-### ✨ Ce que ça fait
+## Install
 
-| | |
-|---|---|
-| 🖥️ **Dashboard auto** | Tu lances Rocket League → le tracker s'ouvre en plein écran sur ton 2ᵉ écran. Tu quittes le jeu → il se ferme. |
-| ⚡ **Temps réel** | Score, temps, overtime, stats des joueurs — à la seconde, pendant le match. |
-| 📊 **Ta session** | Victoires/défaites, % de victoires, série en cours, meilleure série, par mode (1v1 · 2v2 · 3v3). La liste des matchs récents repart à zéro à chaque lancement (ou d'un clic). |
-| 📈 **Évolution MMR** | Recopie une fois ton MMR affiché en jeu (saison 22+) : courbe d'évolution match après match, bilan des 7 derniers jours, records de tous les temps. |
-| 🤝 **Déjà croisé** | Un adversaire que tu as déjà affronté ? Ton bilan contre lui (2V – 1D) s'affiche à côté de son nom pendant le match — savoureux en 1v1. |
-| ⚖️ **Comptage honnête** | Un forfait adverse compte comme une victoire, quitter un match classé comme une défaite (comme dans le jeu). Un commutateur Classé/Casual sur chaque match en direct évite que le casual pollue ton MMR. |
-| ✏️ **Corrige un résultat** | Un forfait adverse mal interprété ? Corrige n'importe quel match de l'historique du dashboard en un clic (victoire ↔ défaite) : stats et courbe MMR se recalculent aussitôt, rétroactivement. |
-| 🎬 **Overlay OBS composable** | L'overlay servi à OBS est la MÊME page que le dashboard, avec sa propre disposition : mêmes blocs, mêmes réglages, mêmes habillages, fond transparent. Le bouton « Composer l'overlay » ouvre une fenêtre où tu déplaces, redimensionnes, masques et règles chaque bloc sur un damier. L'ancien bandeau compact reste servi sur `/classic`. |
-| ⚙️ **Chaque bloc se règle** | En mode « Personnaliser », un bouton ⚙ sur chaque bloc. « Par mode » et la courbe n'affichent que les modes cochés — un joueur qui ne fait que du 1v1 garde une seule tuile, en pleine largeur et en plus gros. Le bilan de session active ou non son anneau et sa suite de résultats, l'historique choisit son nombre de lignes et ses colonnes, les compteurs de stats se choisissent un par un. |
-| 📊 **Lecture d'un coup d'œil** | Anneau de winrate, suite des vingt derniers résultats en pastilles, progression dans le rang avec les points restants avant le suivant, et courbe de tendance en fond de chaque tuile de mode. |
-| 🩺 **Diagnostic** | Un bouton dans Accueil passe en revue tout ce dont l'appli dépend : installations du jeu détectées, fichier de la Stats API **et droits d'écriture réels** dessus, flux en direct, journal du jeu, pseudo, modes calibrés, et les matchs restés indécidables — le symptôme d'un forfait mal compté. Chaque point dit ce qui va, ce qui coince et quoi faire. « Copier le rapport » en sort une version texte. |
-| 🔔 **Alertes** | Série de trois victoires, montée de rang, MVP, record battu : une plaque s'affiche quelques secondes puis disparaît, sur le dashboard comme dans l'overlay. Chaque déclencheur s'active séparément, et le bloc ne peint rien tant qu'aucune alerte n'est en cours. |
-| 🎬 **Simuler un match** | Depuis « Personnaliser », rejoue quatre-vingt-dix secondes de match inventé — buts, prolongation, victoire, bannière, alertes — pour régler son overlay sans avoir à gagner une vraie partie. Rien n'est enregistré. |
-| 📐 **Toile au format d'OBS** | Le compositeur d'overlay travaille au ratio exact de ta source (1920 × 1080 par défaut, ou ce que tu veux) : ce que tu places est ce qu'OBS affiche. Les dimensions à recopier sont affichées, et un preset d'overlay s'exporte en fichier pour le partager ou le reprendre ailleurs. |
-| 🎧 **En écoute** | Le bloc affiche ce qui joue sur la machine — titre, artiste, progression — et le pilote : précédent, lecture/pause, suivant, volume et muet. Il passe par le contrôleur média de Windows, celui de la tuile du volume, donc il marche avec **n'importe quel lecteur** (Spotify, YouTube dans un navigateur, VLC…) sans clé d'API, sans compte et sans réseau. |
-| 🧰 **Atelier** | Trois ingrédients par-dessus n'importe quel habillage : typographie (condensée, sans empattement, chasse fixe, empattements), découpe des cartes (biseautée, droite, arrondie), densité (confortable, dense, canapé), plus l'inclinaison des plaques et les chiffres penchés. Chaque changement s'aperçoit en direct partout, « Auto » rend la main à l'habillage. Les ingrédients voyagent dans les looks et leurs codes. |
-| 🏬 **Vitrine des habillages** | Une section à part : les six habillages en vignettes qui montrent le vrai rendu, filtrées par famille, avec le look actif signalé. « Essayer » applique partout — cette fenêtre, le dashboard, l'overlay — sans rien enregistrer, et Échap annule. Un look garde l'habillage et tes couleurs sous un nom, et se partage par un code à coller. |
-| 🎭 **Six habillages** | Bien plus que quatre couleurs : chaque habillage change la police, la découpe des cartes, les filets, les ombres et le fond. Arène (l'origine), Console (terminal à phosphore), Papier (imprimé clair), Néon (verre et enseignes), Brut (brutaliste), Calme (rien que le contenu). Il s'applique au dashboard et à la fenêtre de configuration, et apporte sa palette, que tu peux retoucher ensuite. |
-| 🚫 **Matchs privés ignorés** | Un match privé ne passe par aucune file d'attente : l'appli le reconnaît à ça et ne le compte ni en victoire, ni en défaite, ni dans le mode déduit du nombre de joueurs. Case à cocher si tu veux quand même les compter. |
-| 🎨 **Alpha Boost visuel & swaps (optionnel)** | Un clic : l'appli prend le paquet Alpha déjà présent dans ton installation, **renomme ses entrées** pour le boost que tu choisis (Bubbles conseillé) — c'est le vrai patch, celui des fichiers « préparés » — puis le met en place, sauvegarde l'original, restaure d'un clic et **réapplique après une mise à jour**. Fonctionne aussi avec un `.upk` préparé par la communauté. Section « Cosmétiques » (avec les cartes workshop, la seule partie de l'appli qui touche aux fichiers du jeu), jamais pendant qu'il tourne. |
-| 🗺️ **Cartes workshop sur Epic** | Menu « Cartes workshop » : le site [bakkesplugins.com/maps](https://bakkesplugins.com/maps) s'ouvre dans une fenêtre de l'appli. Tu cliques sur le téléchargement d'une carte, elle arrive dans ta bibliothèque avec son titre, son auteur et son aperçu. Jusqu'à quatre arènes Labs servent d'emplacements (Underpass, Utopia Retro, Octagon, Cosmic, selon ce que contient ton jeu) : choisis-en une en haut de la fenêtre, puis « Charger » y pose la carte. En jeu : Entraînement libre, sur cette arène. L'original est sauvegardé une fois et se remet d'un clic. Underpass reste chargé pendant tes files classiques ; les autres arènes reviennent d'origine dès que tu lances une recherche de match, car elles peuvent tomber en ligne. Recherche par nom ou auteur, favoris, et import d'un `.udk` ou d'un `.zip` déjà sur ton PC. |
-| 🥅 **Tes stats** | Buts, passes, arrêts, tirs, MVP — cumulés sur la session et détaillés match par match. |
-| 🪄 **Zéro config** | Pas de compte, pas de code. L'appli détecte même ton pseudo toute seule après 2-3 matchs. |
-| 🎯 **Mini-overlay** | Petit bandeau toujours au premier plan (W–L, série, score live) pour jouer sur un seul écran. |
-| 🎮 **Statut Discord** | Rich Presence optionnelle : tes amis voient « Classé 2v2 · 3 – 2 » et ta série en cours, en direct. |
-| 🔌 **Compatible overlays SOS** | Un pont optionnel réémet le flux du jeu sur `ws://127.0.0.1:49122` au format de l'ancien plugin SOS, muet en ligne depuis Easy Anti-Cheat. Les overlays de diffusion écrits avant avril 2026 refonctionnent tels quels, sans rien modifier chez eux. |
-| 📺 **Mode streamer (OBS)** | Un overlay de stream servi en local (`http://127.0.0.1:49350/overlay`) à capturer en source Navigateur — **100 % personnalisable** : 3 styles (Broadcast, Compact, Vertical), taille, opacité du fond, chaque élément activable (série, score live, déjà croisé, flash de but, bannière), réglé depuis l'app et appliqué en direct dans OBS. Aux couleurs de ton thème, fond transparent. |
-| 🔄 **Mises à jour auto** | Une nouvelle version sort → un bouton « Mettre à jour » apparaît → un clic et c'est fait. |
-| 🔊 **Jingles** | Un son de victoire, un son de défaite (désactivables) — et un tiltomètre après 3 défaites d'affilée. |
-| 🎨 **Personnalisable** | Chaque bloc du dashboard se déplace, se redimensionne et se masque — avec 3 profils de disposition et des widgets bonus (horloge, objectif de MMR). 8 thèmes de couleurs prédéfinis (ou totalement libres), 5 styles d'animations et 4 jingles testables en un clic, overlay réglable. |
-| 🌍 **FR / EN** | Interface bilingue : langue du système détectée automatiquement, modifiable dans les réglages. |
+> Requires **Windows 10 or 11** and Rocket League on **PC** (Epic Games or Steam). The Stats API does not exist on consoles.
 
-### 🆚 Pourquoi celui-là ?
+1. **Download** `RL-Session-Tracker-Setup-x.y.z.exe` from the [latest release](https://github.com/mateo-brl/rl-session-tracker/releases/latest).
+2. **Run it.** If Windows SmartScreen says "Unknown publisher", click **More info → Run anyway**. The installer is not code-signed, which is common for free open-source apps.
+3. On first launch, **accept the Windows permission prompt**. It enables the game's Stats API by writing one line to a Rocket League config file.
+4. **Play.** That's it. The app starts with Windows and updates itself: when a new version ships, an **Update** button appears.
 
-| | RL Session Tracker | Sites de tracking | Mods d'avant (BakkesMod…) |
+## Features
+
+<details>
+<summary><b>Session tracking</b></summary>
+
+- Wins, losses, win rate, current and best streak, for the whole session and per mode (1v1, 2v2, 3v3).
+- Goals, assists, saves, shots and MVPs, as session totals and match by match.
+- Win-rate ring, last twenty results as pips, trend curve behind each mode tile.
+- Recent matches list that starts fresh on each launch, or with one click.
+- Fair counting: an opponent forfeit counts as a win, leaving a ranked match as a loss, private matches are ignored (optional), and a Ranked/Casual switch keeps casual games out of your MMR.
+- Fix any result from the history in one click: stats and the MMR curve recalculate instantly.
+- Seven-day summary, all-time records, CSV export.
+
+</details>
+
+<details>
+<summary><b>MMR and rank</b></summary>
+
+- True MMR read from the game's own log (`Launch.log`) each time you queue ranked. Between two queues the app estimates each match, and the estimate is re-anchored on every reading instead of drifting.
+- Readings that don't fit your results (your party leader's MMR, for example) are set aside until the next one confirms them.
+- If the real MMR change contradicts a recorded result, the misread forfeit is fixed automatically.
+- Rank derived from MMR for each playlist, with the points left to the next one.
+- You can still type your MMR by hand if you prefer.
+
+</details>
+
+<details>
+<summary><b>Dashboard and customization</b></summary>
+
+- Every block can be moved, resized, hidden and configured (modes shown, rows, columns, counters).
+- Three layout profiles and bonus widgets: clock, MMR goal, now playing.
+- Six skins (Arena, Console, Paper, Neon, Brut, Calm) plus a workshop to change typography, card cut and density on top of any skin.
+- Eight color themes or fully custom colors. Save a look under a name and share it as a code.
+- Five end-of-match animation styles, four jingles, and a tilt-o-meter after three losses in a row.
+- Alerts for win streaks, rank ups, MVPs and broken records.
+- Mini overlay: a small always-on-top strip for single-screen setups.
+
+<img src="docs/en/mini-overlay.png" alt="Mini overlay showing 8 wins, 3 losses, a 3-win streak and the live 2v2 score" />
+
+</details>
+
+<details>
+<summary><b>Streaming</b></summary>
+
+- Local OBS Browser source at `http://127.0.0.1:49350/overlay`, transparent background, updated live.
+- Drag-and-drop composer working at your OBS canvas size (1920 × 1080 by default). Export and import presets.
+- Classic compact bar still available at `/classic`.
+- Optional bridge that re-broadcasts the game feed on `ws://127.0.0.1:49122` in the format of the old SOS plugin, so broadcast overlays written for it work again unchanged.
+- Discord Rich Presence (optional): friends see "Ranked 2v2 · 3 – 2" and your streak.
+- Now playing block: shows and controls whatever plays on your PC (Spotify, a browser tab, VLC…) through Windows' media controls. No API key, no account.
+
+</details>
+
+<details>
+<summary><b>Tools and extras</b></summary>
+
+- **Diagnostic**: checks game installs, the Stats API file and write access to it, the live feed, the game log and your name, then tells you what to fix. "Copy the report" gives a text version.
+- **Bilingual**: English and French, picked from your system language.
+- **Workshop maps (Epic)**: browse [bakkesplugins.com/maps](https://bakkesplugins.com/maps) in an app window, download a map and load it on one of up to four Labs arenas for Free Play. Originals are backed up and restored in one click, and arenas that can show up online are restored as soon as you queue.
+- **Alpha Boost visual swap**: optional, see the warning below.
+
+</details>
+
+> [!WARNING]
+> Workshop maps and the boost swap are the **only** features that modify Rocket League files. They do nothing until you use them, never run while the game is open, back up the originals and restore in one click ("Verify integrity of game files" also restores everything). No ban has been reported since Easy Anti-Cheat, but modifying game files is against the letter of the game's terms. Your call.
+
+## How it works
+
+```mermaid
+flowchart LR
+    RL["🎮 Rocket League"] -- "Stats API · 127.0.0.1:49123" --> APP["🛰️ RL Session Tracker"]
+    LOG["📄 Launch.log"] -- "real MMR on ranked queue" --> APP
+    APP --> DASH["🖥️ Dashboard · 2nd screen"]
+    APP --> OBS["🎬 OBS overlay · 127.0.0.1:49350"]
+    APP --> MINI["🎯 Mini overlay"]
+    APP --> DATA[("💾 matches.json · %APPDATA%")]
+```
+
+Everything runs on your PC. The tracker listens to the game's local Stats API socket and reads the game's log file from outside the game process: no injection, no memory reading, nothing for the anti-cheat to object to. Match history lives in `%APPDATA%\RL Session Tracker`.
+
+| | RL Session Tracker | Tracking websites | BakkesMod plugins |
 |---|:---:|:---:|:---:|
-| Temps réel pendant le match | ✅ | ❌ (après coup) | ✅ |
-| Compatible anti-triche (EAC) | ✅ | ✅ | ❌ banni en ligne |
-| 100 % local, zéro compte | ✅ | ❌ | ✅ |
-| Dashboard 2ᵉ écran automatique | ✅ | ❌ | ❌ |
-| Risque pour ton compte | **Aucun** | Aucun | Réel |
-
-### 🚀 Installation (2 minutes, aucune connaissance requise)
-
-1. **Télécharge** le fichier `RL-Session-Tracker-Setup-X.Y.Z.exe` depuis la
-   [dernière release](https://github.com/mateo-brl/rl-session-tracker/releases/latest).
-2. **Double-clique** dessus. Si Windows affiche « Éditeur inconnu », clique
-   *Informations complémentaires* → *Exécuter quand même* (l'application
-   n'est pas signée, c'est normal pour un projet gratuit).
-3. Au premier lancement, **clique « Oui »** à la fenêtre d'autorisation
-   Windows : elle active la Stats API du jeu (un fichier de configuration de
-   Rocket League).
-4. **Lance Rocket League et joue.** C'est tout. 🎉
-
-L'application :
-- s'installe en **démarrage automatique** avec Windows (elle vit discrètement
-  dans la zone de notification — **Ctrl+Alt+R** fait apparaître le panneau de
-  configuration de n'importe où, jeu compris, et un réglage permet de le
-  garder plutôt dans la barre des tâches) ;
-- **détecte ton pseudo toute seule** après quelques matchs (c'est le seul
-  joueur présent dans toutes tes parties) ;
-- ouvre le **dashboard sur ton 2ᵉ écran** dès que le jeu démarre.
-
-> 💡 **Optionnel — le MMR :** active « Afficher le MMR » dans les paramètres
-> de Rocket League (Interface), recopie les valeurs dans la fenêtre de
-> l'application, et le dashboard suivra ton MMR estimé (≈ ±9 par match
-> classé). Tu peux le corriger quand tu veux.
->
-> ⚠️ **Matchs de placement** (début de saison) : les gains y sont bien plus
-> gros (souvent ±15 et dégressifs), l'estimation dérive forcément pendant
-> cette période. Recopie ton MMR en jeu une fois tes placements terminés —
-> l'application te signale d'ailleurs les gros écarts quand tu recalibres.
-
-#### ❓ Petits soucis courants
-
-<details>
-<summary><b>Le dashboard ne montre rien pendant mes matchs</b></summary>
-
-La Stats API du jeu n'est probablement pas active. Ouvre la fenêtre de
-l'application (icône dans la barre des tâches) → clique **« Réactiver la
-Stats API du jeu »** → accepte la fenêtre Windows → **redémarre Rocket
-League**. En dernier recours, double-clique sur `enable-statsapi.bat`
-(inclus dans ce dépôt).
-</details>
-
-<details>
-<summary><b>Mes victoires/défaites ne sont pas comptées</b></summary>
-
-L'application ne sait pas encore qui tu es. Joue 2-3 matchs (elle détecte ton
-pseudo automatiquement), ou ouvre la fenêtre de l'application et choisis ton
-pseudo dans les suggestions.
-</details>
-
-<details>
-<summary><b>Le mini-overlay n'apparaît pas par-dessus le jeu</b></summary>
-
-Rocket League est en mode « Plein écran » exclusif : Windows ne laisse alors
-**aucune** fenêtre passer devant le jeu (c'est pareil pour tous les overlays).
-Mets l'affichage en **« Fenêtré sans bordure »** (Paramètres → Vidéo) —
-visuellement identique, et l'overlay passera devant.
-</details>
-
-<details>
-<summary><b>Le dashboard s'ouvre sur le mauvais écran</b></summary>
-
-Il choisit l'écran **secondaire** automatiquement. Si tu préfères le placer
-toi-même, décoche « plein écran » dans les réglages : il s'ouvrira en fenêtre
-normale que tu peux déplacer.
-</details>
-
-<details>
-<summary><b>Je suis sur Steam, ça marche ?</b></summary>
-
-Oui, exactement pareil que sur Epic : l'application détecte les deux
-installations automatiquement (manifestes Epic, registre Steam et toutes tes
-bibliothèques Steam, même sur un autre disque). Un point à connaître : après
-une **« Vérification de l'intégrité des fichiers »** dans Steam ou une grosse
-mise à jour du jeu, le fichier de la Stats API peut être réinitialisé.
-L'application le vérifie désormais **à chaque lancement** et le réactive
-toute seule (une fenêtre admin à accepter). Si ça arrive en pleine session,
-reclique **« Réactiver la Stats API du jeu »** et redémarre Rocket League.
-(Pareil pour la réparation Epic.)
-
-Depuis la 3.32.0, l'application pose aussi `TAStatsAPI.ini` dans
-`Documents\My Games\Rocket League\TAGame\Config`. Ce fichier du profil
-prime sur celui du jeu, ne demande aucun droit admin, et ni Steam ni Epic n'y
-touchent lors d'une vérification : la Stats API devrait survivre aux mises à
-jour. Le diagnostic le contrôle aussi.
-</details>
-
-> ⚠️ La Stats API n'existe que sur **PC** (Epic / Steam). L'application est
-> Windows uniquement.
-
-### 🧩 Comment ça marche
-
-```
- ┌──────────────────────────── ton PC ────────────────────────────┐
- │                                                                │
- │  🎮 Rocket League ──Stats API──►  🛰️ RL Session Tracker        │
- │     (socket local 49123)            │   barre des tâches       │
- │                                     ├─► 🖥️ dashboard 2ᵉ écran  │
- │                                     └─► 💾 matchs (en local)   │
- │                                                                │
- └────────────────────────────────────────────────────────────────┘
-                          ▲
-            GitHub Releases (mises à jour auto)
-```
-
-Tout est local : tes matchs sont enregistrés dans un fichier JSON sur ton PC
-(`%APPDATA%/RL Session Tracker`), rien n'est envoyé nulle part. La seule
-connexion sortante est la vérification de mise à jour sur GitHub.
-
-**D'où vient le MMR ?** La Stats API du jeu ne le diffuse pas, les sites
-comme tracker.gg n'ont pas d'API publique (et leur scraping casse sans
-arrêt), et les API tierces exigent des clés privées. Mais le jeu écrit
-lui-même son MMR **en clair**, dans son journal
-(`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), à chaque mise
-en file classée. L'application le relit et recale automatiquement ta courbe
-dessus : entre deux files, elle continue d'estimer à ±9 par match, mais
-l'écart repart de zéro à chaque partie lancée au lieu de s'accumuler. Mieux :
-elle compare aussi la variation réelle du MMR au bilan des matchs enregistrés
-sur la période — si un forfait mal classé explique l'écart, elle corrige le
-résultat automatiquement.
-
-Depuis la 3.34.0, une lecture trop éloignée de ce que tes matchs prévoient
-(le MMR du chef quand tu joues en groupe, par exemple) est mise de côté au
-lieu de tout recaler : acceptée si la lecture suivante la confirme, oubliée
-sinon. Le diagnostic l'affiche. Le journal est aussi retrouvé quand Windows a
-déplacé Documents (OneDrive, autre disque).
-
-C'est une simple lecture de fichier, en dehors du processus du jeu — aucune
-injection, aucune lecture mémoire, rien qui puisse déplaire à l'anti-triche.
-Deux limites assumées : rien n'est écrit quand tu n'es pas chef de groupe, et
-le dernier match d'une session n'est pris en compte qu'à ta prochaine mise en
-file. Le format n'étant pas documenté par Psyonix, il peut changer à un patch :
-dans ce cas l'application ne casse pas, elle revient simplement à l'estimation
-seule. Tu peux aussi tout désactiver et saisir ton MMR à la main, comme avant.
-
-**Et les cosmétiques, c'est sûr ?** Avec les cartes workshop, c'est la seule
-partie de l'appli qui modifie des fichiers de Rocket League, et elle ne fait
-rien tant que tu n'y touches pas. Elle ne télécharge rien. Copier tel quel un paquet du jeu par-dessus un
-autre ne fonctionne pas (testé : boost transparent) : le moteur cherche dans
-`Boost_Bubble_SF.upk` des objets nommés « Boost_Bubble… ». L'appli fait donc
-le vrai travail — elle déchiffre l'en-tête du paquet Alpha (AES, clé
-publique), renomme ses entrées à longueur constante, rechiffre — sans toucher
-au corps du fichier. C'est ce que contiennent les fichiers « préparés » que
-les communautés partagent, et tu peux aussi en fournir un directement. Si un
-paquet n'est pas déchiffrable (clé inconnue), rien n'est écrit et un rapport
-de diagnostic est produit.
-
-Le son suit un chemin différent du visuel : chaque boost a sa banque Wwise
-(`SFX_Boost_*.bnk`) et sa fiche audio nommée d'après l'objet. L'appli renomme
-donc aussi cette fiche, en gardant l'événement Alpha. La contrainte porte sur la taille
-TOTALE de la table des noms, pas sur chaque nom : raccourcir le nom du paquet
-finance l'allongement de la fiche. Si la place manque quand même, la cible est
-refusée avant toute écriture et l'appli propose des boosts qui conviennent.
-Le bouton « Vérifier tous les boosts » passe en revue l'installation entière et
-dit lesquels acceptent le swap, sans rien écrire. L'appli sauvegarde l'original une
-fois pour toutes, n'écrit jamais tant que le jeu tourne, et tout se restaure
-d'un clic — en cas de doute, « Vérifier l'intégrité des fichiers » dans Steam
-remet le jeu d'origine. Sans ban documenté depuis Easy Anti-Cheat, mais à la
-lettre contraire aux conditions du jeu : c'est ton choix, et l'appli te le
-rappelle. Le son suit le visuel : la fiche audio du paquet est renommée avec
-le reste, l'événement Alpha restant, donc le boost sonne comme l'Alpha sans
-qu'aucun son ne soit joué par l'application.
-
-### 🧰 Pour les développeurs
-
-| Côté | Technologies |
-|---|---|
-| **Application** | Electron — un seul processus principal, fenêtres HTML/CSS/JS sans framework ni étape de build |
-| **Données** | Stats API native du jeu (socket TCP `127.0.0.1:49123`, JSON concaténé) |
-| **Empaquetage** | electron-builder — installeur NSIS un-clic |
-| **Mises à jour** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Qualité** | Tests unitaires et d'intégration (`node --test`), test de fumée dans le vrai Electron (`e2e/smoke.js`), CI à chaque push |
-
-```bash
-git clone https://github.com/mateo-brl/rl-session-tracker.git
-cd rl-session-tracker
-npm install
-npm start          # lance l'application en mode développement
-node --test        # lance les tests
-npm run smoke      # test de fumée : la vraie application dans Electron
-                   # (sous Linux sans écran : xvfb-run -a npm run smoke -- --no-sandbox)
-npm run dist       # construit l'installeur Windows dans dist/
-```
-
-#### Publier une nouvelle version
-
-```bash
-npm version minor          # bump package.json + tag vX.Y.Z
-git push --follow-tags
-```
-
-Le workflow GitHub Actions ([release.yml](.github/workflows/release.yml))
-construit l'installeur sur Windows et publie la release (déclenchable aussi
-par un commit `main` contenant `[release]`, ou à la main depuis l'onglet
-Actions). Toutes les applications installées la verront et proposeront le
-bouton « Mettre à jour ».
-
-<details>
-<summary>🗂️ Structure du projet</summary>
-
-```
-rl-session-tracker/
-├── src/
-│   ├── main/                  # Processus principal Electron
-│   │   ├── index.js           # Cycle de vie, état partagé, câblage général
-│   │   ├── ipc-*.js           # IPC par domaine : cosmétiques, cartes, fichiers
-│   │   ├── mmr-log.js         # Branchement du journal du jeu (MMR, files)
-│   │   ├── statsapi-repair.js # Quand réparer la Stats API, et combien de fois
-│   │   ├── tray.js            # Icône et menu de la zone de notification
-│   │   ├── csv.js             # Export CSV des matchs
-│   │   ├── statsapi.js        # Connecteur Stats API (TCP, parseur de flux)
-│   │   ├── game-watcher.js    # Détection du processus RocketLeague.exe
-│   │   ├── session.js         # Journal des matchs + stats + MMR + records
-│   │   ├── config.js          # Préférences (pseudo, MMR, options)
-│   │   ├── windows.js         # Fenêtres : contrôle, dashboard, overlay
-│   │   ├── updater.js         # Mises à jour automatiques (GitHub Releases)
-│   │   ├── discord-rpc.js     # Statut Discord (pipe IPC local, sans dépendance)
-│   │   ├── obs-server.js      # Mode streamer : overlay OBS servi en local (SSE)
-│   │   ├── sos-bridge.js      # Pont WebSocket compatible plugin SOS (49122)
-│   │   ├── cosmetics.js       # Swaps cosmétiques (Alpha Boost visuel), jeu fermé
-│   │   ├── maps.js            # Cartes workshop : bibliothèque + emplacement Underpass
-│   │   ├── maps-browser.js    # bakkesplugins.com intégré, téléchargements interceptés
-│   │   ├── zip.js             # Lecture des archives .zip (sans dépendance)
-│   │   ├── rl-log.js          # Vrai MMR + playlist lus dans Launch.log
-│   │   ├── mmr-guard.js       # Garde-fou : lecture de MMR crédible ou mise de côté
-│   │   ├── documents.js       # Vrai dossier Documents (OneDrive, déplacé)
-│   │   └── enable-statsapi.js # Active la Stats API du jeu (PowerShell élevé)
-│   ├── preload.js             # Pont IPC sécurisé (contextIsolation)
-│   └── renderer/
-│       ├── control.html       # Fenêtre de contrôle / réglages
-│       ├── maps.html          # Fenêtre Cartes workshop
-│       ├── dashboard.html     # Le tracker plein écran
-│       ├── overlay.html       # Mini-overlay toujours au premier plan
-│       ├── obs.html           # Overlay de stream (capturé dans OBS)
-│       └── fonts/             # Barlow Condensed (licence OFL-1.1)
-├── build/icon.ico             # Icône de l'application
-├── electron-builder.yml       # Empaquetage NSIS + publication GitHub
-├── .github/workflows/         # CI (tests) + release (build Windows)
-└── enable-statsapi.bat / .ps1 # Activation manuelle de secours
-```
-</details>
-
-### 📄 Licence
-
-MIT — fais-en ce que tu veux. La police Barlow Condensed est sous licence
-OFL-1.1.
-
-<div align="center">
-
-**Si ce projet t'a été utile, [laisse une étoile ⭐](https://github.com/mateo-brl/rl-session-tracker/stargazers) — ça prend deux secondes et ça aide énormément.**
-
-</div>
-
----
-
-## 🇬🇧 English
-
-> **April 2026.** Rocket League's anti-cheat arrives and takes BakkesMod down
-> with it. No more overlays, no more session trackers.
->
-> **Except.** The game now exposes a **native Stats API** — a local, official,
-> anti-cheat-friendly feed. RL Session Tracker uses it to rebuild everything,
-> better: a real session dashboard on your second screen that opens by itself
-> when you launch the game, and sends **nothing** to the internet.
-
-Wins · losses · streak · per-mode stats · MMR · record against your rivals —
-detected the second they happen, straight from the game. No sign-up, no
-third-party website, no ban risk.
-
-⭐ **Found it useful? A star on the repo helps other players discover it —
-and it's the only "thank you" this app will ever ask for.**
-
-### 📸 Preview
-
-![Victory screen — Broadcast animation](docs/victory.png)
-
-<p align="center">
-  <img src="docs/control.png" width="38%" alt="Settings window" />
-  &nbsp;&nbsp;
-  <img src="docs/overlay.png" width="32%" alt="Mini-overlay" />
-</p>
-
-<p align="center">
-  <img src="docs/obs.png" width="58%" alt="OBS overlay — Broadcast, Compact and Vertical styles, then victory banner" /><br/>
-  <i>Streamer mode: the OBS overlay in 3 styles — Broadcast, Compact, Vertical — and its end-of-match banner. Style, size, background and content are set from the app and applied live in OBS.</i>
-</p>
-
-### ✨ Features
-
-| | |
-|---|---|
-| 🖥️ **Auto dashboard** | Launch Rocket League → the tracker opens fullscreen on your second screen. Quit the game → it closes. |
-| ⚡ **Real time** | Score, clock, overtime, player stats — to the second, during the match. |
-| 📊 **Your session** | Wins/losses, win rate, current streak, best streak, per mode (1v1 · 2v2 · 3v3). The recent-matches list starts fresh on every launch (or with one click). |
-| 📈 **MMR tracking** | Copy your in-game MMR once (Season 22+): match-by-match evolution chart, last-7-days summary, all-time records. |
-| 🤝 **Seen before** | Facing an opponent you've already played? Your record against them (2W – 1L) shows next to their name during the match — delicious in 1v1. |
-| ⚖️ **Honest counting** | An opponent forfeit counts as a win, leaving a ranked match as a loss (just like in the game). A Ranked/Casual switch on each live match keeps casual games from polluting your MMR. |
-| ✏️ **Fix a result** | Misjudged an opponent forfeit? Fix any match in the dashboard history in one click (win ↔ loss) — stats and the MMR chart recalculate instantly, retroactively. |
-| 🎬 **Composable OBS overlay** | The overlay served to OBS is the SAME page as the dashboard, with its own layout: same blocks, same settings, same skins, transparent background. The "Compose the overlay" button opens a window where you move, resize, hide and configure each block over a checkerboard. The old compact bar is still served on `/classic`. |
-| ⚙️ **Every block has settings** | In "Customize" mode, a ⚙ button on each block. "Per mode" and the curve only show the modes you tick — a 1v1-only player keeps a single tile, full width and larger. The session summary toggles its ring and result run, the history picks its row count and columns, the stat counters are chosen one by one. |
-| 📊 **Read at a glance** | Win-rate ring, last twenty results as pips, progress inside your rank with the points left to the next one, and a trend curve behind every mode tile. |
-| 🩺 **Diagnostic** | A button on Home reviews everything the app depends on: detected game installs, the Stats API file **and real write access** to it, the live feed, the game log, the nickname, calibrated modes, and matches left undecided — the symptom of a mis-counted forfeit. Each item says what works, what does not and what to do. "Copy the report" gives a text version. |
-| 🔔 **Alerts** | Three-win streak, rank up, MVP, record beaten: a plate shows for a few seconds then goes, on the dashboard and in the overlay. Each trigger toggles separately, and the block paints nothing while no alert is running. |
-| 🎬 **Simulate a match** | From "Customize", replays ninety seconds of an invented match — goals, overtime, win, banner, alerts — to set up your overlay without winning a real game. Nothing is recorded. |
-| 📐 **Canvas at OBS size** | The overlay composer works at your source's exact ratio (1920 × 1080 by default, or whatever you want): what you place is what OBS shows. The dimensions to copy are displayed, and an overlay preset exports to a file to share or reuse elsewhere. |
-| 🎧 **Now playing** | The block shows what is playing on the machine — title, artist, progress — and controls it: previous, play/pause, next, volume and mute. It goes through Windows' media controller, the one behind the volume tile, so it works with **any player** (Spotify, YouTube in a browser, VLC…) with no API key, no account and no network. |
-| 🧰 **Workshop** | Three ingredients on top of any skin: typography (condensed, sans, monospace, serif), card cut (chamfered, square, rounded), density (comfortable, dense, couch), plus plate slant and slanted numbers. Every change previews live everywhere, "Auto" hands control back to the skin. Ingredients travel inside looks and their codes. |
-| 🏬 **Skin showcase** | Its own section: the six skins as thumbnails rendered with the real CSS, filtered by family, with the active look marked. "Try" applies everywhere — this window, the dashboard, the overlay — saving nothing, and Esc cancels. A look keeps the skin and your colours under a name, and travels as a code you paste. |
-| 🎭 **Six skins** | Far more than four colors: each skin changes the type, the card cuts, the rules, the shadows and the background. Arena (the original), Console (phosphor terminal), Paper (light print), Neon (glass and signs), Brut (brutalist), Calm (content only). It applies to the dashboard and the settings window, and brings its own palette you can tweak afterwards. |
-| 🚫 **Private matches ignored** | A private match goes through no queue: that's how the app spots it, and it counts as neither a win nor a loss, nor toward the mode guessed from the player count. A checkbox brings them back if you want them. |
-| 🎨 **Visual Alpha Boost & swaps (optional)** | One click: the app takes the Alpha package already in your install, **renames its entries** for the boost you pick (Bubbles recommended) — the real patch, the one "prepared" files carry — then puts it in place, backs up the original, restores in one click and **re-applies after a game update**. Also works with a community-prepared `.upk`. "Cosmetics" section (with workshop maps, the only part of the app that touches game files), never while the game is running. |
-| 🗺️ **Workshop maps on Epic** | "Workshop maps" menu: [bakkesplugins.com/maps](https://bakkesplugins.com/maps) opens in an app window. Click a map's download button and it lands in your library with its title, author and preview. Up to four Labs arenas act as slots (Underpass, Utopia Retro, Octagon, Cosmic, depending on what your game has): pick one at the top of the window, then "Load" puts the map there. In game: Free Play, on that arena. The original is backed up once and comes back in one click. Underpass stays loaded during standard queues; the other arenas go back to the original as soon as you queue, since they can show up online. Search by name or author, favorites, and import of a `.udk` or `.zip` already on your PC. |
-| 🥅 **Your stats** | Goals, assists, saves, shots, MVP — session totals and per-match detail. |
-| 🪄 **Zero config** | No account, no code. The app even detects your in-game name by itself after 2-3 matches. |
-| 🎯 **Mini-overlay** | Small always-on-top strip (W–L, streak, live score) for single-screen setups. |
-| 🎮 **Discord status** | Optional Rich Presence: your friends see "Ranked 2v2 · 3 – 2" and your current streak, live. |
-| 🔌 **SOS overlay bridge** | An optional bridge rebroadcasts the game feed on `ws://127.0.0.1:49122` in the format of the old SOS plugin, silent online since Easy Anti-Cheat. Broadcast overlays written before April 2026 work again as-is, with no changes on their side. |
-| 📺 **Streamer mode (OBS)** | A locally served stream overlay (`http://127.0.0.1:49350/overlay`) to capture as a Browser source — **fully customizable**: 3 styles (Broadcast, Compact, Vertical), size, background opacity, every element toggleable (streak, live score, seen-before, goal flash, banner), set from the app and applied live in OBS. In your theme colors, transparent background. |
-| 🔄 **Auto updates** | A new version ships → an "Update" button appears → one click and you're done. |
-| 🔊 **Jingles** | A win sound, a loss sound (can be turned off) — and a tilt-o-meter after 3 losses in a row. |
-| 🎨 **Customizable** | Every dashboard block can be moved, resized and hidden — with 3 layout profiles and bonus widgets (clock, MMR goal). 8 built-in color themes (or fully custom), 5 animation styles and 4 jingles testable in one click, adjustable overlay. |
-| 🌍 **FR / EN** | Bilingual interface: system language auto-detected, changeable in the settings. |
-
-### 🆚 Why this one?
-
-| | RL Session Tracker | Tracking websites | Old-school mods (BakkesMod…) |
-|---|:---:|:---:|:---:|
-| Real-time during the match | ✅ | ❌ (after the fact) | ✅ |
-| Anti-cheat (EAC) compatible | ✅ | ✅ | ❌ banned online |
+| Live during the match | ✅ | ❌ after the fact | ✅ |
+| Works with Easy Anti-Cheat | ✅ | ✅ | ❌ blocked online |
 | 100% local, no account | ✅ | ❌ | ✅ |
 | Automatic second-screen dashboard | ✅ | ❌ | ❌ |
-| Risk for your account | **None** | None | Real |
 
-### 🚀 Install (2 minutes, no technical knowledge needed)
-
-1. **Download** `RL-Session-Tracker-Setup-X.Y.Z.exe` from the
-   [latest release](https://github.com/mateo-brl/rl-session-tracker/releases/latest).
-2. **Double-click** it. If Windows shows "Unknown publisher", click
-   *More info* → *Run anyway* (the app isn't code-signed, which is normal
-   for a free project).
-3. On first launch, **click "Yes"** on the Windows permission prompt: it
-   enables the game's Stats API (a Rocket League config file).
-4. **Launch Rocket League and play.** That's it. 🎉
-
-The app:
-- installs itself to **start with Windows** (it lives quietly in the
-  notification area — **Ctrl+Alt+R** brings up the settings panel from
-  anywhere, in-game included, and a setting keeps it in the taskbar
-  instead);
-- **detects your in-game name by itself** after a few matches (you're the
-  only player present in all of them);
-- opens the **dashboard on your second screen** as soon as the game starts.
-
-> 💡 **Optional — MMR:** enable "Show MMR" in Rocket League's settings
-> (Interface), copy the values into the app window, and the dashboard will
-> track your estimated MMR (≈ ±9 per ranked match). You can correct it
-> anytime.
->
-> ⚠️ **Placement matches** (start of season): gains are much bigger there
-> (often ±15 and decreasing), so the estimate inevitably drifts during that
-> period. Copy your in-game MMR again once placements are done — the app
-> also flags big gaps when you recalibrate.
-
-#### ❓ Troubleshooting
+## FAQ
 
 <details>
 <summary><b>The dashboard shows nothing during my matches</b></summary>
 
-The game's Stats API is probably not enabled. Open the app window (tray
-icon) → click **"Re-enable the game's Stats API"** → accept the Windows
-prompt → **restart Rocket League**. As a last resort, double-click
-`enable-statsapi.bat` (included in this repo).
+The Stats API is probably off. Open the app (tray icon or Ctrl+Alt+R), click **Re-enable the game's Stats API**, accept the Windows prompt and **restart Rocket League**. The built-in diagnostic points to what is wrong. Last resort: run `enable-statsapi.bat` from this repository.
 </details>
 
 <details>
-<summary><b>My wins/losses aren't counted</b></summary>
+<summary><b>My wins and losses aren't counted</b></summary>
 
-The app doesn't know who you are yet. Play 2-3 matches (it detects your name
-automatically), or open the app window and pick your name from the
-suggestions.
+The app doesn't know your name yet. Play two or three matches (you're the only player present in all of them) or pick your name from the suggestions in the settings.
 </details>
 
 <details>
-<summary><b>The mini-overlay doesn't show above the game</b></summary>
+<summary><b>Does it work with Steam?</b></summary>
 
-Rocket League is in exclusive "Fullscreen" mode: Windows then lets **no**
-window appear above the game (the same goes for every overlay). Set the
-display mode to **"Borderless Windowed"** (Settings → Video) — visually
-identical, and the overlay will show on top.
+Yes, exactly like Epic. Both installs are detected automatically, including Steam libraries on other drives. A Steam "Verify integrity" or a big game update can reset the Stats API file: the app checks it on every launch and re-enables it (one admin prompt). It also writes a `TAStatsAPI.ini` in your Documents folder, which survives updates and verifications.
+</details>
+
+<details>
+<summary><b>The mini overlay doesn't show above the game</b></summary>
+
+In exclusive fullscreen, Windows lets no window appear over the game (this applies to every overlay). Switch Rocket League to **Borderless Windowed** in Settings → Video. It looks the same.
 </details>
 
 <details>
 <summary><b>The dashboard opens on the wrong screen</b></summary>
 
-It picks the **secondary** display automatically. If you'd rather place it
-yourself, untick "fullscreen" in the settings: it opens as a normal window
-you can move around.
+It picks your secondary display automatically. Turn off "fullscreen" in the settings to get a normal window you can place anywhere.
 </details>
 
 <details>
-<summary><b>I'm on Steam, does it work?</b></summary>
+<summary><b>Is my MMR exact?</b></summary>
 
-Yes, exactly like on Epic: the app detects both installs automatically (Epic
-manifests, the Steam registry and all your Steam libraries, even on another
-drive). One thing to know: after a **"Verify integrity of game files"** in
-Steam or a big game update, the Stats API config file can be reset. The app
-now checks this **on every launch** and re-enables it by itself (one admin
-prompt to accept). If it happens mid-session, click **"Re-enable the game's
-Stats API"** again and restart Rocket League. (Same for Epic's repair.)
-
-Since 3.32.0, the app also writes `TAStatsAPI.ini` to
-`Documents\My Games\Rocket League\TAGame\Config`. This profile file takes
-priority over the game's own, needs no admin rights, and neither Steam nor Epic
-touch it during a verification: the Stats API should survive updates. The
-diagnostic checks it too.
+The game writes it to its log when you queue ranked, and the app re-anchors on every reading. Two limits: nothing is logged when you're not the party leader, and the last match of a session is only confirmed at your next queue. During placement matches gains are bigger, so expect some drift until placements end. If Psyonix changes the log format, the app falls back to estimating on its own.
 </details>
 
-> ⚠️ The Stats API only exists on **PC** (Epic / Steam). The app is
-> Windows-only.
+## Build from source
 
-### 🧩 How it works
-
-```
- ┌──────────────────────────── your PC ───────────────────────────┐
- │                                                                │
- │  🎮 Rocket League ──Stats API──►  🛰️ RL Session Tracker        │
- │     (local socket 49123)            │   system tray            │
- │                                     ├─► 🖥️ 2nd-screen dashboard│
- │                                     └─► 💾 matches (local file)│
- │                                                                │
- └────────────────────────────────────────────────────────────────┘
-                          ▲
-              GitHub Releases (auto updates)
-```
-
-Everything is local: your matches are stored in a JSON file on your PC
-(`%APPDATA%/RL Session Tracker`); nothing is sent anywhere. The only
-outbound connection is the update check on GitHub.
-
-**Where does the MMR come from?** The game's Stats API doesn't broadcast it,
-sites like tracker.gg have no public API (and scraping them breaks
-constantly), and third-party APIs require private keys. But the game writes
-its own MMR **in plain text**, in its log file
-(`Documents\My Games\Rocket League\TAGame\Logs\Launch.log`), every time you
-queue for a ranked match. The app reads it back and re-anchors your curve on
-it: between two queues it still estimates at ±9 per match, but the drift
-resets every time you queue instead of piling up. Better still: it also
-compares the real MMR change to the tally of recorded matches over that
-span — if a misclassified forfeit explains the gap, it fixes the result
-automatically.
-
-Since 3.34.0, a reading too far from what your matches predict (the party
-leader's MMR when you play in a group, for instance) is set aside instead of
-re-anchoring everything: accepted if the next reading confirms it, dropped
-otherwise. The diagnostic shows it. The log is also found when Windows has
-moved Documents (OneDrive, another drive).
-
-**Are cosmetics safe?** Along with workshop maps, it's the only part of the
-app that modifies Rocket League files, and it does nothing until you use it. Nothing is
-downloaded. Copying a game package as-is over another one does not work
-(tested: invisible boost): the engine looks inside `Boost_Bubble_SF.upk` for
-objects named "Boost_Bubble…". So the app does the real work — it decrypts
-the Alpha package header (AES, public key), renames its entries at constant
-length, re-encrypts — without touching the file body. That's what the
-"prepared" files communities share contain, and you can also provide one
-directly. If a package can't be decrypted (unknown key), nothing is written
-and a diagnostic report is produced.
-
-Sound follows a different path from visuals: each boost has its own Wwise
-bank (`SFX_Boost_*.bnk`) and an audio cue named after the item. The app also
-renames that cue while keeping the Alpha event. The constraint is on the TOTAL size of the name
-table, not on each name: shortening the package name pays for a longer cue. If
-room is still missing, the target is refused before anything is written and the
-app suggests boosts that fit. The "Check every boost" button sweeps the whole
-install and reports which ones accept the swap, writing nothing. The app backs up the original once and
-for all, never writes while the game runs, and everything restores in one
-click — when in doubt, "Verify integrity of game files" in Steam brings the
-stock game back. No documented ban since Easy Anti-Cheat, but against the
-letter of the game's terms: your call, and the app says so. The Alpha Boost
-sound is a different mechanism (an audio overlay, not a file): it's the
-"Alpha Boost sound" option under Dashboard & overlay — it touches nothing in
-the game.
-
-It's a plain file read, outside the game's process — no injection, no memory
-reading, nothing the anti-cheat could object to. Two accepted limits: nothing
-is logged when you aren't the party leader, and a session's last match is only
-accounted for at your next queue. Since Psyonix doesn't document the format, a
-patch could change it: the app won't break, it simply falls back to the
-estimate alone. You can also turn it all off and enter your MMR by hand, as
-before.
-
-### 🧰 For developers
-
-| Side | Technologies |
-|---|---|
-| **App** | Electron — a single main process, framework-free HTML/CSS/JS windows, no build step |
-| **Data** | The game's native Stats API (TCP socket `127.0.0.1:49123`, concatenated JSON) |
-| **Packaging** | electron-builder — one-click NSIS installer |
-| **Updates** | electron-updater + GitHub Releases (`latest.yml`) |
-| **Quality** | Unit & integration tests (`node --test`), smoke test in real Electron (`e2e/smoke.js`), CI on every push |
+Electron app, one main process, framework-free HTML/CSS/JS windows, no build step.
 
 ```bash
 git clone https://github.com/mateo-brl/rl-session-tracker.git
 cd rl-session-tracker
 npm install
-npm start          # run the app in development mode
-node --test        # run the tests
-npm run smoke      # smoke test: the real app inside Electron
-                   # (headless Linux: xvfb-run -a npm run smoke -- --no-sandbox)
-npm run dist       # build the Windows installer into dist/
+npm start        # run the app
+npm test         # unit and integration tests (node --test)
+npm run smoke    # smoke test: the real app inside Electron
+npm run dist     # build the Windows installer into dist/
 ```
 
-#### Shipping a new version
-
-```bash
-npm version minor          # bump package.json + tag vX.Y.Z
-git push --follow-tags
-```
-
-The GitHub Actions workflow ([release.yml](.github/workflows/release.yml))
-builds the installer on Windows and publishes the release (also triggered by
-a `main` commit containing `[release]`, or manually from the Actions tab).
-Every installed app will see it and offer the "Update" button.
+Releases are built by GitHub Actions ([release.yml](.github/workflows/release.yml)) on a `v*` tag, a manual run, or a `main` commit containing `[release]`. Installed apps pick up the new version automatically through `latest.yml`.
 
 <details>
-<summary>🗂️ Project layout</summary>
+<summary>Project layout</summary>
 
 ```
-rl-session-tracker/
-├── src/
-│   ├── main/                  # Electron main process
-│   │   ├── index.js           # Lifecycle, shared state, general wiring
-│   │   ├── ipc-*.js           # IPC by domain: cosmetics, maps, files
-│   │   ├── mmr-log.js         # Game log wiring (MMR, queues)
-│   │   ├── statsapi-repair.js # When to repair the Stats API, how many times
-│   │   ├── tray.js            # Notification area icon and menu
-│   │   ├── csv.js             # Match CSV export
-│   │   ├── statsapi.js        # Stats API connector (TCP, stream parser)
-│   │   ├── game-watcher.js    # RocketLeague.exe process detection
-│   │   ├── session.js         # Match log + stats + MMR + records
-│   │   ├── config.js          # Preferences (name, MMR, options)
-│   │   ├── windows.js         # Windows: control, dashboard, overlay
-│   │   ├── updater.js         # Automatic updates (GitHub Releases)
-│   │   ├── discord-rpc.js     # Discord status (local IPC pipe, no dependency)
-│   │   ├── obs-server.js      # Streamer mode: locally served OBS overlay (SSE)
-│   │   ├── sos-bridge.js      # SOS-compatible WebSocket bridge (49122)
-│   │   ├── cosmetics.js       # Cosmetic swaps (visual Alpha Boost), game closed
-│   │   ├── maps.js            # Workshop maps: library + Underpass slot
-│   │   ├── maps-browser.js    # Embedded bakkesplugins.com, downloads intercepted
-│   │   ├── zip.js             # .zip reader (no dependency)
-│   │   ├── rl-log.js          # Real MMR + playlist read from Launch.log
-│   │   ├── mmr-guard.js       # Guard: MMR reading credible or set aside
-│   │   ├── documents.js       # Real Documents folder (OneDrive, moved)
-│   │   └── enable-statsapi.js # Enables the game's Stats API (elevated PS)
-│   ├── preload.js             # Secure IPC bridge (contextIsolation)
-│   └── renderer/
-│       ├── control.html       # Control / settings window
-│       ├── maps.html          # Workshop maps window
-│       ├── dashboard.html     # The fullscreen tracker
-│       ├── overlay.html       # Always-on-top mini-overlay
-│       ├── obs.html           # Stream overlay (captured in OBS)
-│       └── fonts/             # Barlow Condensed (OFL-1.1 license)
-├── build/icon.ico             # App icon
-├── electron-builder.yml       # NSIS packaging + GitHub publishing
-├── .github/workflows/         # CI (tests) + release (Windows build)
-└── enable-statsapi.bat / .ps1 # Manual fallback activation
+src/
+├── main/                 Electron main process
+│   ├── index.js          lifecycle, shared state, wiring
+│   ├── statsapi.js       Stats API connector (TCP stream parser)
+│   ├── session.js        match log, stats, MMR curve, records
+│   ├── rl-log.js         real MMR and playlist from Launch.log
+│   ├── mmr-guard.js      keeps implausible MMR readings aside
+│   ├── obs-server.js     local OBS overlay (SSE)
+│   ├── sos-bridge.js     SOS-compatible WebSocket bridge
+│   ├── discord-rpc.js    Discord Rich Presence (local IPC)
+│   ├── diagnostic.js     health checks behind the Diagnostic button
+│   └── …                 updater, tray, windows, maps, cosmetics
+├── preload.js            secure IPC bridge (contextIsolation)
+└── renderer/             control, dashboard, overlay, OBS and maps windows
+test/                     node --test suites
+e2e/smoke.js              end-to-end smoke test in real Electron
 ```
+
 </details>
 
-### 📄 License
+## License
 
-MIT — do whatever you want with it. The Barlow Condensed font is licensed
-under OFL-1.1.
+[MIT](LICENSE). The Barlow Condensed font is licensed under the SIL Open Font License 1.1. Not affiliated with or endorsed by Psyonix or Epic Games.
 
 <div align="center">
-
-**If this project helped you, [drop a star ⭐](https://github.com/mateo-brl/rl-session-tracker/stargazers) — it takes two seconds and it means a lot.**
-
 <br/>
 
-*Fait par un joueur, pour les joueurs · Made by a player, for players*
+**Like it? A ⭐ helps other players find it.**
 
 </div>

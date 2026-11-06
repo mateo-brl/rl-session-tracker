@@ -8,18 +8,10 @@
 # electron-builder publie l'installeur NSIS + latest.yml sur la release ;
 # c'est ce que les applications installées consultent pour se mettre à jour.
 #
-# Avant de publier quoi que ce soit, ce job repasse par les MÊMES
-# vérifications que ci.yml (tests + syntaxe). ci.yml tourne en parallèle sur
-# le même push mais ne bloque JAMAIS cette publication (deux workflows
-# indépendants) — et les tests ne chargent jamais les fichiers HTML des
-# fenêtres, donc une erreur de syntaxe dans une fenêtre pouvait jusqu'ici
-# être publiée puis proposée en auto-update sans qu'aucun garde-fou ne s'en
-# aperçoive. Les étapes sont dupliquées ici plutôt que factorisées via un
-# workflow réutilisable (workflow_call) : ce dernier aurait exigé un 5ᵉ
-# fichier de workflow, hors du périmètre de cette modification (limité à
-# ci.yml, release.yml, package.json et README.md). Si tu changes une
-# vérification dans un des deux fichiers, reporte le même changement dans
-# l'autre.
+# Avant de publier, ce job repasse par les mêmes vérifications que ci.yml
+# (tests + syntaxe des fenêtres) : ci.yml tourne en parallèle mais ne bloque
+# pas la publication. Toute modification d'une vérification doit être
+# reportée dans les deux fichiers.
 
 name: release
 
@@ -60,8 +52,7 @@ jobs:
 
       - run: npm ci
 
-      # --- Vérifications avant publication (dupliquées depuis ci.yml, voir
-      # le commentaire en tête de fichier pour le pourquoi) -----------------
+      # --- Vérifications avant publication (mêmes étapes que ci.yml) -------
 
       - name: Tests avant publication
         run: npm test
@@ -83,11 +74,7 @@ jobs:
               "src/renderer/obs.html",
               "src/renderer/maps.html",
             ];
-            // Global (drapeau g) et attributs optionnels dans <script ...> :
-            // un second bloc inline ajouté plus tard, ou un <script defer>
-            // ou <script type="module">, restent détectés ici. La regex
-            // précédente, non globale et sans attributs, ne vérifiait que le
-            // tout premier bloc <script> nu de chaque fichier.
+            // Tous les blocs <script> inline, avec ou sans attributs.
             const reScript = /<script([^>]*)>([\s\S]*?)<\/script>/g;
             let echec = false;
             for (const f of fichiers) {

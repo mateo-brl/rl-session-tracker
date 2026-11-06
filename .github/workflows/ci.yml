@@ -4,15 +4,9 @@
 # de build Windows — uniquement la logique (session, config) et la validité
 # des scripts des fenêtres.
 #
-# Ces mêmes étapes de vérification sont DUPLIQUÉES dans release.yml : ci.yml
-# ne bloque pas la publication (il tourne juste en parallèle sur le même
-# push), donc release.yml ne peut pas se contenter de dépendre de ce job.
-# La forme propre serait un workflow réutilisable (workflow_call) appelé par
-# les deux fichiers, mais ça ajoute un 5ᵉ fichier de workflow — hors du
-# périmètre de cette modification, volontairement limitée à ci.yml,
-# release.yml, package.json et README.md. D'où la duplication assumée :
-# si tu modifies une vérification ici, reporte le même changement dans
-# release.yml (section « Vérifications avant publication »).
+# Les mêmes vérifications tournent aussi dans release.yml, qui ne dépend pas
+# de ce workflow : toute modification ici doit y être reportée (section
+# « Vérifications avant publication »).
 
 name: ci
 
@@ -54,11 +48,7 @@ jobs:
               "src/renderer/obs.html",
               "src/renderer/maps.html",
             ];
-            // Global (drapeau g) et attributs optionnels dans <script ...> :
-            // un second bloc inline ajouté plus tard, ou un <script defer>
-            // ou <script type="module">, restent détectés ici. La regex
-            // précédente, non globale et sans attributs, ne vérifiait que le
-            // tout premier bloc <script> nu de chaque fichier.
+            // Tous les blocs <script> inline, avec ou sans attributs.
             const reScript = /<script([^>]*)>([\s\S]*?)<\/script>/g;
             let echec = false;
             for (const f of fichiers) {

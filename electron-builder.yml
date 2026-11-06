@@ -51,7 +51,5 @@ publish:
   # variable d'environnement EP_DRAFT="true" (release créée en brouillon,
   # levée seulement une fois l'installeur ET latest.yml en ligne — voir le
   # commentaire de l'étape « Construction + publication » dans ce workflow).
-  # Ce fichier dit donc « release » mais la CI publie en réalité en deux
-  # temps : c'est intentionnel, ne pas essayer de « corriger » l'un des deux
-  # sans l'autre.
+  # Les deux réglages vont ensemble : ne pas modifier l'un sans l'autre.
   releaseType: release

@@ -20,7 +20,7 @@
 # tout disque autre que C:) devient introuvable — seuls les chemins par
 # défaut sous C: survivaient à ce bug.
 #
-# PARITÉ AVEC L'APPLICATION (revue de code) : ce script est le filet de
+# PARITÉ AVEC L'APPLICATION : ce script est le filet de
 # secours manuel documenté dans le README quand l'activation automatique a
 # échoué — ses utilisateurs ne passent donc JAMAIS par le chemin applicatif.
 # Deux points étaient restés désynchronisés de src/main/enable-statsapi.js,

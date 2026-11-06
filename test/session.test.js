@@ -331,7 +331,7 @@ test('évènements bruts conservés pour le match, purgés sur les anciens', () 
   assert.equal(s.matches[s.matches.length - 1].events.length, 1);
 });
 
-// ───────── Régressions relevées en revue de code ─────────
+// ───────── Régressions ─────────
 
 test('addMatch signale s’il a réellement enregistré', () => {
   const s = tmpStore();
