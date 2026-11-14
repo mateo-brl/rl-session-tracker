@@ -67,7 +67,7 @@
   function $(id) { return document.getElementById(id); }
   var api = window.rl || {};
 
-  // ─── Thème (partagé avec le dashboard) ───
+  // Thème (partagé avec le dashboard)
   var THEME_DEFAULT = { win: '#2f9bff', loss: '#ff8a1e', bg: '#0c0e11', gold: '#ffc233' };
   function mix(a, b, f) {
     var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -132,16 +132,16 @@
     } else {
       top.className = 'top';
       top.textContent = T.session + (ses.winrate != null
-        ? ' — ' + ses.winrate + T.wr : '');
+        ? ' ' + ses.winrate + T.wr : '');
     }
 
     var live = s.live;
     if (live && !live.training && live.score) {
       // « Déjà croisé » : en 1v1 (un seul adversaire connu), son bilan.
-      // h2h ne contient QUE les adversaires déjà croisés (pas tous les
+      // h2h ne contient que les adversaires déjà croisés (pas tous les
       // adversaires du match) : en 2v2/3v3, un seul nom dans h2h ne veut
-      // PAS dire un seul adversaire dans le match — il faut vérifier le
-      // VRAI 1v1 via le nombre de joueurs, sinon on affiche « vs X »
+      // Pas dire un seul adversaire dans le match : il faut vérifier le
+      // Vrai 1v1 via le nombre de joueurs, sinon on affiche « vs X »
       // comme un duel alors que X n'est qu'un des adversaires.
       var isDuel = Array.isArray(live.players) && live.players.length === 2;
       var h2h = '';

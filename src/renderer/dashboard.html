@@ -5,65 +5,9 @@
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
 <title>RL Session Tracker – Dashboard</title>
+<link rel="stylesheet" href="tokens.css" />
 <style>
-  /* ─── Typographie broadcast (embarquée, licence OFL) ─── */
-  @font-face { font-family:'Barlow Condensed'; font-weight:500; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-500-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:600; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-600-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:italic;
-    src:url('fonts/barlow-condensed-latin-700-italic.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
-    src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
-
-  /* ─── Système : aplats francs, angles biseautés, bleu vs orange ─── */
-  :root {
-    --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d; --line:#39414f;
-    --text:#e3e8ef; --muted:#8b93a1;
-    --blue:#4dabff; --blue-deep:#1466b8;
-    --orange:#e0741a; --orange-deep:#a34f00;
-    --gold:#ffc233;
-    /* Couleurs de palier de rang (Bronze → Supersonic Legend).
-       Huit teintes de plus que la palette de base, et c'est voulu :
-       ce ne sont pas des choix de décoration mais une DONNÉE, l'échelle de
-       rang du jeu, que le joueur reconnaît au premier regard. Les réduire
-       supprimerait de l'information. Elles ne servent d'ailleurs plus de
-       couleur de texte depuis la reprise des pastilles : juste un filet.
-       C'est une identité de jeu Rocket League, pas un accent d'interface — elle reste
-       FIXE quelle que soit la palette choisie par l'utilisateur (applyTheme
-       ne touche jamais ces variables), contrairement à --blue/--orange/--gold. */
-    --tier-1:#b07a4a; --tier-2:#a7b0bb; --tier-3:#dcae44; --tier-4:#43b8ae;
-    /* Diamant et Champion étaient à 1,13:1 l'un de l'autre : à 11 px, deux
-       pastilles identiques. Le premier assombri, le second éclairci : ils
-       sont maintenant à 2,08:1 l'un de l'autre, donc distincts d'un coup
-       d'œil sur le filet de la pastille comme sur le liseré de la tuile. */
-    --tier-5:#3f6bd0; --tier-6:#c092ff; --tier-7:#e5602f; --tier-8:#ffd36e;
-    /* Dérivées (color-mix sur les variables ci-dessus) : voiles translucides
-       et arêtes, recalculés tout seuls quand applyTheme() repeint
-       --blue/--orange/--bg — aucune couleur nouvelle en dur, les 8 thèmes
-       utilisateur restent intacts. Le mélange vers le noir suit la même
-       convention que les variantes -deep calculées en JS. */
-    --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
-    --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
-    --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
-    --edge:rgba(0, 0, 0, .62);
-    /* ─── Ingrédients réglables (atelier) ───
-       Trois variables traversent tous les habillages. Elles ont pour valeur
-       par défaut exactement ce que faisait le code avant leur introduction :
-       une installation qui n'y touche jamais ne voit aucune différence. */
-    --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
-    --num-style:italic;          /* chiffres penchés, ADN des scores RL */
-    --cut:18px;                  /* taille du chanfrein des cartes */
-    --cut-sm:12px;               /* idem, sur les tuiles */
-    --skew:-14deg;               /* inclinaison des plaques et pastilles */
-    --dens:1;                    /* densité : 1 confortable, .8 dense, 1.15 canapé */
-
-  }
-  /* ─── Mode overlay (source « Navigateur » d'OBS) ───
+  /* Mode overlay (source « Navigateur » d'OBS).
      Fond entièrement transparent, aucun chrome d'application : il ne reste
      que les blocs, exactement ceux qu'on a laissés visibles. Le compositeur
      (?edit=1) pose un damier pour qu'on voie ce qui est transparent. */
@@ -72,7 +16,7 @@
   html.obs #editBtn, html.obs .fs-btn { display:none !important; }
   html.obs main { padding:0; }
   /* Sur une image de jeu, un fond de carte ne suffit pas : le texte porte sa
-     propre lisibilité. Le contour est peint SOUS le remplissage
+     propre lisibilité. Le contour est peint sous le remplissage
      (paint-order), donc les chiffres restent nets au lieu d'épaissir. */
   html.obs .wl .w, html.obs .wl .l,
   html.obs .live-score .s0, html.obs .live-score .s1,
@@ -81,7 +25,7 @@
     paint-order:stroke fill; -webkit-text-stroke:5px rgba(0, 0, 0, .72);
     text-shadow:0 2px 10px rgba(0, 0, 0, .8);
   }
-  html.obs .tag > span, html.obs .wl-cap span, html.obs .tot span,
+  html.obs .tag > span, html.obs .wl .cap, html.obs .tot span,
   html.obs .mode .name, html.obs .mode .sub, html.obs .al-kick {
     text-shadow:0 1px 4px rgba(0, 0, 0, .92);
   }
@@ -91,13 +35,13 @@
   }
   /* Plancher typographique : sous 15 px, un texte ne survit pas à un flux
      réencodé en 4:2:0. Ce qui ne tient pas est retiré plutôt que rendu illisible. */
-  html.obs .mode .sub, html.obs td.hstats { font-size:15px; }
+  html.obs .mode .sub, html.obs td.hstats { font-size:var(--fs-md); }
   html.obs .rank-next, html.obs .est-dot, html.obs .h2h-chip { display:none; }
   /* Les habillages translucides comptent sur un flou d'arrière-plan que la
      source OBS ne garantit pas : on retombe sur un fond franc plutôt que sur
      du gameplay qui bouge derrière le texte. */
   html.obs .card { backdrop-filter:none; background-color:rgba(10, 12, 16, .84); }
-  /* Le bloc « Alertes » est la seule exception : il n'a de fond QUE pendant
+  /* Le bloc « Alertes » est la seule exception : il n'a de fond que pendant
      l'alerte. Lui donner celui des autres cartes poserait un rectangle opaque
      en permanence sur le gameplay, pour deux secondes d'info par heure. */
   html.obs .card.alerts { background:none !important; }
@@ -123,9 +67,9 @@
      le dashboard quand les deux fenêtres sont ouvertes côte à côte. */
   html.obs-edit header::before {
     content:'OVERLAY'; position:absolute; left:26px; bottom:-1px;
-    font-size:10px; font-weight:800; letter-spacing:.2em; color:var(--orange);
+    font-size:var(--fs-xs); font-weight:800; letter-spacing:.2em; color:var(--orange);
   }
-  /* ─── Toile au format de la source OBS ───
+  /* Toile au format de la source OBS.
      La fenêtre du compositeur n'a ni la taille ni le ratio de la source
      d'OBS : poser un bloc « en bas à droite » ne voulait donc rien dire, il
      atterrissait ailleurs dans le direct. La zone de composition prend
@@ -162,40 +106,18 @@
   }
   /* Micro-mouvement là où il informe : une valeur qui change doit se voir
      changer, sinon le mouvement ne sert que l'interruption. */
-  .card, .mode { transition:border-color .18s ease, background .18s ease; }
+  .card, .mode { transition:border-color .18s ease; }
   table.hist td { transition:background .12s ease; }
   .wl .w, .wl .l, .tot b, .mode .mmr-val { transition:color .25s ease; }
 
-  * { box-sizing:border-box; margin:0; padding:0; }
-
-  /* ─── Navigation au clavier ───
-     Les éléments étaient bien atteignables au Tab (ce sont des <button> et
-     des <input> natifs), mais RIEN ne montrait où l'on se trouvait : le
-     contour du navigateur était retiré sur les champs et aucun état de focus
-     n'existait sur les boutons. Un contour franc, posé une fois pour toutes
-     sur ce qui reçoit le focus au clavier. :focus-visible et non :focus, pour
-     ne pas cercler ce qu'on vient de cliquer à la souris. */
-  :focus-visible {
-    outline:2px solid var(--blue);
-    outline-offset:2px;
-    border-radius:2px;
-  }
-  /* Les champs avaient outline:none sans remplacement digne de ce nom : la
-     bordure qui change de couleur ne se voit pas sur un fond déjà bordé. */
-  input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline:2px solid var(--blue);
-    outline-offset:1px;
-  }
-
   html,body { height:100%; }
   body {
-    /* Fond « arène » : deux halos aux couleurs des équipes (haut-droit bleu,
-       bas-gauche orange) + fine trame diagonale fantôme — le plateau n'est
-       plus un aplat muet, sans jamais gêner la lecture de loin. */
+    /* Deux halos aux couleurs des équipes, bleu en haut à droite, orange en
+       bas à gauche : le plateau dit de quel jeu il s'agit sans rien peindre
+       derrière les chiffres. */
     background:
       radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
       radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
-      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
       var(--bg);
     color:var(--text);
     font-family:var(--ui-font);
@@ -205,61 +127,46 @@
   .cond { font-family:var(--ui-font); }
   /* Bouton discret logé dans l'étiquette de la carte : remet les compteurs de
      session à zéro sans quitter le dashboard, là où on lit justement ces
-     compteurs — c'est le moment où on veut repartir de zéro. */
+     compteurs : c'est le moment où on veut repartir de zéro. */
   .tag-btn {
-    margin-left:10px; padding:2px 10px; font:inherit; font-size:.78em;
-    letter-spacing:.06em; text-transform:uppercase; cursor:pointer;
-    color:var(--muted); background:transparent;
-    border:1px solid var(--line); border-radius:3px;
+    margin-left:10px; padding:2px 10px; font:inherit; font-size:.86em;
+    font-style:normal; font-weight:600; letter-spacing:0; text-transform:none;
+    cursor:pointer; color:inherit; background:transparent;
+    border:1px solid currentColor; border-radius:3px; opacity:.85;
   }
-  .tag-btn:hover { color:var(--text); border-color:var(--blue); }
+  .tag-btn:hover { opacity:1; }
 
-  /* Carte : plaque à deux chanfreins opposés (haut-droit + bas-gauche),
-     léger dégradé de panneau, coin d'accent REMPLI en haut à droite et
-     arête basse sombre en inset — du relief franc, pas du flou timide.
-     (Pas de drop-shadow : le clip-path la rognerait de toute façon.) */
+  /* Carte : une plaque à deux chanfreins opposés, et rien d'autre. Le
+     clip-path taille la forme ; les deux dégradés d'angle redessinent le
+     filet le long des chanfreins, que le clip-path emporte avec le coin. */
   .card {
-    background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
-    border:1px solid var(--line); border-radius:var(--card-radius, 0);
+    --card-edge:var(--line);
+    background:
+      linear-gradient(225deg, var(--card-edge) calc(var(--cut) * .7071 + 1px), transparent 0)
+        top right / calc(var(--cut) + 2px) calc(var(--cut) + 2px) no-repeat border-box,
+      linear-gradient(45deg, var(--card-edge) calc((var(--cut) - 4px) * .7071 + 1px), transparent 0)
+        bottom left / calc(var(--cut) - 2px) calc(var(--cut) - 2px) no-repeat border-box,
+      var(--panel);
+    border:1px solid var(--card-edge); border-radius:var(--card-radius, 0);
     clip-path:polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%,
       calc(var(--cut) - 4px) 100%, 0 calc(100% - var(--cut) + 4px));
-    box-shadow:inset 0 -3px 0 var(--edge);
     padding:calc(16px * var(--dens)) calc(20px * var(--dens));
     min-height:0; display:flex; flex-direction:column;
   }
-  /* Liseré d'accent en tête de carte, qui s'éteint vers la droite. */
-  .card::before {
-    content:''; position:absolute; left:0; top:0; right:0; height:3px;
-    background:linear-gradient(90deg, var(--blue), var(--blue-soft) 55%, transparent 85%);
-    pointer-events:none;
-  }
-  /* Coin biseauté rempli : le clip-path de la carte taille ce carré en
-     triangle d'accent — la signature visuelle des plaques du dashboard. */
-  .card::after {
-    content:''; position:absolute; top:0; right:0; width:var(--cut); height:var(--cut);
-    background:var(--blue); pointer-events:none;
-  }
-  /* Étiquette de section : plaque inclinée pleine (l'ancien ruban discret
-     est devenu un vrai cartouche broadcast), prolongée d'un filet qui court
-     jusqu'au bord de la carte — le clip-path arrête la ligne proprement. */
+  /* Étiquette de section : la plaque inclinée, signature de l'habillage.
+     C'est le seul texte courant qui reste en capitales penchées. */
   .tag {
-    display:inline-block; transform:skewX(var(--skew)); position:relative;
-    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 135%);
-    border-left:4px solid var(--blue);
-    padding:5px 14px 5px 11px; margin-bottom:14px; width:max-content;
-  }
-  .tag::after {
-    content:''; position:absolute; left:calc(100% + 10px); top:50%; height:1px;
-    width:100vw; background:linear-gradient(90deg, var(--line), transparent 72%);
-    pointer-events:none;
+    display:inline-block; transform:skewX(var(--skew));
+    background:var(--blue-deep);
+    padding:5px 14px 5px 12px; margin-bottom:14px; width:max-content;
   }
   .tag > span {
     display:inline-block; transform:skewX(calc(-1 * var(--skew)));
-    font-style:var(--num-style); font-weight:800; font-size:14px;
-    letter-spacing:.18em; text-transform:uppercase; color:var(--text);
+    font-style:var(--num-style); font-weight:800; font-size:var(--fs-sm);
+    letter-spacing:.08em; text-transform:uppercase; color:var(--on-blue-deep);
   }
 
-  /* ─── En-tête : barre de score broadcast ─── */
+  /* En-tête : barre de score broadcast */
   /* Le bandeau se replie plutôt que de perdre sa fin. Dans le compositeur
      d'overlay, six blocs masqués suffisaient déjà à pousser « Terminé » hors
      de l'écran, sans le moindre indice qu'il existait. */
@@ -267,7 +174,7 @@
     position:relative; display:flex; align-items:center; gap:14px;
     flex-wrap:wrap; row-gap:8px;
     padding:12px 26px;
-    background:linear-gradient(90deg, var(--panel2), var(--panel) 46%);
+    background:var(--panel);
   }
   /* Filet bleu → orange sous le bandeau : les deux couleurs d'équipe,
      l'identité Rocket League au premier regard, pilotée par le thème. */
@@ -278,56 +185,51 @@
   }
   .logo {
     display:flex; align-items:center; gap:9px;
-    font-style:italic; font-weight:800; font-size:21px; letter-spacing:.05em;
+    font-style:italic; font-weight:800; font-size:var(--fs-lg); letter-spacing:.05em;
     text-transform:uppercase; white-space:nowrap;
   }
   .logo b { color:var(--blue); font-weight:800; }
   /* Sigle « RL » sur plaque inclinée pleine : le logo devient un badge. */
   .logo-plate {
     display:inline-block; transform:skewX(-14deg);
-    background:var(--blue); color:#fff; padding:1px 9px;
+    background:var(--blue); color:var(--on-blue); padding:1px 9px;
   }
   .logo-plate > span { display:inline-block; transform:skewX(14deg); }
-  /* Ligne de score de session, au centre du bandeau : V–D, winrate et
-     série toujours visibles, même quand les widgets sont réorganisés —
-     c'est ce qu'on lit depuis le canapé entre deux matchs. */
+  /* Score de session dans le bandeau : il ne s'affiche que si le bloc
+     « Session » est masqué. Les deux ensemble, c'était le même chiffre écrit
+     deux fois à vingt centimètres d'écart. */
   .hd-score {
-    display:flex; align-items:center; gap:12px;
+    display:none; align-items:center; gap:12px;
     font-variant-numeric:tabular-nums; white-space:nowrap;
   }
+  body.hero-off .hd-score { display:flex; }
   .hd-score .hd-w, .hd-score .hd-l {
-    font-size:34px; font-weight:800; font-style:italic; line-height:1;
+    font-size:var(--fs-2xl); font-weight:800; font-style:italic; line-height:1;
   }
   .hd-score .hd-w { color:var(--blue); }
   .hd-score .hd-l { color:var(--orange); }
   .hd-bar { width:3px; height:24px; background:var(--line);
     transform:skewX(-14deg); flex:none; }
-  .hd-wr { font-size:21px; font-weight:800; font-style:italic;
+  .hd-wr { font-size:var(--fs-lg); font-weight:800; font-style:italic;
     color:var(--text); }
   .hd-streak {
-    display:none; transform:skewX(-14deg); color:#fff;
-    font-style:italic; font-weight:800; font-size:15px; padding:2px 10px;
+    display:none; transform:skewX(-14deg);
+    font-style:italic; font-weight:800; font-size:var(--fs-md); padding:2px 10px;
   }
   .hd-streak > span { display:inline-block; transform:skewX(14deg); }
-  .hd-streak.hot { background:var(--blue-deep); }
-  .hd-streak.tilt { background:var(--orange-deep); }
+  .hd-streak.hot { background:var(--blue-deep); color:var(--on-blue-deep); }
+  .hd-streak.tilt { background:var(--orange-deep); color:var(--on-orange-deep); }
   /* En mode « Personnaliser », la place est reprise par les outils. */
-  body.editing .hd-score { display:none; }
+  body.editing.hero-off .hd-score { display:none; }
   /* Et ces outils sont nombreux : profils, blocs masqués, réinitialiser,
      aperçu, terminé. Le bandeau se resserre le temps de l'édition plutôt que
      de rogner le dernier bouton de la file sur un écran de 1280 px. */
   body.editing header { gap:9px; }
   body.editing .hdr-btn { padding:7px 11px; }
-  .chip {
-    display:flex; align-items:center; gap:8px;
-    background:var(--panel2); border:1px solid var(--line);
-    transform:skewX(-14deg); padding:5px 14px;
-  }
-  .chip > * { transform:skewX(14deg); }
-  .chip .lbl {
-    font-weight:700; font-size:13px; letter-spacing:.1em;
-    text-transform:uppercase; color:var(--muted);
-  }
+  /* État du jeu et pseudo : du texte, pas des pastilles. Le carré de couleur
+     est doublé d'un libellé, donc l'état ne repose jamais sur la teinte. */
+  .chip { display:flex; align-items:center; gap:8px; }
+  .chip .lbl { font-weight:600; font-size:var(--fs-sm); color:var(--muted); }
   .chip .lbl.on { color:var(--text); }
   .sq { width:8px; height:8px; background:var(--muted); flex:none; }
   .sq.ok { background:var(--blue); }
@@ -339,24 +241,23 @@
     transform:skewX(-14deg); padding:5px 8px 5px 14px;
   }
   .upd-pill > * { transform:skewX(14deg); }
-  .upd-pill span { font-weight:600; font-size:14px; letter-spacing:.04em; }
+  .upd-pill span { font-weight:600; font-size:var(--fs-sm); letter-spacing:.04em; }
   .upd-pill button {
-    border:0; background:var(--blue); color:#fff; cursor:pointer;
-    font-family:inherit; font-weight:800; font-style:italic; font-size:13px;
-    letter-spacing:.08em; text-transform:uppercase; padding:6px 14px;
+    border:0; background:var(--blue); color:var(--on-blue); cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm); padding:6px 14px;
   }
-  .upd-pill button:hover { background:#54adff; }
+  .upd-pill button:hover { filter:brightness(1.1); }
   .fs-btn {
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    width:34px; height:34px; font-size:15px; cursor:pointer; line-height:1;
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
+    width:34px; height:34px; font-size:var(--fs-md); cursor:pointer; line-height:1;
   }
   .fs-btn:hover { border-color:var(--blue); color:var(--text); }
   .clock {
-    font-weight:800; font-style:italic; font-size:26px; letter-spacing:.04em;
+    font-weight:800; font-style:italic; font-size:var(--fs-xl); letter-spacing:.04em;
     font-variant-numeric:tabular-nums;
   }
 
-  /* ─── Grille ─── */
+  /* Grille */
   /* Toile à widgets : chaque carte est positionnée en % et peut être
      déplacée / redimensionnée / masquée en mode « Personnaliser ». */
   main { flex:1; min-height:0; padding:18px 26px 22px; }
@@ -369,7 +270,7 @@
      disposition (haut vers le bas, puis gauche vers la droite). */
   /* Le compositeur d'overlay est exclu du repli : sa toile a un cadre fixe,
      celui de la source OBS. Empilée en colonne, elle ne montrerait plus rien
-     de ce qui sera diffusé — même dans une petite fenêtre. */
+     de ce qui sera diffusé : même dans une petite fenêtre. */
   @media (max-aspect-ratio: 4/3), (max-width: 1000px), (max-height: 700px) {
     html:not(.obs-edit) main { overflow-y:auto; }
     html:not(.obs-edit) #canvas {
@@ -391,15 +292,14 @@
     #canvas .card.live { --stack-min:200px; }
     #canvas .card.totals { --stack-min:104px; }
     .modes-grid { grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)) !important; }
-    /* Le bandeau doit tenir sur une ligne : à 1080 px de large, « EN DIRECT »
+    /* Le bandeau doit tenir sur une ligne : à 1080 px de large, « en direct »
        passait sur deux lignes et l'horloge sortait de l'écran. */
     header { padding:10px 14px; gap:9px; }
-    .logo { font-size:17px; }
+    .logo { font-size:var(--fs-md); }
     .logo-plate { padding:1px 7px; }
-    .chip { font-size:10px; padding:3px 8px; }
-    .hd-score { font-size:19px; gap:7px; }
-    .clock { font-size:19px; }
-    .hdr-btn { padding:4px 9px; font-size:10px; }
+    .hd-score { font-size:var(--fs-lg); gap:7px; }
+    .clock { font-size:var(--fs-lg); }
+    .hdr-btn { padding:4px 9px; }
     .fs-btn { display:none; }
     /* L'horloge est ce qui débordait en premier, et c'est aussi ce dont on se
        passe le plus facilement : il existe un widget « Horloge » pour ceux
@@ -420,17 +320,17 @@
   }
   .hidebtn {
     display:none; position:absolute; top:4px; right:22px; width:22px; height:22px;
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    font-size:12px; line-height:1; cursor:pointer; font-family:inherit;
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
+    font-size:var(--fs-xs); line-height:1; cursor:pointer; font-family:inherit;
   }
   .hidebtn:hover { color:var(--orange); border-color:var(--orange); }
   /* Réglages du bloc : même famille que la croix, à sa gauche. Ouvre un
-     panneau propre au widget — c'est là que se choisissent, par exemple, les
+     panneau propre au widget : c'est là que se choisissent, par exemple, les
      modes affichés par « Par mode ». */
   .optbtn {
     display:none; position:absolute; top:4px; right:48px; width:22px; height:22px;
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
-    font-size:12px; line-height:1; cursor:pointer; font-family:inherit;
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
+    font-size:var(--fs-xs); line-height:1; cursor:pointer; font-family:inherit;
   }
   .optbtn:hover { color:var(--blue); border-color:var(--blue); }
   body.editing .rsz, body.editing .hidebtn, body.editing .optbtn { display:block; }
@@ -441,28 +341,26 @@
   }
   .optbox.open { display:block; }
   .optbox h4 {
-    font-size:10.5px; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
-    color:var(--muted); margin-bottom:8px;
+    font-size:var(--fs-sm); font-weight:700; color:var(--muted); margin-bottom:8px;
   }
   .optbox label {
     display:flex; align-items:center; gap:8px; padding:3px 0;
-    font-size:13px; cursor:pointer;
+    font-size:var(--fs-sm); cursor:pointer;
   }
   .optbox input { accent-color:var(--blue); }
   .optbox-note {
-    font-size:11px; line-height:1.4; color:var(--muted);
+    font-size:var(--fs-xs); line-height:1.4; color:var(--muted);
     margin:-2px 0 8px; max-width:190px;
   }
 
   .hdr-btn {
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
     transform:skewX(-14deg); padding:7px 14px; cursor:pointer;
-    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
-    letter-spacing:.1em; text-transform:uppercase;
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
   .hdr-btn > span { display:inline-block; transform:skewX(14deg); }
   .hdr-btn:hover { border-color:var(--blue); color:var(--text); }
-  .hdr-btn.accent { border-color:var(--blue); color:#fff;
+  .hdr-btn.accent { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
   /* Les blocs masqués sont la partie élastique du bandeau : ils se replient
      entre eux avant d'entraîner tous les outils à la ligne. */
@@ -471,15 +369,14 @@
   body.editing #editTools { display:flex; }
   body.editing #editBtn { display:none; }
   .ghost-chip {
-    border:1px dashed var(--line); background:transparent; color:var(--muted);
+    border:1px dashed var(--line-strong); background:transparent; color:var(--muted);
     transform:skewX(-14deg); padding:6px 12px; cursor:pointer;
-    font-family:inherit; font-weight:700; font-size:11.5px;
-    letter-spacing:.08em; text-transform:uppercase;
+    font-family:inherit; font-weight:700; font-size:var(--fs-xs);
   }
   .ghost-chip > span { display:inline-block; transform:skewX(14deg); }
   .ghost-chip:hover { border-color:var(--blue); color:var(--text); }
 
-  /* ─── En écoute ───
+  /* En écoute.
      Pochette à gauche, titre et télécommande à droite. Les boutons restent
      gros : on les vise depuis le canapé, souvent sans lâcher la manette. */
   .music-wrap { display:flex; gap:14px; align-items:center; min-height:0; flex:1; }
@@ -489,58 +386,56 @@
   }
   .music-meta { min-width:0; flex:1; display:flex; flex-direction:column; gap:3px; }
   .music-title {
-    font-size:19px; font-weight:800; color:var(--text);
+    font-size:var(--fs-lg); font-weight:800; color:var(--text);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .music-artist {
-    font-size:13px; color:var(--muted);
+    font-size:var(--fs-sm); color:var(--muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .music-bar { height:5px; background:var(--panel2); margin-top:5px; overflow:hidden; }
   .music-bar i { display:block; height:100%; width:0; background:var(--blue); }
   .music-time {
     display:flex; justify-content:space-between;
-    font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;
+    font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums;
   }
   .music-ctl { display:flex; align-items:center; gap:8px; margin-top:7px; }
   .music-ctl button {
-    font:inherit; font-size:17px; line-height:1; cursor:pointer;
-    color:var(--text); background:var(--panel2);
-    border:1px solid var(--line); padding:5px 11px;
+    display:inline-flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--text); background:var(--panel2);
+    border:1px solid var(--line-strong); padding:7px 12px;
   }
+  .music-ctl svg { width:18px; height:18px; fill:currentColor; display:block; }
   .music-ctl button:hover { border-color:var(--blue); }
   .music-vol { display:flex; align-items:center; gap:6px; margin-left:auto; }
-  .music-vol button { font-size:14px; padding:5px 9px; }
-  .music-err { font-size:11.5px; color:var(--orange); min-height:14px; }
+  .music-vol button { padding:7px 10px; }
+  .music-err { font-size:var(--fs-xs); color:var(--orange); min-height:14px; }
   .music-off {
     display:none; flex:1; align-items:center; justify-content:center;
-    color:var(--muted); font-size:15px;
+    color:var(--muted); font-size:var(--fs-md);
   }
 
-  /* ─── Bilan de session ─── */
+  /* Bilan de session */
   .hero { }
   .hero-main { display:flex; align-items:center; gap:38px; flex-wrap:wrap; }
-  .wl { display:flex; align-items:baseline; gap:18px;
+  /* Le bilan cède la première place au score du match en cours : deux
+     paliers plus bas, et l'ombre portée reste réservée au direct. */
+  .wl { display:flex; align-items:flex-start; gap:16px;
     font-variant-numeric:tabular-nums; }
-  /* Chiffres-clés : condensé italique lourd + ombre portée FRANCHE
-     (décalage net, zéro flou) — l'ADN visuel des scores Rocket League. */
-  .wl .w { font-size:96px; font-weight:800; font-style:var(--num-style);
-    color:var(--blue); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
-  /* Le tiret devient une barre inclinée bleu → orange : un vrai séparateur
-     d'équipes de tableau d'affichage (le « – » du HTML est réduit à néant
-     par font-size:0, le bloc dessine la barre). */
-  .wl .sep { font-size:0; width:7px; height:58px; align-self:center;
-    background:linear-gradient(180deg, var(--blue), var(--orange));
-    transform:skewX(-14deg); }
-  .wl .l { font-size:96px; font-weight:800; font-style:var(--num-style);
-    color:var(--orange); line-height:.95; text-shadow:4px 4px 0 var(--edge); }
-  .wl-cap { display:flex; gap:52px; margin-top:8px; }
-  .wl-cap span { font-size:12px; font-weight:700; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.16em; }
+  .wl-col { display:flex; flex-direction:column; gap:6px; }
+  .wl .w, .wl .l { font-size:var(--fs-4xl); font-weight:800;
+    font-style:var(--num-style); line-height:.95; }
+  .wl .w { color:var(--blue); }
+  .wl .l { color:var(--orange); }
+  /* Le tiret du HTML est éteint (font-size:0) : une barre inclinée sépare
+     les deux camps, comme sur un tableau d'affichage. */
+  .wl .sep { font-size:0; width:5px; height:42px; margin-top:8px;
+    background:var(--line-strong); transform:skewX(var(--skew)); }
+  .wl .cap { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
   /* Anneau de winrate : piste sombre + arc coloré, chiffre au centre. La
      couleur suit le sens de la session (au-dessus de 50 % = couleur de
      victoire), sans introduire de teinte nouvelle. */
-  .wr-ring { position:relative; width:118px; height:118px; flex:0 0 auto; }
+  .wr-ring { position:relative; width:100px; height:100px; flex:0 0 auto; }
   .wr-ring svg { width:100%; height:100%; transform:rotate(-90deg); }
   .wr-ring circle { fill:none; stroke-width:9; }
   .wr-ring .trk { stroke:var(--panel2); }
@@ -554,13 +449,10 @@
     align-items:center; justify-content:center; gap:1px;
   }
   .wr-num b {
-    font-size:30px; font-weight:800; font-style:italic; line-height:1;
+    font-size:var(--fs-xl); font-weight:800; font-style:italic; line-height:1;
     font-variant-numeric:tabular-nums;
   }
-  .wr-num span {
-    font-size:9.5px; font-weight:700; letter-spacing:.14em;
-    text-transform:uppercase; color:var(--muted);
-  }
+  .wr-num span { font-size:var(--fs-xs); font-weight:600; color:var(--muted); }
   /* Suite de résultats : une pastille par match, la plus récente à droite. */
   .pips { display:flex; align-items:flex-end; gap:5px; margin-top:14px; flex-wrap:wrap; }
   .pips i {
@@ -571,48 +463,47 @@
      profil, sans dépendre de la teinte. */
   .pips i.W { height:20px; background:var(--blue); }
   .pips i.L { height:10px; background:var(--orange); }
-  /* Dernier match : un soulignement, pas un cadre vide — le contour se lisait
+  /* Dernier match : un soulignement, pas un cadre vide : le contour se lisait
      comme une case à cocher ou un artefact de compression. */
   .pips i.last { box-shadow:0 4px 0 var(--text); }
   .pips:empty { display:none; }
 
   .hero-side { display:flex; flex-direction:column; gap:10px; }
   .kv { display:flex; align-items:baseline; gap:10px; }
-  .kv b { font-size:33px; font-weight:800; font-style:italic;
+  .kv b { font-size:var(--fs-2xl); font-weight:800; font-style:italic;
     font-variant-numeric:tabular-nums; }
-  .kv span { font-size:13px; font-weight:600; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.08em; }
+  .kv span { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
   .streak-banner {
     display:none; margin-top:10px; transform:skewX(-14deg); width:max-content;
-    padding:8px 18px; font-style:italic; font-weight:800; font-size:17px;
+    padding:8px 18px; font-style:italic; font-weight:800; font-size:var(--fs-md);
     letter-spacing:.06em; text-transform:uppercase;
   }
   .streak-banner > span { display:inline-block; transform:skewX(14deg); }
-  .streak-banner.hot { display:block; background:var(--blue-deep); color:#fff; }
-  .streak-banner.tilt { display:block; background:var(--orange-deep); color:#fff; }
+  .streak-banner.hot { display:block; background:var(--blue-deep); color:var(--on-blue-deep); }
+  .streak-banner.tilt { display:block; background:var(--orange-deep); color:var(--on-orange-deep); }
 
-  /* ─── Modes ─── */
+  /* Modes */
   .modes { }
-  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:calc(14px * var(--dens)); }
+  .modes-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:calc(14px * var(--dens));
+    flex:1; min-height:0; }
   /* Mode unique : la tuile n'est plus une vignette parmi trois, elle porte le
      bloc. Chiffres et rang montent en conséquence. */
   .modes-grid.solo .mode { padding:16px 20px; }
-  .modes-grid.solo .mode .rec { font-size:44px; }
-  .modes-grid.solo .mode .mmr-val { font-size:27px; }
-  .modes-grid.solo .mode .name { font-size:16px; }
+  .modes-grid.solo .mode .rec { font-size:var(--fs-3xl); }
+  .modes-grid.solo .mode .mmr-val { font-size:var(--fs-xl); }
+  .modes-grid.solo .mode .name { font-size:var(--fs-md); }
   .modes-grid.solo .spark { height:40px; opacity:.24; }
   .mode {
-    background:linear-gradient(168deg, var(--panel2), var(--panel) 80%);
+    background:var(--panel2);
     border:1px solid var(--line); border-left:4px solid var(--line);
-    clip-path:polygon(0 0, calc(100% - var(--cut-sm)) 0, 100% var(--cut-sm), 100% 100%,
-      calc(var(--cut-sm) - 4px) 100%, 0 calc(100% - var(--cut-sm) + 4px));
+    border-radius:var(--card-radius, 0);
     padding:10px 15px 26px;
     position:relative; overflow:hidden;
   }
-  /* Tout le contenu passe DEVANT la courbe de fond. */
+  /* Tout le contenu passe devant la courbe de fond. */
   .mode > * { position:relative; z-index:1; }
   /* Liseré gauche coloré par palier : identité de rang au premier regard,
-     sans pavé de couleur — reste sobre (cf demande utilisateur). */
+     sans pavé de couleur : reste sobre (cf demande utilisateur). */
   .mode.rk1 { border-left-color:var(--tier-1); }
   .mode.rk2 { border-left-color:var(--tier-2); }
   .mode.rk3 { border-left-color:var(--tier-3); }
@@ -622,30 +513,29 @@
   .mode.rk7 { border-left-color:var(--tier-7); }
   .mode.rk8 { border-left-color:var(--tier-8); }
   .mode .name {
-    font-style:italic; font-weight:800; font-size:15px; letter-spacing:.1em;
-    color:var(--text); margin-bottom:7px; text-transform:uppercase;
+    font-weight:700; font-size:var(--fs-md); color:var(--text); margin-bottom:7px;
   }
-  .mode .rec { font-size:30px; font-weight:800; font-style:italic;
+  .mode .rec { font-size:var(--fs-2xl); font-weight:800; font-style:italic;
     font-variant-numeric:tabular-nums; }
   .mode .rec .mw { color:var(--blue); }
   .mode .rec .ml { color:var(--orange); }
-  .mode .sub { font-size:13px; font-weight:600; color:var(--muted);
-    margin-top:3px; letter-spacing:.03em; }
+  .mode .sub { font-size:var(--fs-sm); font-weight:600; color:var(--muted);
+    margin-top:3px; }
   .mode .mmr {
     margin-top:10px; padding-top:9px; border-top:1px solid var(--line);
   }
   .mode .mmr-top { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  /* Le MMR est LA valeur que l'utilisateur vient lire : chiffre monté d'un
+  /* Le MMR est la valeur que l'utilisateur vient lire : chiffre monté d'un
      cran, italique, au-dessus du rang en toutes lettres. */
-  .mode .mmr-val { color:var(--text); font-size:21px; font-weight:800;
+  .mode .mmr-val { color:var(--text); font-size:var(--fs-lg); font-weight:800;
     font-style:italic; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
   /* Récap « ce que j'ai gagné cette session » : le delta est la ligne la
-     plus voyante du bloc — c'est la question posée par l'utilisateur. */
-  /* Progression DANS le palier : on sait enfin où l'on se situe entre deux
+     plus voyante du bloc : c'est la question posée par l'utilisateur. */
+  /* Progression dans le palier : on sait enfin où l'on se situe entre deux
      rangs, et combien de points il reste. La barre est inclinée comme le
      reste du langage visuel. */
   .mode .mmr-d {
-    font-size:13px; font-weight:800; font-style:italic;
+    font-size:var(--fs-sm); font-weight:800; font-style:italic;
     font-variant-numeric:tabular-nums;
   }
   .mode .mmr-d.up { color:var(--blue); }
@@ -660,16 +550,14 @@
   /* Reste avant le rang suivant : forme courte sur la ligne du MMR, le
      libellé complet est dans l'infobulle de la barre. Une ligne de texte de
      plus ne tenait pas dans la tuile, et la barre seule suffit à situer. */
-  .rank-next {
-    font-size:11px; font-weight:700; letter-spacing:.04em; color:var(--muted);
-  }
+  .rank-next { font-size:var(--fs-xs); font-weight:700; color:var(--muted); }
   .rank-next b { color:var(--text); font-style:italic; }
   /* Courbe miniature du mode : la forme des dernières parties, sans quitter
-     la tuile. Trait seul, aucune échelle — c'est une tendance, pas une
+     la tuile. Trait seul, aucune échelle : c'est une tendance, pas une
      mesure ; le graphique complet reste dans sa carte. */
   /* La courbe occupe le bas de la tuile, en fond : elle ne prend aucune
      hauteur au contenu, et se lit quand même comme une tendance. */
-  /* La courbe occupe une bande RÉSERVÉE en bas de tuile : elle ne passe plus
+  /* La courbe occupe une bande réservée en bas de tuile : elle ne passe plus
      ni sous le texte ni sous la barre de rang, qu'elle rendait illisibles en
      les croisant dans la même couleur. */
   .spark {
@@ -682,12 +570,12 @@
   .spark.down path.fill { fill:var(--orange-soft); }
 
   .mode .mmr-delta { margin-top:6px; display:flex; align-items:center; gap:7px;
-    font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+    font-size:var(--fs-md); font-weight:800; font-variant-numeric:tabular-nums; }
   .mode .mmr-delta .flat { color:var(--muted); }
   .mode .mmr-delta .up { color:var(--blue); }
   .mode .mmr-delta .down { color:var(--orange); }
   /* Pastille « estimation » : deltaReal=false → discrète, pas un pavé de
-     texte (cf consigne) — juste un point à côté du chiffre. */
+     texte (cf consigne) : juste un point à côté du chiffre. */
   .est-dot { width:6px; height:6px; flex:none; border-radius:50%;
     background:var(--muted); display:inline-block; }
   .mode.empty { opacity:.4; }
@@ -695,23 +583,22 @@
   /* Rang en clair, mis en avant devant le MMR brut (retour utilisateur :
      « j'ai juste mon MMR, pas mon rang »). Chip skewé, dans l'esprit des
      autres pastilles de l'appli (.tag/.chip/.res-chip…). */
-  /* La couleur de palier ne porte plus le TEXTE, elle porte un filet.
+  /* La couleur de palier ne porte plus le texte, elle porte un filet.
      Mesuré sur l'habillage clair : Or à 1,65:1, Platine à 1,76:1, Diamant à
      1,94:1 sur le panneau crème, très loin des 4,5:1 exigés pour du 11 px.
      Ces teintes sont l'échelle de rang du jeu et restent figées ; c'est leur
-     USAGE qui change. Le libellé prend la couleur du texte, donc lisible sur
+     usage qui change. Le libellé prend la couleur du texte, donc lisible sur
      les six habillages, et l'identité de palier survit dans le filet. */
   .rank-pill {
     display:inline-block; transform:skewX(-14deg);
     background:var(--panel2); border:1px solid var(--line);
     box-shadow:inset 3px 0 0 var(--tier-c, var(--muted));
     color:var(--text);
-    padding:2px 9px 2px 11px; font-style:italic; font-weight:800; font-size:11px;
-    letter-spacing:.07em; text-transform:uppercase; line-height:1.5;
+    padding:2px 9px 2px 11px; font-weight:700; font-size:var(--fs-xs); line-height:1.5;
   }
   .rank-pill > span { display:inline-block; transform:skewX(14deg); }
   .rank-pill:empty { display:none; }
-  .rank-pill.sm { font-size:9.5px; padding:1px 7px; }
+  .rank-pill.sm { padding:1px 7px; }
   .rank-pill.rk0 { --tier-c:var(--muted); }
   .rank-pill.rk1 { --tier-c:var(--tier-1); }
   .rank-pill.rk2 { --tier-c:var(--tier-2); }
@@ -720,92 +607,106 @@
   .rank-pill.rk5 { --tier-c:var(--tier-5); }
   .rank-pill.rk6 { --tier-c:var(--tier-6); }
   .rank-pill.rk7 { --tier-c:var(--tier-7); }
-  /* Supersonic Legend : seul palier à porter un soupçon de dégradé — le
+  /* Supersonic Legend : seul palier à porter un soupçon de dégradé : le
      rang le plus rare de l'échelle, discret mais reconnaissable. */
   .rank-pill.rk8 { --tier-c:var(--tier-8);
     background:linear-gradient(135deg, rgba(255,154,60,.18), rgba(160,107,236,.18)); }
 
-  /* ─── Match en cours ─── */
+  /* Match en cours */
   .live { }
-  .live-on, .live-off, .live-training { flex:1; display:flex;
+  /* La carte est un conteneur : large, elle pose le score à gauche et les
+     joueurs à droite ; étroite, elle les empile et le tableau défile plutôt
+     que de se faire rogner par le bas de la plaque. */
+  .card.live { container:live / inline-size; }
+  /* Seul accent de carte du dashboard : le filet passe à la couleur
+     d'équipe tant qu'un match est en cours. */
+  .card.live.playing { --card-edge:var(--blue); }
+  .live-on, .live-off, .live-training { flex:1; min-height:0; display:flex;
     flex-direction:column; align-items:center; justify-content:center; gap:8px; }
-  .live-off { color:var(--muted); font-size:17px; font-weight:600;
-    text-align:center; line-height:1.6; letter-spacing:.03em; }
+  .live-off { color:var(--muted); font-size:var(--fs-md); font-weight:600;
+    text-align:center; line-height:1.6; }
   .live-training { display:none; }
-  .live-training .big { font-style:italic; font-weight:800; font-size:30px;
-    letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
-  .live-training .sub { font-size:15px; font-weight:600; color:var(--muted); }
-  .live-mode {
-    font-style:italic; font-weight:800; font-size:18px; color:var(--text);
-    text-transform:uppercase; letter-spacing:.22em;
-    border-bottom:3px solid var(--blue); padding-bottom:5px;
-  }
+  .live-training .big { font-weight:800; font-size:var(--fs-2xl); color:var(--muted); }
+  .live-training .sub { font-size:var(--fs-md); font-weight:600; color:var(--muted); }
+  .live-head { display:flex; flex-direction:column; align-items:center; gap:8px;
+    flex:none; }
+  .live-mode { font-weight:700; font-size:var(--fs-lg); color:var(--muted); }
   .live-score { display:flex; align-items:center; gap:24px;
     font-variant-numeric:tabular-nums; }
-  .live-score .s0 { font-size:112px; font-weight:800; font-style:italic;
-    color:var(--blue); line-height:1; text-shadow:5px 5px 0 var(--edge); }
-  .live-score .s1 { font-size:112px; font-weight:800; font-style:italic;
-    color:var(--orange); line-height:1; text-shadow:5px 5px 0 var(--edge); }
-  /* Même séparateur incliné bicolore que le bilan de session : le « : »
-     du HTML est éteint (font-size:0), la barre fait le travail. */
+  /* Le point focal de l'écran : plus gros chiffre, et seule ombre portée. */
+  .live-score .s0, .live-score .s1 { font-size:var(--fs-5xl); font-weight:800;
+    font-style:var(--num-style); line-height:1; text-shadow:5px 5px 0 var(--edge); }
+  .live-score .s0 { color:var(--blue); }
+  .live-score .s1 { color:var(--orange); }
+  /* Le « : » du HTML est éteint (font-size:0) : la barre inclinée aux deux
+     couleurs d'équipe fait le travail. */
   .live-score .vs { font-size:0; width:7px; height:72px; align-self:center;
     background:linear-gradient(180deg, var(--blue), var(--orange));
-    transform:skewX(-14deg); }
-  .live-time { font-size:30px; font-weight:700;
-    font-variant-numeric:tabular-nums; letter-spacing:.04em; }
+    transform:skewX(var(--skew)); }
+  .live-time { font-size:var(--fs-2xl); font-weight:700;
+    font-variant-numeric:tabular-nums; }
   .live-time .ot {
-    display:inline-block; transform:skewX(-14deg); background:var(--gold);
-    color:#1a1405; font-style:italic; font-weight:800; font-size:14px;
-    letter-spacing:.12em; padding:3px 10px; margin-left:12px; vertical-align:4px;
+    display:inline-block; transform:skewX(var(--skew)); background:var(--gold);
+    color:var(--on-gold); font-weight:800; font-size:var(--fs-sm);
+    padding:3px 10px; margin-left:12px; vertical-align:4px;
   }
-  .live-players { width:100%; margin-top:14px; font-size:15px;
-    border-collapse:collapse; }
+  .live-table { width:100%; min-height:0; overflow-y:auto; margin-top:6px; }
+  .live-table::-webkit-scrollbar { width:8px; }
+  .live-table::-webkit-scrollbar-thumb { background:var(--line); }
+  .live-players { width:100%; font-size:var(--fs-md); border-collapse:collapse; }
   .live-players td { padding:6px 8px; border-top:1px solid var(--line);
     font-variant-numeric:tabular-nums; font-weight:600; }
   .live-players td.n { max-width:160px; overflow:hidden; text-overflow:ellipsis;
     white-space:nowrap; border-left:3px solid transparent; }
   .live-players tr.t0 td.n { border-left-color:var(--blue); }
   .live-players tr.t1 td.n { border-left-color:var(--orange); }
-  .live-players tr.me td.n { font-weight:800; }
-  .me-tag {
-    display:inline-block; background:var(--text); color:var(--bg);
-    font-style:italic; font-weight:800; font-size:10px; letter-spacing:.1em;
-    padding:1px 6px; margin-left:7px; vertical-align:1px;
-  }
-  /* « Déjà croisé » : bilan contre cet adversaire (vert si positif). */
+  /* Ta ligne : en gras sur un voile, sans pastille à lire en plus. */
+  .live-players tr.me td { background:var(--text-ghost); color:var(--text);
+    font-weight:800; }
+  /* « Déjà croisé » : bilan contre cet adversaire. */
   .h2h-chip {
-    display:inline-block; font-style:italic; font-weight:800; font-size:10px;
-    letter-spacing:.08em; padding:1px 6px; margin-left:7px; vertical-align:1px;
+    display:inline-block; font-weight:700; font-size:var(--fs-xs);
+    padding:0 6px; margin-left:7px; vertical-align:1px;
     background:var(--panel2); color:var(--muted); border:1px solid var(--line);
   }
   .h2h-chip.up { color:var(--blue); border-color:var(--blue); }
   .h2h-chip.down { color:var(--orange); border-color:var(--orange); }
   .live-players td.num { text-align:right; color:var(--muted); width:48px; }
-  .live-players thead td { color:var(--muted); font-size:11px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.12em; border-top:0; }
+  .live-players thead td { color:var(--muted); font-size:var(--fs-xs); font-weight:600;
+    border-top:0; }
+  @container live (min-width:640px) {
+    .live-on { flex-direction:row; gap:32px; }
+    .live-head { padding:0 8px 0 16px; }
+    .live-table { flex:1; width:auto; max-height:100%; margin-top:0; }
+  }
+  @container live (max-width:639.98px) {
+    .live-on { justify-content:flex-start; }
+    .live-score .s0, .live-score .s1 { font-size:var(--fs-4xl); text-shadow:3px 3px 0 var(--edge); }
+    .live-score .vs { height:44px; }
+    .live-table { flex:1; }
+  }
   @keyframes goalflash {
     0%,100% { border-color:var(--line); }
     30% { border-color:var(--blue); }
   }
   .live.goal { animation:goalflash 1s ease-out; }
 
-  /* ─── Évolution du MMR ─── */
+  /* Évolution du MMR */
   .evo { }
   .evo-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .evo-tab {
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
     transform:skewX(-14deg); padding:4px 12px; cursor:pointer;
-    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
-    letter-spacing:.08em; text-transform:uppercase;
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
   .evo-tab > span { display:inline-block; transform:skewX(14deg); }
-  .evo-tab.on { border-color:var(--blue); color:var(--text);
+  .evo-tab.on { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
   .evo-chart { flex:1; min-height:52px; position:relative; }
   .evo-chart svg { position:absolute; inset:0; width:100%; height:100%; display:block; }
   /* Courbe : ligne franche + remplissage dégradé sous la courbe. La couleur
      suit le sens de la session (gagné depuis le premier point de la
-     période affichée = bleu, perdu = orange) — mêmes teintes que le reste
+     période affichée = bleu, perdu = orange) : mêmes teintes que le reste
      de l'appli (.mode .rec .mw/.ml), pas de couleur nouvelle. */
   .evo-chart .grid { stroke:var(--line); stroke-width:1; }
   .evo-chart .ln { stroke:var(--blue); stroke-width:2;
@@ -816,71 +717,67 @@
   .evo-chart.down stop.g-top { stop-color:var(--orange); stop-opacity:.24; }
   .evo-chart.down stop.g-bot { stop-color:var(--orange); stop-opacity:0; }
   /* Ancres (evolution[].real=true) : de vrais relevés en jeu, distingués
-     des points estimés par un point plein cerclé — le reste de la courbe
+     des points estimés par un point plein cerclé : le reste de la courbe
      (estimée entre deux relevés) ne porte volontairement aucun marqueur. */
   .evo-chart .anchor { fill:var(--blue); stroke:var(--panel); stroke-width:2; }
   .evo-chart.down .anchor { fill:var(--orange); }
-  /* Point final mis en valeur : plus gros ; anneau pointillé si CETTE
+  /* Point final mis en valeur : plus gros ; anneau pointillé si cette
      valeur précise est encore une estimation (deltaReal=false / dernier
      point sans relevé réel), plein si c'est une ancre confirmée. */
   .evo-chart .end { fill:var(--blue); stroke:var(--panel); stroke-width:2.5; }
   .evo-chart.down .end { fill:var(--orange); }
   .evo-chart .end.est { stroke-dasharray:2.5 2; }
   .evo-empty { flex:1; display:flex; align-items:center; justify-content:center;
-    color:var(--muted); font-size:14px; font-weight:600; text-align:center;
+    color:var(--muted); font-size:var(--fs-sm); font-weight:600; text-align:center;
     line-height:1.6; min-height:52px; }
-  /* Repères min / actuel / max, lisibles d'un coup d'œil à distance —
+  /* Repères min / actuel / max, lisibles d'un coup d'œil à distance :
      « actuel » est la valeur la plus grosse, c'est celle qui compte pendant
      la partie. */
   .evo-range { display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
   .evo-stat { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0; }
   .evo-stat:first-child { align-items:flex-start; }
   .evo-stat:last-child { align-items:flex-end; }
-  .evo-stat b { font-size:15px; font-weight:800; color:var(--text);
+  .evo-stat b { font-size:var(--fs-md); font-weight:800; color:var(--text);
     font-variant-numeric:tabular-nums; }
-  .evo-stat > span:last-child { font-size:10px; font-weight:700; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.12em; }
-  .evo-stat.now b { font-size:32px; font-style:italic; }
+  .evo-stat > span:last-child { font-size:var(--fs-xs); font-weight:600; color:var(--muted); }
+  .evo-stat.now b { font-size:var(--fs-2xl); font-style:italic; }
   .evo-foot { display:flex; gap:22px; margin-top:10px; padding-top:9px;
-    border-top:1px solid var(--line); font-size:13px; font-weight:600;
-    color:var(--muted); letter-spacing:.04em; text-transform:uppercase;
-    font-variant-numeric:tabular-nums; }
-  .evo-foot b { color:var(--text); font-weight:800; font-size:15px; }
+    border-top:1px solid var(--line); font-size:var(--fs-sm); font-weight:600;
+    color:var(--muted); font-variant-numeric:tabular-nums; }
+  .evo-foot b { color:var(--text); font-weight:800; font-size:var(--fs-md); }
 
-  /* ─── Classé / casual du match en cours ─── */
+  /* Classé / casual du match en cours */
   .ranked-toggle { display:flex; align-items:center; gap:6px; margin-top:10px; }
   .ranked-toggle button {
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
     transform:skewX(-14deg); padding:5px 14px; cursor:pointer;
-    font-family:inherit; font-style:italic; font-weight:800; font-size:12px;
-    letter-spacing:.1em; text-transform:uppercase;
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
   .ranked-toggle button > span { display:inline-block; transform:skewX(14deg); }
-  .ranked-toggle button.on { border-color:var(--blue); color:#fff;
+  .ranked-toggle button.on { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
 
   .ff-chip {
-    display:inline-block; font-style:italic; font-weight:800; font-size:10.5px;
-    letter-spacing:.1em; padding:1px 6px; margin-left:6px; vertical-align:2px;
-    background:var(--orange-deep); color:#fff;
+    display:inline-block; font-weight:700; font-size:var(--fs-xs);
+    padding:0 6px; margin-left:6px; vertical-align:2px;
+    background:var(--orange-deep); color:var(--on-orange-deep);
   }
 
-  /* ─── Totaux ─── */
+  /* Totaux */
   .totals { }
   .totals-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
     flex:1; align-content:center; }
-  /* Séparateurs INCLINÉS entre compteurs : même langage diagonal que les
+  /* Séparateurs inclinés entre compteurs : même langage diagonal que les
      chips, à la place des bordures droites d'origine. */
   .tot { text-align:center; position:relative; }
   .tot::before { content:''; position:absolute; left:-7px; top:12%; bottom:12%;
     width:2px; background:var(--line); transform:skewX(-14deg); }
   .tot:first-child::before { display:none; }
-  .tot b { display:block; font-size:36px; font-weight:800; font-style:italic;
+  .tot b { display:block; font-size:var(--fs-2xl); font-weight:800; font-style:var(--num-style);
     font-variant-numeric:tabular-nums; line-height:1.1; }
-  .tot span { font-size:11.5px; font-weight:700; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.14em; }
+  .tot span { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
 
-  /* ─── Historique ─── */
+  /* Historique */
   .history { }
   .hist-scroll { flex:1; overflow-y:auto; min-height:0; margin:0 -8px;
     padding:0 8px; }
@@ -892,12 +789,12 @@
   }
   .hist-scroll::-webkit-scrollbar { width:8px; }
   .hist-scroll::-webkit-scrollbar-thumb { background:var(--line); }
-  table.hist { width:100%; border-collapse:collapse; font-size:15px; }
+  table.hist { width:100%; border-collapse:collapse; font-size:var(--fs-md); }
   table.hist td { padding:8px; border-top:1px solid var(--line);
     font-variant-numeric:tabular-nums; white-space:nowrap; font-weight:600; }
   table.hist tr:first-child td { border-top:0; }
   /* Survol de ligne : révèle les micro-boutons de correction (voir .hfix)
-     et souligne la ligne visée — indispensable pour viser le bon match. */
+     et souligne la ligne visée : indispensable pour viser le bon match. */
   table.hist tr:hover td { background:var(--panel2); }
   /* Ligne en cours de correction : grisée le temps que le processus
      principal repousse l'état recalculé. */
@@ -905,27 +802,27 @@
   td.res { width:44px; }
   .res-chip {
     display:inline-block; transform:skewX(-14deg); width:28px;
-    text-align:center; font-style:italic; font-weight:800; font-size:15px;
-    padding:2px 0; color:#fff; position:relative;
+    text-align:center; font-style:italic; font-weight:800; font-size:var(--fs-md);
+    padding:2px 0; position:relative;
   }
   .res-chip > span { display:inline-block; transform:skewX(14deg); }
-  .res-chip.W { background:var(--blue-deep); }
-  .res-chip.L { background:var(--orange-deep); }
+  .res-chip.W { background:var(--blue-deep); color:var(--on-blue-deep); }
+  .res-chip.L { background:var(--orange-deep); color:var(--on-orange-deep); }
   .res-chip.U { background:var(--panel2); color:var(--muted); }
   /* Marqueur « résultat corrigé à la main » : simple onglet doré sur le
-     coin de la pastille — discret mais reconnaissable, l'infobulle (title)
+     coin de la pastille : discret mais reconnaissable, l'infobulle (title)
      porte l'explication complète. */
   .res-chip.ov::after { content:''; position:absolute; top:-2px; right:-2px;
     width:7px; height:7px; background:var(--gold); }
-  /* ─── Correction manuelle d'un résultat (forfait adverse mal compté…) ───
+  /* Correction manuelle d'un résultat (forfait adverse mal compté…).
      Trois micro-boutons par ligne, invisibles hors survol : V force la
      victoire, D la défaite, ↺ rend la main au calcul automatique. Pas de
      fenêtre modale : un clic suffit, l'état recalculé revient tout seul. */
   td.hfix { width:1%; text-align:right; padding-left:2px; }
   .fixbtn {
-    border:1px solid var(--line); background:var(--panel2); color:var(--muted);
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
     transform:skewX(-14deg); padding:2px 8px; margin-left:4px; cursor:pointer;
-    font-family:inherit; font-style:italic; font-weight:800; font-size:11.5px;
+    font-family:inherit; font-style:italic; font-weight:800; font-size:var(--fs-xs);
     opacity:0; transition:opacity .12s;
   }
   .fixbtn > span { display:inline-block; transform:skewX(14deg); }
@@ -934,48 +831,45 @@
   /* Le bouton du résultat actuellement retenu est marqué et inerte :
      impossible de « re-forcer » ce qui est déjà affiché. */
   .fixbtn:disabled { cursor:default; }
-  .fixbtn.w.cur { background:var(--blue-deep); border-color:var(--blue); color:#fff; }
-  .fixbtn.l.cur { background:var(--orange-deep); border-color:var(--orange); color:#fff; }
+  .fixbtn.w.cur { background:var(--blue-deep); border-color:var(--blue); color:var(--on-blue-deep); }
+  .fixbtn.l.cur { background:var(--orange-deep); border-color:var(--orange); color:var(--on-orange-deep); }
   .fixbtn.auto:hover { border-color:var(--gold); color:var(--gold); }
-  td.hmode { color:var(--text); font-style:italic; font-weight:800;
-    text-transform:uppercase; letter-spacing:.06em; width:56px; }
-  td.hscore { font-weight:800; width:76px; font-size:16px; }
+  td.hmode { color:var(--text); font-weight:700; width:56px; }
+  td.hscore { font-weight:800; width:76px; font-size:var(--fs-md); }
   td.htime { color:var(--muted); }
-  td.hstats { text-align:right; font-size:13.5px; color:var(--muted);
-    letter-spacing:.05em; }
+  td.hstats { text-align:right; font-size:var(--fs-sm); color:var(--muted); }
   td.hstats b { color:var(--text); font-weight:800; }
   .ot-mini, .mvp-chip {
-    display:inline-block; font-style:italic; font-weight:800; font-size:10.5px;
-    letter-spacing:.1em; padding:1px 6px; margin-left:6px; vertical-align:2px;
+    display:inline-block; font-weight:700; font-size:var(--fs-xs);
+    padding:0 6px; margin-left:6px; vertical-align:2px;
   }
   .ot-mini { background:var(--panel2); color:var(--muted);
     border:1px solid var(--line); }
-  .mvp-chip { background:var(--gold); color:#1a1405; }
+  .mvp-chip { background:var(--gold); color:var(--on-gold); }
   .empty-hint { flex:1; display:flex; align-items:center; justify-content:center;
-    color:var(--muted); font-size:16px; font-weight:600; text-align:center;
-    line-height:1.7; letter-spacing:.03em; }
+    color:var(--muted); font-size:var(--fs-md); font-weight:600; text-align:center;
+    line-height:1.7; }
 
-  /* ─── Widgets bonus : horloge et objectif ─── */
+  /* Widgets bonus : horloge et objectif */
   .clock-wrap { flex:1; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:2px; }
-  .clock-big { font-size:64px; font-weight:800; font-style:italic; line-height:1;
-    font-variant-numeric:tabular-nums; text-shadow:4px 4px 0 var(--edge); }
-  .clock-date { font-size:14px; font-weight:600; color:var(--muted);
-    text-transform:uppercase; letter-spacing:.1em; }
+  .clock-big { font-size:var(--fs-4xl); font-weight:800; font-style:var(--num-style); line-height:1;
+    font-variant-numeric:tabular-nums; }
+  .clock-date { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
   .goal-wrap { flex:1; display:flex; flex-direction:column;
     justify-content:center; gap:10px; }
   .goal-nums { display:flex; align-items:baseline; gap:10px;
     font-variant-numeric:tabular-nums; }
-  .goal-nums b { font-size:44px; font-weight:800; font-style:italic;
-    line-height:1; text-shadow:3px 3px 0 var(--edge); }
+  .goal-nums b { font-size:var(--fs-3xl); font-weight:800; font-style:var(--num-style);
+    line-height:1; }
   .goal-nums b.up { color:var(--blue); }
   .goal-nums b.down { color:var(--orange); }
-  .goal-nums > span:first-of-type { font-size:16px; font-weight:700;
+  .goal-nums > span:first-of-type { font-size:var(--fs-md); font-weight:700;
     color:var(--muted); }
   .goal-ctl { margin-left:auto; display:flex; gap:6px; }
   .goal-ctl button {
-    width:26px; height:26px; border:1px solid var(--line);
-    background:var(--panel2); color:var(--muted); font-size:15px;
+    width:26px; height:26px; border:1px solid var(--line-strong);
+    background:var(--panel2); color:var(--muted); font-size:var(--fs-md);
     cursor:pointer; font-family:inherit; line-height:1;
   }
   .goal-ctl button:hover { border-color:var(--blue); color:var(--text); }
@@ -985,17 +879,15 @@
     transform:skewX(-14deg); margin:0 5px; }
   .goal-bar i { display:block; height:100%; width:0; background:var(--blue);
     transition:width .4s; }
-  .goal-sub { font-size:13px; font-weight:600; color:var(--muted);
-    letter-spacing:.04em; text-transform:uppercase; }
+  .goal-sub { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
 
-  .esc-hint { position:fixed; bottom:8px; right:16px; font-size:11px;
-    font-weight:600; letter-spacing:.06em; color:var(--muted); opacity:.55;
-    text-transform:uppercase; }
+  .esc-hint { position:fixed; bottom:6px; right:16px; font-size:var(--fs-xs);
+    font-weight:600; color:var(--muted); }
 
-  /* ─── Alertes ───
+  /* Alertes.
      Un bloc qui n'existe que le temps d'une nouvelle. Contrairement aux
-     autres widgets il ne porte ni fond, ni liseré, ni coin d'accent : hors
-     alerte il ne doit rester NI cadre vide sur le dashboard, NI rectangle
+     autres widgets il ne porte ni fond ni filet : hors
+     alerte il ne doit rester ni cadre vide sur le dashboard, ni rectangle
      opaque par-dessus le jeu dans OBS. Seule la plaque est peinte, et
      seulement quand il y a quelque chose à dire. */
   /* Le sélecteur [data-skin] passe devant les règles .card de skins.css,
@@ -1015,14 +907,14 @@
   body.editing .card.alerts { pointer-events:auto; }
   body.editing .card.alerts .tag { display:inline-block; opacity:.7; }
   /* Le bloc est le plus court de la toile : son panneau de réglages est plus
-     grand que lui. Il déborde donc, mais seulement pendant l'édition — en
+     grand que lui. Il déborde donc, mais seulement pendant l'édition : en
      usage, l'alerte reste rognée à l'intérieur comme n'importe quelle carte.
      (#canvas .card impose overflow:hidden, d'où l'ancrage sur #canvas ici.) */
   body.editing #canvas .card.alerts { overflow:visible; }
   .alert-plate {
     display:none; width:max-content; max-width:100%;
     transform:skewX(var(--skew));
-    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 160%);
+    background:var(--blue-deep); color:var(--on-blue-deep);
     border-left:5px solid var(--blue);
     padding:calc(9px * var(--dens)) calc(24px * var(--dens))
             calc(10px * var(--dens)) calc(16px * var(--dens));
@@ -1032,24 +924,20 @@
   /* Rang, MVP, record : la couleur de la rareté, celle des MVP de
      l'historique. La série garde le bleu des victoires. */
   .card.alerts.gold .alert-plate {
-    background:linear-gradient(90deg, color-mix(in srgb, var(--gold) 34%, #000),
-      var(--panel2) 160%);
+    background:color-mix(in srgb, var(--gold) 34%, #000); color:#fff;
     border-left-color:var(--gold);
   }
-  .al-kick {
-    font-size:11.5px; font-weight:800; letter-spacing:.22em;
-    text-transform:uppercase; color:#fff; opacity:.74;
-  }
+  .al-kick { font-size:var(--fs-sm); font-weight:700; }
   /* Le texte se replie plutôt que de se faire couper : un bloc étroit ou une
      traduction plus longue ne doit pas amputer la moitié de la phrase. */
   .al-text {
     font-style:var(--num-style); font-weight:800; line-height:1.05;
     font-size:clamp(19px, 2.6vw, 38px); letter-spacing:.03em;
-    text-transform:uppercase; color:#fff;
+    text-transform:uppercase;
   }
   /* L'apparition est un bonus, pas le mécanisme : c'est un minuteur qui pose
      et retire la classe. Avec prefers-reduced-motion, l'animation dure
-     0,01 ms (bloc plus haut) et la plaque s'affiche simplement d'un coup —
+     0,01 ms (bloc plus haut) et la plaque s'affiche simplement d'un coup :
      elle ne reste ni invisible, ni collée à l'écran. */
   .card.alerts.on .alert-plate {
     display:block; animation:al-in .34s cubic-bezier(.2, 1.3, .4, 1) both;
@@ -1062,7 +950,7 @@
     to { opacity:0; transform:skewX(var(--skew)) translateX(-14px); }
   }
 
-  /* ─── Fin de match : VICTOIRE / DÉFAITE ─── */
+  /* Fin de match : victoire / défaite */
   .result-overlay {
     position:fixed; inset:0; z-index:50; display:none; flex-direction:column;
     align-items:center; justify-content:center; gap:18px;
@@ -1112,12 +1000,11 @@
   .result-sub {
     transform:skewX(-14deg); background:var(--panel2);
     border:1px solid var(--line); padding:8px 22px;
-    font-weight:700; font-size:25px; letter-spacing:.08em;
+    font-weight:700; font-size:var(--fs-xl); letter-spacing:.08em;
     font-variant-numeric:tabular-nums; text-transform:uppercase;
   }
   .result-sub > span { display:inline-block; transform:skewX(14deg); }
-  .result-streak { font-size:16px; font-weight:700; color:var(--muted);
-    letter-spacing:.12em; text-transform:uppercase; }
+  .result-streak { font-size:var(--fs-md); font-weight:700; color:var(--muted); }
   .confetti-piece {
     position:absolute; top:-26px; width:9px; height:18px;
     animation:fall linear forwards; transform:skewX(-14deg);
@@ -1126,7 +1013,7 @@
     to { transform:translateY(108vh) rotate(620deg); opacity:.85; }
   }
 
-  /* ─── Style d'animation « Minimal » : sobre et court ─── */
+  /* Style d'animation « Minimal » : sobre et court */
   .result-overlay.preset-minimal { background:rgba(12,14,17,.72); }
   .result-overlay.preset-minimal .result-stripes { display:none; }
   .result-overlay.preset-minimal .result-text {
@@ -1148,7 +1035,7 @@
   }
   .result-overlay.preset-minimal .result-sub > span { transform:none; }
 
-  /* ─── Style d'animation « Arcade » : punch rétro ─── */
+  /* Style d'animation « Arcade » : punch rétro */
   .result-overlay.preset-arcade .result-stripes { display:none; }
   .result-overlay.preset-arcade::before {
     content:''; position:absolute; inset:14px; pointer-events:none;
@@ -1181,7 +1068,7 @@
     animation-timing-function:steps(14, jump-none);
   }
 
-  /* ─── Style d'animation « Néon » : enseigne qui s'allume ─── */
+  /* Style d'animation « Néon » : enseigne qui s'allume */
   .result-overlay.preset-neon { background:rgba(7,8,11,.93); }
   .result-overlay.preset-neon .result-stripes { display:none; }
   .result-overlay.preset-neon::before {
@@ -1208,7 +1095,7 @@
     background:transparent; border-color:currentColor;
   }
 
-  /* ─── Style d'animation « Cinéma » : zoom lent + bandes noires ─── */
+  /* Style d'animation « Cinéma » : zoom lent + bandes noires */
   .result-overlay.preset-cinema { background:rgba(0,0,0,.94); }
   .result-overlay.preset-cinema .result-stripes { display:none; }
   .result-overlay.preset-cinema::before,
@@ -1237,7 +1124,7 @@
   .result-overlay.preset-cinema .result-sub > span { transform:none; }
   @keyframes cine-fade { from { opacity:0; } to { opacity:1; } }
 
-  /* ─── Flash de but selon le style ─── */
+  /* Flash de but selon le style */
   @keyframes goalflash-arcade {
     0%,100% { border-color:var(--line); background:var(--panel); }
     25%,65% { border-color:var(--blue); background:var(--panel2); }
@@ -1314,11 +1201,10 @@
       <div class="hero-main">
         <div>
           <div class="wl">
-            <span class="w" id="wins">0</span>
+            <div class="wl-col"><span class="w" id="wins">0</span><span class="cap" data-i18n="wins">Victoires</span></div>
             <span class="sep">–</span>
-            <span class="l" id="losses">0</span>
+            <div class="wl-col"><span class="l" id="losses">0</span><span class="cap" data-i18n="losses">Défaites</span></div>
           </div>
-          <div class="wl-cap"><span data-i18n="wins">Victoires</span><span data-i18n="losses">Défaites</span></div>
         </div>
         <!-- Anneau de winrate : la même valeur que « 71 % » mais lisible d'un
              coup d'œil de loin, et qui se remplit à mesure que la session
@@ -1339,7 +1225,7 @@
       </div>
       <!-- Suite de résultats : les derniers matchs de la session, du plus
            ancien au plus récent. Une session se lit d'abord comme une
-           ALTERNANCE (deux gagnés, trois perdus…), ce qu'aucun compteur ne
+           alternance (deux gagnés, trois perdus…), ce qu'aucun compteur ne
            montre. Le dernier match est cerclé. -->
       <div class="pips" id="pips"></div>
       <div class="streak-banner" id="streakBadge"><span id="streakTxt"></span></div>
@@ -1350,7 +1236,7 @@
     </section>
 
     <!-- En écoute : le contrôleur média de Windows, celui de la tuile du
-         volume. Il couvre tous les lecteurs — Spotify, navigateur, VLC — sans
+         volume. Il couvre tous les lecteurs, Spotify, navigateur, VLC, sans
          clé ni compte. Le bloc disparaît si rien ne joue. -->
     <section class="card music">
       <div class="tag"><span data-i18n="tagMusic">En écoute</span></div>
@@ -1364,13 +1250,13 @@
             <div class="music-time"><span id="musicPos"></span><span id="musicDur"></span></div>
           </div>
           <div class="music-ctl">
-            <button id="musPrev" title="Précédent">⏮</button>
-            <button id="musPlay" title="Lecture / pause">⏯</button>
-            <button id="musNext" title="Suivant">⏭</button>
+            <button id="musPrev" title="Précédent" aria-label="Précédent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h3v14H5zM20 5v14L9 12z"/></svg></button>
+            <button id="musPlay" title="Lecture / pause" aria-label="Lecture / pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg></button>
+            <button id="musNext" title="Suivant" aria-label="Suivant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h3v14h-3zM4 5v14l11-7z"/></svg></button>
             <span class="music-vol">
-              <button id="musMute" title="Muet">🔇</button>
-              <button id="musVolDn" title="Baisser le son">🔉</button>
-              <button id="musVolUp" title="Monter le son">🔊</button>
+              <button id="musMute" title="Muet" aria-label="Muet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3zM15.3 9.3l1.4-1.4L19 10.2l2.3-2.3 1.4 1.4-2.3 2.3 2.3 2.3-1.4 1.4-2.3-2.3-2.3 2.3-1.4-1.4 2.3-2.3z"/></svg></button>
+              <button id="musVolDn" title="Baisser le son" aria-label="Baisser le son"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3zM15 11h6v2h-6z"/></svg></button>
+              <button id="musVolUp" title="Monter le son" aria-label="Monter le son"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3zM17 11V8h2v3h3v2h-3v3h-2v-3h-3v-2z"/></svg></button>
             </span>
           </div>
           <div class="music-err" id="musicErr"></div>
@@ -1394,6 +1280,7 @@
         <div class="sub" data-i18n="trainingSub">Piste libre détectée : rien n'est compté dans tes stats.</div>
       </div>
       <div class="live-on" id="liveOn" style="display:none">
+       <div class="live-head">
         <div class="live-mode" id="liveMode"></div>
         <div class="live-score">
           <span class="s0" id="ls0">0</span>
@@ -1410,7 +1297,8 @@
                commutateur ci-dessus reste utilisable dans tous les cas. -->
           <span class="ot-mini" id="rkAuto" style="display:none"></span>
         </div>
-        <table class="live-players" id="livePlayers"></table>
+       </div>
+        <div class="live-table"><table class="live-players" id="livePlayers"></table></div>
       </div>
     </section>
 
@@ -1484,8 +1372,8 @@
       <div class="empty-hint" id="goalEmpty" data-i18n="goalEmpty">Renseigne ton MMR dans les réglages<br/>pour suivre un objectif.</div>
     </section>
 
-    <!-- Alertes. En DERNIER dans la toile : sans z-index à inventer, une
-         plaque d'alerte passe ainsi par-dessus les blocs qu'elle recouvre —
+    <!-- Alertes. En dernier dans la toile : sans z-index à inventer, une
+         plaque d'alerte passe ainsi par-dessus les blocs qu'elle recouvre :
          c'est le propre d'une alerte, et elle ne dure que quelques secondes. -->
     <section class="card alerts">
       <div class="tag"><span data-i18n="tagAlerts">Alertes</span></div>
@@ -1510,11 +1398,11 @@
   'use strict';
   function $(id) { return document.getElementById(id); }
 
-  // Cette page sert DEUX contextes : la fenêtre du dashboard (pont `rl` fourni
+  // Cette page sert deux contextes : la fenêtre du dashboard (pont `rl` fourni
   // par le preload) et la source « Navigateur » d'OBS, où la même page est
   // servie en HTTP par obs-server.js. Dans ce second cas il n'y a pas de
   // preload : l'état arrive par Server-Sent Events, et rien n'est
-  // enregistrable. Un seul jeu de modules, donc — pas de seconde page overlay
+  // enregistrable. Un seul jeu de modules, donc : pas de seconde page overlay
   // à maintenir en parallèle.
   var Q = new URLSearchParams(location.search);
   // ?obs=1 dans l'URL, ou marquage posé par le serveur sur la page servie :
@@ -1549,7 +1437,7 @@
   }
   var cur = null;
 
-  // ─── Horloge (en-tête + widget) ───
+  // Horloge (en-tête + widget)
   function tickClock() {
     var d = new Date();
     var loc = (typeof T !== 'undefined' && T.locale) || 'fr-FR';
@@ -1562,7 +1450,7 @@
   tickClock();
   setInterval(tickClock, 10000);
 
-  // ─── Objectif de session : somme des deltas MMR vs cible réglable ───
+  // Objectif de session : somme des deltas MMR vs cible réglable
   function renderGoal(ses, cfg) {
     var mmr = ses.mmr || {};
     var modes = Object.keys(mmr);
@@ -1620,11 +1508,11 @@
   // Dernier état reçu : un réglage de widget doit pouvoir redessiner sans
   // attendre la prochaine poussée du processus principal.
   var lastState = null;
-  // Dernier état RÉEL, mis de côté pendant un aperçu de match : c'est lui
+  // Dernier état réel, mis de côté pendant un aperçu de match : c'est lui
   // qu'on réaffiche quand l'aperçu s'arrête.
   var realState = null;
 
-  // ─── Langue (FR / EN) ───
+  // Langue (FR / en)
   var I18N = {
     fr: {
       bSessReset: 'Nouvelle session', confirmSessReset: 'Remettre les compteurs de session à zéro ? Les matchs restent au journal.',
@@ -1683,7 +1571,7 @@
       mmrLogLbl: 'Jeu',
       mmrLogTip: function (step) {
         return 'MMR relevé automatiquement dans le journal de Rocket League '
-          + 'à chaque mise en file classée — pas utilisé : ' + step + ' points.';
+          + 'à chaque mise en file classée. Pas utilisé : ' + step + ' points.';
       },
       thPlayer: 'Joueur', thGoals: 'Buts', thAssists: 'Pass', thSaves: 'Arr', thPts: 'Pts',
       you: 'Toi',
@@ -1703,7 +1591,7 @@
       streakTilt: function (n) { return n + ' défaites d’affilée, une pause ?'; },
       // Bandeau « matchs non attribués » (voir hero, sous le bandeau de
       // série) : le pseudo réglé ne correspond à aucun joueur sur un ou
-      // plusieurs matchs — la courbe MMR se fige alors en silence.
+      // plusieurs matchs : la courbe MMR se fige alors en silence.
       unknownWarn: function (n) { return n + (n > 1 ? ' matchs non attribués' : ' match non attribué') + ', vérifie ton pseudo.'; },
       modeStreak: function (n, w) { return 'Série de ' + n + ' ' + (w ? 'victoires' : 'défaites'); },
       nMatches: function (n) { return n + (n > 1 ? ' matchs' : ' match'); },
@@ -1726,7 +1614,7 @@
       // correction) : V/D en français, W/L en anglais.
       resW: 'V', resL: 'D',
       // Correction manuelle d'un résultat : un forfait adverse peut encore
-      // être compté à l'envers — l'utilisateur reprend la main ici.
+      // être compté à l'envers : l'utilisateur reprend la main ici.
       fixWinTip: 'Compter ce match comme une victoire',
       fixLossTip: 'Compter ce match comme une défaite',
       fixAutoTip: 'Revenir au résultat détecté automatiquement',
@@ -1782,7 +1670,7 @@
       mmrLogLbl: 'Game',
       mmrLogTip: function (step) {
         return 'MMR read automatically from the Rocket League log '
-          + 'every time you queue for a ranked match — step used: ' + step + ' points.';
+          + 'every time you queue for a ranked match. Step used: ' + step + ' points.';
       },
       thPlayer: 'Player', thGoals: 'Goals', thAssists: 'Ast', thSaves: 'Saves', thPts: 'Pts',
       you: 'You',
@@ -1857,7 +1745,7 @@
     }
   }
 
-  // ─── Thème : 4 couleurs, le reste est dérivé (panneaux, liserés) ───
+  // Thème : 4 couleurs, le reste est dérivé (panneaux, liserés)
   var THEME_DEFAULT = { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' };
   function mix(a, b, f) {
     var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -1874,7 +1762,7 @@
     };
   }
   // Un fond clair (skin « Papier », ou une couleur choisie à la main) impose
-  // d'inverser tout ce qui se dérivait du fond : le texte, et le SENS des
+  // d'inverser tout ce qui se dérivait du fond : le texte, et le sens des
   // mélanges. Sans ça, panneaux et filets étaient éclaircis vers le blanc sur
   // un fond déjà blanc, et le texte clair restait illisible.
   function isLight(hex) {
@@ -1885,9 +1773,9 @@
     var b = parseInt(c.slice(4, 6), 16) / 255;
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55;
   }
-  // ─── Habillages (skins) : la FORME de l'interface, pas seulement ses
+  // Habillages (skins) : la forme de l'interface, pas seulement ses
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
-  // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
+  // que les thèmes : l'utilisateur peut donc la retoucher ensuite.
   var SKINS = [
     { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
     { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
@@ -1908,9 +1796,9 @@
   }
   // Habillage essayé depuis la vitrine, poussé par le processus principal.
   var lookPreview = null;
-  // ─────────── Atelier : les ingrédients d'un habillage ───────────
+  // Atelier : les ingrédients d'un habillage
   // Trois familles de police, trois découpes, trois densités. Les valeurs
-  // « auto » laissent l'habillage décider — c'est le comportement d'avant,
+  // « auto » laissent l'habillage décider : c'est le comportement d'avant,
   // et donc le défaut.
   var TUNE_FONTS = {
     auto: null,
@@ -1948,6 +1836,18 @@
     if (t.italic === null || t.italic === undefined) s.removeProperty('--num-style');
     else s.setProperty('--num-style', t.italic ? 'italic' : 'normal');
   }
+  // Encre à poser sur un aplat de couleur : le noir du fond ou le blanc,
+  // celui des deux qui contraste le plus. Les palettes vont du blanc cassé
+  // au violet sombre, aucune des deux encres ne convient à toutes.
+  function inkOn(hex) {
+    var c = String(hex || '').replace('#', '');
+    var ch = [0, 2, 4].map(function (i) {
+      var v = parseInt(c.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var l = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    return (1.05 / (l + 0.05)) >= ((l + 0.05) / 0.0547) ? '#ffffff' : '#0c0e11';
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1956,10 +1856,15 @@
     themeApplied = key;
     var s = document.documentElement.style;
     s.setProperty('--blue', t.win);
-    s.setProperty('--blue-deep', mix(t.win, '#000000', .42));
+    var blueDeep = mix(t.win, '#000000', .42), orangeDeep = mix(t.loss, '#000000', .35);
+    s.setProperty('--blue-deep', blueDeep);
     s.setProperty('--orange', t.loss);
-    s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
+    s.setProperty('--orange-deep', orangeDeep);
     s.setProperty('--gold', t.gold);
+    s.setProperty('--on-blue', inkOn(t.win));
+    s.setProperty('--on-blue-deep', inkOn(blueDeep));
+    s.setProperty('--on-orange-deep', inkOn(orangeDeep));
+    s.setProperty('--on-gold', inkOn(t.gold));
     s.setProperty('--bg', t.bg);
     var toward = isLight(t.bg) ? '#000000' : '#ffffff';
     s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
@@ -1967,36 +1872,36 @@
     s.setProperty('--panel', mix(t.bg, toward, .055));
     s.setProperty('--panel2', mix(t.bg, toward, .10));
     s.setProperty('--line', mix(t.bg, toward, .22));
+    s.setProperty('--line-strong', mix(t.bg, toward, isLight(t.bg) ? .52 : .45));
   }
 
-  // ─── Widgets : disposition libre, mémorisée ───
+  // Widgets : disposition libre, mémorisée
   var WIDGET_LABELS = {
     hero: 'Session', modes: 'Par mode', live: 'Match', music: 'En écoute',
     evo: 'Évolution', totals: 'Stats', history: 'Historique',
     clockw: 'Horloge', goalw: 'Objectif', alerts: 'Alertes',
   };
+  // Colonne de droite plus large que celle de gauche : le match en cours a
+  // besoin de largeur pour poser le score et le tableau des joueurs côte à
+  // côte, et les blocs de gauche n'ont plus de moitié vide.
   var LAYOUT_DEFAULT = {
-    hero: { x: 0, y: 0, w: 55, h: 27 },
-    // Hauteur montée de 24 à 33 en v3.22.0 : les tuiles portent désormais la
-    // barre de progression de rang et sa courbe de fond, rognées par
-    // l'ancienne hauteur.
-    modes: { x: 0, y: 29, w: 55, h: 33 },
-    live: { x: 56, y: 0, w: 44, h: 40 },
-    evo: { x: 0, y: 63, w: 55, h: 21 },
-    totals: { x: 0, y: 85, w: 55, h: 15 },
-    history: { x: 56, y: 42, w: 44, h: 58 },
+    hero: { x: 0, y: 0, w: 44, h: 24 },
+    modes: { x: 0, y: 26, w: 44, h: 28 },
+    evo: { x: 0, y: 56, w: 44, h: 28 },
+    totals: { x: 0, y: 86, w: 44, h: 14 },
+    live: { x: 45, y: 0, w: 55, h: 42 },
+    history: { x: 45, y: 44, w: 55, h: 56 },
     // Widgets bonus : masqués par défaut, à activer via « Personnaliser ».
-    music: { x: 56, y: 76, w: 44, h: 24 },
-    clockw: { x: 56, y: 76, w: 20, h: 24, hidden: true },
-    goalw: { x: 77, y: 76, w: 23, h: 24, hidden: true },
-    // Alertes : visible d'emblée. Le bloc ne peint rien hors alerte, donc le
-    // chevauchement ne coûte rien le reste du temps — mais quand la plaque
-    // tombe, elle recouvre quelque chose. Elle est donc posée sur la COUTURE
-    // entre « Session » et « Par mode » : elle masque deux étiquettes, pas
-    // des chiffres.
-    alerts: { x: 12, y: 24, w: 74, h: 12 },
+    music: { x: 45, y: 76, w: 55, h: 24 },
+    clockw: { x: 45, y: 76, w: 25, h: 24, hidden: true },
+    goalw: { x: 71, y: 76, w: 29, h: 24, hidden: true },
+    // Alertes : le bloc ne peint rien hors alerte. Quand la plaque tombe,
+    // elle recouvre quelque chose : elle est donc posée sur la couture entre
+    // « Session » et « Par mode », où elle masque deux étiquettes, pas des
+    // chiffres.
+    alerts: { x: 14, y: 19, w: 60, h: 12 },
   };
-  // Écran en PORTRAIT : les deux colonnes 55/44 pensées pour un moniteur
+  // Écran en portrait : les deux colonnes 55/44 pensées pour un moniteur
   // paysage y donnaient des cartes squelettiques, aux trois quarts vides.
   // Colonne unique, hauteurs proportionnées au contenu. Ne sert que de
   // défaut : dès que l'utilisateur personnalise, sa disposition prime.
@@ -2014,7 +1919,7 @@
   };
   // Défaut de l'overlay : une bande haute et large, le reste masqué. Sur un
   // stream la place est comptée et le spectateur ne regarde que deux
-  // secondes — tout est déplaçable ensuite dans le compositeur.
+  // secondes : tout est déplaçable ensuite dans le compositeur.
   var LAYOUT_OBS = {
     hero: { x: 0, y: 0, w: 46, h: 32, opts: { ring: true, pips: true } },
     modes: { x: 47, y: 0, w: 53, h: 32 },
@@ -2034,10 +1939,10 @@
     if (OBS) return LAYOUT_OBS;
     return window.innerHeight > window.innerWidth ? LAYOUT_PORTRAIT : LAYOUT_DEFAULT;
   }
-  // Dispositions d'avant la v3.22.0 : si l'utilisateur n'a JAMAIS touché à
+  // Dispositions d'avant la v3.22.0 : si l'utilisateur n'a jamais touché à
   // ces deux widgets, ils suivent le nouveau défaut (sinon sa barre de rang
   // resterait rognée pour toujours). Une disposition personnalisée, elle,
-  // n'est jamais réécrite — c'est son choix.
+  // n'est jamais réécrite : c'est son choix.
   var LEGACY = {
     hero: { x: 0, y: 0, w: 55, h: 29 },
     live: { x: 56, y: 0, w: 44, h: 58 },
@@ -2073,7 +1978,7 @@
   var layout = mergeLayout(null);
   // Mémorise la dernière disposition reçue de la config : si l'écran change
   // d'orientation (fenêtre déplacée sur un autre moniteur), le défaut adapté
-  // est rechoisi — uniquement hors personnalisation, qui garde la main.
+  // est rechoisi : uniquement hors personnalisation, qui garde la main.
   var lastCfgLayout = null;
   window.addEventListener('resize', function () {
     // La toile du compositeur garde le format de la source OBS quelle que
@@ -2090,7 +1995,7 @@
 
   // Disposition active : profil 1/2/3 (l'ancien champ unique sert de secours).
   function cfgLayout(cfg) {
-    // L'overlay a sa PROPRE disposition : ce qu'on montre au spectateur n'a
+    // L'overlay a sa propre disposition : ce qu'on montre au spectateur n'a
     // rien à voir avec ce qu'on garde sur un second écran.
     if (OBS) return (cfg && cfg.obsLayout) || null;
     var slot = (cfg && cfg.layoutSlot) || '1';
@@ -2132,6 +2037,8 @@
       el.style.height = w.h + '%';
       el.style.display = w.hidden ? 'none' : 'flex';
     });
+    // Le bandeau ne répète le score de session que si son bloc est masqué.
+    document.body.classList.toggle('hero-off', !!(layout.hero && layout.hero.hidden));
     renderHiddenChips();
     renderSlotChips();
     syncAlertDemo();
@@ -2175,8 +2082,8 @@
     // « set » : tout décocher est un choix légitime (garder le bloc en place
     // pour plus tard), alors qu'un « set » refuse de rester vide.
     // Ces cases affinent la politique générale (cfg.alerts, réglée dans la
-    // fenêtre de contrôle) SURFACE PAR SURFACE : le dashboard et l'overlay
-    // ont chacun leur disposition, donc chacun ses déclencheurs — on peut
+    // fenêtre de contrôle) surface par surface : le dashboard et l'overlay
+    // ont chacun leur disposition, donc chacun ses déclencheurs : on peut
     // vouloir le MVP dans OBS sans l'avoir sur son second écran.
     alerts: [
       { key: 'streak', type: 'bool', label: 'optAlStreak' },
@@ -2211,7 +2118,7 @@
     var h = document.createElement('h4');
     h.textContent = T.widgets[id] || WIDGET_LABELS[id] || id;
     box.appendChild(h);
-    // Les alertes se règlent à DEUX endroits : ici, par surface (le dashboard
+    // Les alertes se règlent à deux endroits : ici, par surface (le dashboard
     // et l'overlay ont chacun leur disposition), et dans la fenêtre de
     // configuration, en politique générale. Rien ne le disait, et deux
     // interrupteurs qui se cumulent en silence se lisent comme un bug.
@@ -2345,11 +2252,11 @@
   });
   applyLayout();
 
-  // ─── Alertes ───
+  // Alertes
   // L'application détectait déjà tout ça sans jamais le dire : une série qui
   // s'allonge, un rang qui monte, un MVP, un record qui tombe. Sur un stream
   // c'est exactement ce qu'un spectateur remarque, et ça passait sous
-  // silence. Le bloc reste INVISIBLE le reste du temps : un cadre permanent
+  // silence. Le bloc reste invisible le reste du temps : un cadre permanent
   // coûterait toute la journée ce qu'une alerte rapporte deux fois par heure.
   // Trois victoires, c'est le seuil qui fait déjà s'allumer le bandeau de
   // série du bilan : une alerte à deux serait une alerte permanente.
@@ -2382,7 +2289,7 @@
   }
 
   // Ce que l'état courant a de neuf à annoncer. Chaque alerte porte une
-  // SIGNATURE : c'est elle qui empêche la série de trois d'être reprise à
+  // Signature : c'est elle qui empêche la série de trois d'être reprise à
   // chaque état poussé par le processus principal (soit toutes les secondes
   // pendant un match).
   function collectAlerts(s) {
@@ -2398,8 +2305,8 @@
         kick: T.alStreakK, text: T.alStreakT(st.count) });
     }
 
-    // Montée de rang : on compare le PALIER (numérique, croissant) et non le
-    // nom du rang — sinon une descente déclencherait la même fête qu'une
+    // Montée de rang : on compare le palier (numérique, croissant) et non le
+    // nom du rang : sinon une descente déclencherait la même fête qu'une
     // montée. Un mode vu pour la première fois n'annonce rien : on ne sait
     // pas d'où il vient.
     var mmr = ses.mmr || {};
@@ -2419,7 +2326,7 @@
         kick: T.alMvpK, text: T.alMvpT });
     }
 
-    // Record battu. `records` est calculé sur TOUT l'historique, session en
+    // Record battu. `records` est calculé sur tout l'historique, session en
     // cours comprise : « la session tient le record » s'écrit donc avec un
     // >=, et la signature porte le compte pour ne sonner qu'une fois par
     // palier franchi. Le bilan des 7 jours (`week`) ne sert pas ici : il n'a
@@ -2445,7 +2352,7 @@
     found.forEach(function (a) {
       if (alertSeen[a.sig]) return;
       alertSeen[a.sig] = 1;
-      // Premier état reçu : on note ce qui est DÉJÀ vrai sans l'annoncer.
+      // Premier état reçu : on note ce qui est déjà vrai sans l'annoncer.
       // Ouvrir le dashboard en pleine série de cinq ne doit pas déclencher
       // une alerte pour un événement vieux d'une demi-heure.
       if (first) return;
@@ -2491,11 +2398,11 @@
     }, 240);
   }
 
-  // La bannière de fin de match couvre TOUT l'écran. Or c'est le même match
-  // qui la déclenche ET qui fait monter la série : les deux tombent dans la
+  // La bannière de fin de match couvre tout l'écran. Or c'est le même match
+  // qui la déclenche et qui fait monter la série : les deux tombent dans la
   // même seconde, dans un ordre que le processus principal ne garantit pas.
   // L'alerte est donc remise en file dès que la bannière s'ouvre, et rejouée
-  // après — le cas est la règle, pas l'exception.
+  // après : le cas est la règle, pas l'exception.
   function holdAlertsForBanner() {
     var back = alertShown;
     clearTimeout(alertTimer); alertTimer = null;
@@ -2543,7 +2450,7 @@
     if (card.classList.contains('on')) paintAlert(null);
   }
 
-  // ─── Toile au format de la source OBS ───
+  // Toile au format de la source OBS
   // Le compositeur s'ouvre dans une fenêtre qui n'a ni la taille ni le ratio
   // de la source d'OBS : régler un bloc « en bas à droite » ne voulait donc
   // rien dire, il atterrissait ailleurs dans le direct. La zone de
@@ -2581,9 +2488,9 @@
     }
   }
 
-  // ─── Aperçu : simuler un match ───
+  // Aperçu : simuler un match
   // Jusqu'ici, le seul moyen de voir sa bannière de fin de match et ses
-  // alertes était de GAGNER une vraie partie — autant dire qu'on composait
+  // alertes était de gagner une vraie partie : autant dire qu'on composait
   // son overlay à l'aveugle. Ce bouton rejoue un match plausible dans le
   // renderer seul : rien n'est envoyé au processus principal, rien n'est
   // enregistré, et l'état réel reprend la main dès qu'on arrête.
@@ -2619,8 +2526,8 @@
     // qu'on vient vérifier avant un stream.
     s.h2h = { Vega: { wins: 2, losses: 1 } };
     // Session inventée de bout en bout : l'aperçu raconte toujours la même
-    // histoire — quatre victoires, deux défaites, une série qui atteint trois
-    // — quel que soit l'état réel. Sinon la démonstration dépendrait de la
+    // histoire : quatre victoires, deux défaites, une série qui atteint trois
+    // : quel que soit l'état réel. Sinon la démonstration dépendrait de la
     // soirée qu'on est justement en train de faire.
     var wins = simEnded ? 5 : 4;
     var streak = simEnded ? 3 : 2;
@@ -2636,7 +2543,7 @@
       totals: { goals: simEnded ? 9 : 7, assists: 3, saves: 5, shots: 14,
         mvps: simEnded ? 3 : 2 },
       // Le MMR reste celui du joueur : les tuiles de mode gardent leur rang
-      // et leur courbe, et aucun palier ne bouge — donc aucune fausse
+      // et leur courbe, et aucun palier ne bouge : donc aucune fausse
       // alerte de montée de rang pendant l'aperçu.
       mmr: (base.session && base.session.mmr) || {},
     };
@@ -2728,7 +2635,7 @@
     if (!simTimer) return;
     clearInterval(simTimer);
     simTimer = null;
-    // Les alertes déjà en file finissent leur passage — c'est la fin de
+    // Les alertes déjà en file finissent leur passage : c'est la fin de
     // l'aperçu. Seule la mémoire repart de zéro, pour que l'état réel qui
     // revient soit réamorcé sans rien réannoncer.
     resetAlerts();
@@ -2780,7 +2687,7 @@
       applyTune(cfg.tune);
     }
     document.body.dataset.anim = (cfg.anim && cfg.anim.preset) || 'broadcast';
-    // La disposition vient de la config — sauf pendant qu'on la modifie
+    // La disposition vient de la config : sauf pendant qu'on la modifie
     // (un changement de profil force quand même l'adoption).
     if (!editing || adoptNextLayout) {
       adoptNextLayout = false;
@@ -2829,7 +2736,7 @@
 
     // Barre de score du bandeau d'en-tête : V–D, winrate et série de la
     // session, toujours sous les yeux même si le widget « Session » est
-    // déplacé ou masqué — c'est ce qu'on lit de loin entre deux matchs.
+    // déplacé ou masqué : c'est ce qu'on lit de loin entre deux matchs.
     $('hdW').textContent = ses.wins || 0;
     $('hdL').textContent = ses.losses || 0;
     $('hdWr').textContent = ses.winrate == null ? '–' : ses.winrate + ' %';
@@ -2874,7 +2781,7 @@
     if (!keys.length) keys = MODES.slice();
     $('modesGrid').style.gridTemplateColumns = 'repeat(' + keys.length + ',1fr)';
     // Un seul mode : la tuile occupe toute la largeur, les chiffres montent
-    // d'un cran — c'est alors la carte principale du joueur, pas une vignette.
+    // d'un cran : c'est alors la carte principale du joueur, pas une vignette.
     $('modesGrid').classList.toggle('solo', keys.length === 1);
     var html = '';
     keys.forEach(function (k) {
@@ -2884,14 +2791,14 @@
       // automatiquement sur le journal du jeu (Launch.log) plutôt que
       // saisie à la main. Sans ce repère, un MMR qui « bouge tout seul »
       // se lit comme un bug plutôt que comme la fonctionnalité de recalage
-      // auto — l'infobulle rappelle aussi le pas utilisé pour ce mode.
+      // auto : l'infobulle rappelle aussi le pas utilisé pour ce mode.
       var fromLogTag = (r && r.fromLog)
         ? ' <span class="ot-mini" title="' + T.mmrLogTip(r.step || 9) + '">'
           + T.mmrLogLbl + '</span>'
         : '';
       var tCls = tierClass(r && r.tier);
-      // Rang en clair devant le MMR brut — retour utilisateur : « au niveau
-      // du MMR je n'ai même pas le rang actuel ». On n'affiche RIEN si le
+      // Rang en clair devant le MMR brut : retour utilisateur : « au niveau
+      // du MMR je n'ai même pas le rang actuel ». On n'affiche rien si le
       // rang est inconnu (jamais de « Non classé » deviné à tort).
       var rankPill = (r && r.rank)
         ? '<span class="rank-pill ' + tCls + '"><span>' + esc(rankName(r)) + '</span></span>'
@@ -2905,10 +2812,10 @@
         var deltaTxt = hasDelta ? (r.delta > 0 ? '+' : '') + r.delta : '';
         // Pastille « estimation » : deltaReal=false → ce gain/perte n'est
         // pas mesuré sur un vrai relevé mais reconstitué (pas MMR théorique)
-        // — un simple point, pas un pavé de texte (cf consigne).
+        // : un simple point, pas un pavé de texte (cf consigne).
         var estDot = (hasDelta && r.deltaReal === false)
           ? '<span class="est-dot" title="' + T.mmrEstTip + '"></span>' : '';
-        // Progression dans le palier : la barre dit OÙ l'on est entre deux
+        // Progression dans le palier : la barre dit où l'on est entre deux
         // rangs, la ligne dessous combien de points restent. Absent tant
         // qu'aucun relevé fiable ne donne un rang.
         var rankBar = '', toNext = '';
@@ -2959,6 +2866,7 @@
     $('liveOff').style.display = live ? 'none' : 'flex';
     $('liveTraining').style.display = training ? 'flex' : 'none';
     $('liveOn').style.display = (live && !training) ? 'flex' : 'none';
+    $('liveCard').classList.toggle('playing', !!(live && !training));
     if (live && !training) {
       $('liveMode').textContent = live.mode || 'match';
       $('ls0').textContent = live.score ? live.score[0] : 0;
@@ -2971,7 +2879,7 @@
       // Pastille « Auto » : le classé/casual du match en cours a été déduit
       // automatiquement de la playlist relevée dans le journal du jeu
       // (true/false), plutôt que d'être la simple préférence de l'utilisateur
-      // (null) — le commutateur ci-dessus reste utilisable dans tous les cas.
+      // (null) : le commutateur ci-dessus reste utilisable dans tous les cas.
       var rkAuto = $('rkAuto');
       if (s.currentRankedAuto != null) {
         rkAuto.style.display = 'inline-block';
@@ -2988,7 +2896,7 @@
     $('wrRing').style.display = wantRing ? '' : 'none';
     $('pips').style.display = wantPips ? '' : 'none';
     // MMR net : somme des variations de tous les modes calibrés. C'est la
-    // question de fin de session, et elle n'était nulle part — alors que le
+    // question de fin de session, et elle n'était nulle part : alors que le
     // winrate était affiché trois fois.
     var net = null;
     Object.keys(ses.mmr || {}).forEach(function (k) {
@@ -2996,6 +2904,9 @@
       if (typeof d === 'number') net = (net || 0) + d;
     });
     var netEl = $('mmrNet');
+    // Sans MMR renseigné, la ligne entière s'efface : un tiret suivi d'un
+    // libellé n'apprend rien, et la carte « Évolution » dit déjà quoi faire.
+    netEl.parentNode.style.display = net === null ? 'none' : '';
     netEl.textContent = net === null ? '–' : (net > 0 ? '+' : '') + net;
     netEl.style.color = net === null ? 'var(--muted)'
       : net > 0 ? 'var(--blue)' : net < 0 ? 'var(--orange)' : 'var(--text)';
@@ -3092,10 +3003,10 @@
     sorted.forEach(function (p) {
       var isMe = me && String(p.name).trim().toLowerCase() === me;
       // « Déjà croisé » : bilan historique contre cet adversaire.
-      // p.name est un pseudo ADVERSE arbitraire (Stats API, juste tronqué à
+      // p.name est un pseudo adverse arbitraire (Stats API, juste tronqué à
       // 64 caractères) : un joueur nommé « constructor », « toString »…
-      // ferait remonter la propriété HÉRITÉE d'Object.prototype (une
-      // fonction, donc truthy) sans hasOwnProperty — d'où le hasOwnProperty.
+      // ferait remonter la propriété héritée d'Object.prototype (une
+      // fonction, donc truthy) sans hasOwnProperty : d'où le hasOwnProperty.
       var h = (!isMe && h2h && Object.prototype.hasOwnProperty.call(h2h, p.name))
         ? h2h[p.name] : null;
       var chip = '';
@@ -3106,7 +3017,7 @@
       }
       html += '<tr class="t' + (p.team === 1 ? 1 : 0) + (isMe ? ' me' : '') + '">'
         + '<td class="n">' + esc(p.name)
-          + (isMe ? '<span class="me-tag">' + T.you + '</span>' : '') + chip + '</td>'
+          + chip + '</td>'
         + '<td class="num">' + p.goals + '</td>'
         + '<td class="num">' + p.assists + '</td>'
         + '<td class="num">' + p.saves + '</td>'
@@ -3116,7 +3027,7 @@
     $('livePlayers').innerHTML = html;
   }
 
-  // ─── Évolution du MMR + bilan long terme ───
+  // Évolution du MMR + bilan long terme
   var evoMode = null;       // mode affiché ; choix de l'utilisateur conservé
   var evoLastPoints = null; // dernier jeu de points dessiné, pour redessiner
                              // proprement sur un simple redimensionnement.
@@ -3137,7 +3048,7 @@
     ring.title = has ? T.wrTip(ses.wins || 0, ses.losses || 0) : '';
   }
 
-  // Suite de résultats : du plus ancien au plus récent, donc l'ordre INVERSE
+  // Suite de résultats : du plus ancien au plus récent, donc l'ordre inverse
   // de l'historique (qui arrive du plus récent au plus ancien).
   var PIPS_MAX = 20;
   function renderPips(hist) {
@@ -3176,7 +3087,7 @@
       + '<path class="ln" d="' + d + '"></path></svg>';
   }
 
-  // ─── En écoute ───
+  // En écoute
   // L'état vient du processus principal (sondage Spotify). La barre de
   // progression avance toute seule entre deux sondages : sans ça, elle
   // sauterait de quatre secondes en quatre secondes.
@@ -3203,7 +3114,9 @@
     $('musicArt').style.backgroundImage = n.art ? 'url("' + n.art + '")' : 'none';
     $('musicTitle').textContent = n.title || '';
     $('musicArtist').textContent = n.artist || '';
-    $('musPlay').textContent = n.playing ? '⏸' : '▶';
+    $('musPlay').innerHTML = n.playing
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l13 8-13 8z"/></svg>';
     // Le lecteur qui a la main, en sous-titre : on sait d'où sort le son.
     $('musicArtist').textContent = n.artist || n.app || '';
     $('musicArt').style.display = n.art ? '' : 'none';
@@ -3265,7 +3178,7 @@
         b.onclick = function () { evoMode = k; renderEvolution(cur); };
         tabs.appendChild(b);
       });
-      // Le conteneur doit être visible AVANT de mesurer sa taille pour le
+      // Le conteneur doit être visible avant de mesurer sa taille pour le
       // viewBox du SVG (sinon clientWidth/Height valent 0, cf drawEvolution).
       $('evoChart').style.display = 'block';
       $('evoRange').style.display = 'flex';
@@ -3299,13 +3212,13 @@
     var box = $('evoChart');
     var svg = $('evoSvg');
     // 0 point : rien à tracer (le conteneur est de toute façon masqué par
-    // l'appelant dans ce cas — filet de sécurité si drawEvolution est
+    // l'appelant dans ce cas : filet de sécurité si drawEvolution est
     // rappelé, ex. par le ResizeObserver, sur un état devenu vide).
     if (!points || !points.length) { svg.innerHTML = ''; return; }
 
     // 1 SVG unit = 1px CSS : le viewBox est calé sur la taille réelle du
     // conteneur (mesurée ici) plutôt que sur une grille abstraite 100×40
-    // étirée par preserveAspectRatio="none" — c'était la vraie source du
+    // étirée par preserveAspectRatio="none" : c'était la vraie source du
     // rendu « pas beau » : dès que le widget n'était pas dans le ratio
     // 2.5:1, les points ronds devenaient des ellipses.
     var W = Math.max(1, Math.round(box.clientWidth || 100));
@@ -3346,7 +3259,7 @@
       + ' L' + coords[coords.length - 1][0].toFixed(1) + ',' + base + ' Z';
 
     // Ancres (evolution[].real=true) : de vrais relevés en jeu, marquées
-    // d'un point plein cerclé — le reste de la courbe (estimée entre deux
+    // d'un point plein cerclé : le reste de la courbe (estimée entre deux
     // relevés) ne porte volontairement aucun marqueur, pour ne pas noyer
     // l'info sous des puces (le point final a son propre marqueur ci-dessous).
     var anchors = points.map(function (p, i) {
@@ -3387,7 +3300,7 @@
     }).observe($('evoChart'));
   }
 
-  // ─── Classé / casual du match en cours ───
+  // Classé / casual du match en cours
   $('rkOn').onclick = function () {
     if (api.setCurrentRanked) api.setCurrentRanked(true);
   };
@@ -3395,7 +3308,7 @@
     if (api.setCurrentRanked) api.setCurrentRanked(false);
   };
 
-  // ─── Correction manuelle d'un résultat de l'historique ───
+  // Correction manuelle d'un résultat de l'historique
   // Délégation : les lignes sont reconstruites à chaque état poussé, un
   // écouteur unique sur le tbody survit donc à tous les re-rendus.
   $('histBody').addEventListener('click', function (e) {
@@ -3415,7 +3328,7 @@
       .catch(function () { tr.classList.remove('busy'); });
   });
 
-  // ─── Jingles victoire / défaite (synthèse WebAudio, aucun fichier) ───
+  // Jingles victoire / défaite (synthèse WebAudio, aucun fichier)
   var audioCtx = null;
   // Styles de jingle : notes [fréquence, départ, durée]. Le volume compense
   // la puissance perçue de chaque forme d'onde (square/sawtooth >> sine).
@@ -3485,7 +3398,7 @@
     }
   }
 
-  // ─── Animation victoire / défaite ───
+  // Animation victoire / défaite
   var resultTimer = null;
   function hideResult() {
     clearTimeout(resultTimer);
@@ -3497,9 +3410,9 @@
   function showResult(m) {
     if (!m || (m.result !== 'W' && m.result !== 'L')) return;
     var anim = (cur && cur.config && cur.config.anim) || {};
-    // Désactivée dans les réglages — sauf pour le bouton « Tester ».
+    // Désactivée dans les réglages : sauf pour le bouton « Tester ».
     if (!m.preview && anim.endMatch === false) return;
-    // Dans une source OBS, cette bannière couvre TOUT le flux : elle suit son
+    // Dans une source OBS, cette bannière couvre tout le flux : elle suit son
     // propre réglage (section Streaming), pas celui du dashboard.
     if (OBS && !m.preview) {
       var ocfg = (cur && cur.config && cur.config.obs) || {};
@@ -3550,7 +3463,7 @@
   $('resultOverlay').onclick = hideResult;
   if (api.onMatchResult) api.onMatchResult(showResult);
 
-  // ─── Plein écran et clavier ───
+  // Plein écran et clavier
   function toggleFullscreen() {
     if (api.toggleFullscreen) api.toggleFullscreen();
   }

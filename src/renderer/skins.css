@@ -1,23 +1,23 @@
-/* skins.css — Habillages complets de l'interface.
+/* skins.css : Habillages complets de l'interface.
  *
  * Un « thème » de l'application ne changeait jusqu'ici que quatre couleurs.
- * Un SKIN change la forme : police, découpe des cartes, biseaux, filets,
+ * Un skin change la forme : police, découpe des cartes, biseaux, filets,
  * ombres, casse et fond de page. Il s'applique par un attribut sur la racine
- * (data-skin) et vaut pour le dashboard ET la fenêtre de configuration, qui
+ * (data-skin) et vaut pour le dashboard et la fenêtre de configuration, qui
  * partagent les mêmes classes (.card, .tag, .chip, header…).
  *
- * Ce fichier est chargé APRÈS le <style> de chaque fenêtre, et chaque règle
+ * Ce fichier est chargé après le <style> de chaque fenêtre, et chaque règle
  * est préfixée par [data-skin="…"] : elle l'emporte donc sans qu'aucune règle
  * existante n'ait à être touchée. Le skin par défaut, « arena », n'a aucune
- * règle ici — c'est l'habillage d'origine, intact.
+ * règle ici : c'est l'habillage d'origine.
  *
- * Les COULEURS restent pilotées par applyTheme() (variables --bg, --blue,
+ * Les couleurs restent pilotées par applyTheme() (variables --bg, --blue,
  * --orange, --gold posées en style inline sur <html>) : choisir un skin
  * applique sa palette par ce même chemin, et l'utilisateur garde la main
  * dessus ensuite. Ici, uniquement de la forme.
  */
 
-/* ─────────── CONSOLE : terminal à phosphore ───────────
+/* Console : terminal à phosphore.
    Tout en chasse fixe, aucun biseau, cadres d'un pixel, balayage de
    scanlines sur le fond. Les titres deviennent des invites « > ». */
 [data-skin="console"] body {
@@ -33,16 +33,14 @@
   background: var(--panel);
   box-shadow: none;
 }
-[data-skin="console"] .card::after { display: none; }
-[data-skin="console"] .mode { clip-path: none; border-radius: 0; }
-[data-skin="console"] .card::before { height: 1px; background: var(--blue); }
+[data-skin="console"] .mode { border-radius: 0; }
 [data-skin="console"] .tag {
   transform: none; background: none; border-left: 0;
   padding: 0 0 8px; margin-bottom: 10px;
 }
 [data-skin="console"] .tag > span {
   transform: none; font-style: normal; font-family: inherit;
-  font-size: 12px; letter-spacing: .2em;
+  font-size: 12px; letter-spacing: .2em; color: var(--text);
 }
 [data-skin="console"] .tag > span::before { content: '> '; color: var(--blue); }
 [data-skin="console"] header { background: var(--panel); }
@@ -60,7 +58,7 @@
 [data-skin="console"] .hd-streak, [data-skin="console"] .streak-banner,
 [data-skin="console"] .h2h-chip, [data-skin="console"] .evo-tab,
 [data-skin="console"] .hdr-btn, [data-skin="console"] .ghost-chip,
-[data-skin="console"] .upd-pill, [data-skin="console"] .me-tag {
+[data-skin="console"] .upd-pill {
   transform: none; border-radius: 0;
 }
 [data-skin="console"] .logo-plate > span, [data-skin="console"] .chip > *,
@@ -71,7 +69,7 @@
   transform: none;
 }
 
-/* ─────────── PAPIER : imprimé clair ───────────
+/* Papier : imprimé clair.
    Fond crème, texte noir, empattements, filets fins. Aucun aplat de couleur,
    aucun dégradé : une page de rapport, pas un habillage télé. */
 [data-skin="papier"] body {
@@ -86,18 +84,15 @@
   box-shadow: none;
   padding: 20px 24px;
 }
-[data-skin="papier"] .card::after { display: none; }
-[data-skin="papier"] .mode { clip-path: none; border-radius: 2px; }
-[data-skin="papier"] .card::before { display: none; }
+[data-skin="papier"] .mode { border-radius: 2px; }
 [data-skin="papier"] .tag {
   transform: none; background: none; border-left: 0;
   border-bottom: 2px solid var(--text);
   padding: 0 0 6px; margin-bottom: 16px;
 }
-[data-skin="papier"] .tag::after { display: none; }
 [data-skin="papier"] .tag > span {
   transform: none; font-style: normal; font-weight: 700;
-  font-size: 15px; letter-spacing: .04em; text-transform: none;
+  font-size: 15px; letter-spacing: .04em; text-transform: none; color: var(--text);
 }
 [data-skin="papier"] header {
   background: var(--panel); border-bottom: 1px solid var(--line);
@@ -113,7 +108,7 @@
 [data-skin="papier"] .hd-streak, [data-skin="papier"] .streak-banner,
 [data-skin="papier"] .h2h-chip, [data-skin="papier"] .evo-tab,
 [data-skin="papier"] .hdr-btn, [data-skin="papier"] .ghost-chip,
-[data-skin="papier"] .upd-pill, [data-skin="papier"] .me-tag {
+[data-skin="papier"] .upd-pill {
   transform: none; border-radius: 2px;
 }
 [data-skin="papier"] .logo-plate > span, [data-skin="papier"] .chip > *,
@@ -125,7 +120,7 @@
 }
 [data-skin="papier"] .tot::before { display: none; }
 
-/* ─────────── NÉON : verre et enseignes ───────────
+/* Néon : verre et enseignes.
    Coins très arrondis, panneaux translucides floutés, halos colorés autour
    des bordures et des chiffres. */
 [data-skin="neon"] body {
@@ -142,12 +137,16 @@
   box-shadow: 0 18px 50px rgba(0, 0, 0, .45),
               inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
 }
+/* Le point lumineux et le filet bicolore n'existent que dans cet habillage :
+   il les crée lui-même. */
 [data-skin="neon"] .card::after {
+  content: ''; position: absolute; pointer-events: none;
   width: 10px; height: 10px; border-radius: 50%;
-  top: 14px; right: 14px;
+  top: 14px; right: 14px; background: var(--blue);
   box-shadow: 0 0 18px 3px var(--blue);
 }
 [data-skin="neon"] .card::before {
+  content: ''; position: absolute; pointer-events: none; top: 0;
   left: 18px; right: 18px; height: 2px; border-radius: 2px;
   background: linear-gradient(90deg, var(--blue), var(--orange));
   filter: blur(.3px);
@@ -158,14 +157,14 @@
   border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
   padding: 4px 16px;
 }
-[data-skin="neon"] .tag > span { transform: none; letter-spacing: .14em; }
-/* Le flou reste sur les cartes, PAS sur l'en-tête : deux surfaces floutées
+[data-skin="neon"] .tag > span { transform: none; letter-spacing: .14em; color: var(--text); }
+/* Le flou reste sur les cartes, pas sur l'en-tête : deux surfaces floutées
    plus des halos partout, c'était l'empilement de techniques que le filtre
    rejette. Une seule surface en verre suffit à porter l'habillage. */
 [data-skin="neon"] header {
   background: color-mix(in srgb, var(--panel) 82%, transparent);
 }
-/* Halo conservé sur le SEUL chiffre qui compte de loin, le score de session.
+/* Halo conservé sur le seul chiffre qui compte de loin, le score de session.
    Il en portait aussi le MMR et le score en direct : quatre halos plus celui
    du coin d'accent, c'était trois de trop. */
 [data-skin="neon"] .wl .w, [data-skin="neon"] .wl .l {
@@ -176,7 +175,7 @@
 [data-skin="neon"] .hd-streak, [data-skin="neon"] .streak-banner,
 [data-skin="neon"] .h2h-chip, [data-skin="neon"] .evo-tab,
 [data-skin="neon"] .hdr-btn, [data-skin="neon"] .ghost-chip,
-[data-skin="neon"] .upd-pill, [data-skin="neon"] .me-tag {
+[data-skin="neon"] .upd-pill {
   transform: none; border-radius: 999px;
 }
 [data-skin="neon"] .logo-plate > span, [data-skin="neon"] .chip > *,
@@ -186,9 +185,9 @@
 [data-skin="neon"] .ghost-chip > span, [data-skin="neon"] .upd-pill > * {
   transform: none;
 }
-[data-skin="neon"] .mode { clip-path: none; border-radius: 12px; }
+[data-skin="neon"] .mode { border-radius: 12px; }
 
-/* ─────────── BRUT : brutaliste ───────────
+/* Brut : brutaliste.
    Noir et blanc, cadres de trois pixels, ombres portées franches et
    décalées, aucune transparence, typographie énorme. */
 [data-skin="brut"] body { background: var(--bg); }
@@ -199,13 +198,10 @@
   box-shadow: 7px 7px 0 var(--blue);
   margin-right: 7px; margin-bottom: 7px;
 }
-[data-skin="brut"] .card::after { display: none; }
-[data-skin="brut"] .card::before { display: none; }
 [data-skin="brut"] .tag {
   transform: none; border-left: 0; border-radius: 0;
   background: var(--text); padding: 6px 14px;
 }
-[data-skin="brut"] .tag::after { display: none; }
 [data-skin="brut"] .tag > span {
   transform: none; color: var(--bg); letter-spacing: .1em; font-size: 15px;
 }
@@ -214,7 +210,7 @@
 }
 [data-skin="brut"] header::after { display: none; }
 /* La plaque « RL » est peinte en couleur d'accent dans l'habillage d'origine ;
-   ici l'accent EST le blanc du texte, donc on inverse pour rester lisible. */
+   ici l'accent est le blanc du texte, donc on inverse pour rester lisible. */
 [data-skin="brut"] .logo-plate { background: var(--text); border: 0; }
 [data-skin="brut"] .logo-plate > span { color: var(--bg); }
 [data-skin="brut"] .wl .w, [data-skin="brut"] .wl .l {
@@ -225,7 +221,7 @@
 [data-skin="brut"] .hd-streak, [data-skin="brut"] .streak-banner,
 [data-skin="brut"] .h2h-chip, [data-skin="brut"] .evo-tab,
 [data-skin="brut"] .hdr-btn, [data-skin="brut"] .ghost-chip,
-[data-skin="brut"] .upd-pill, [data-skin="brut"] .me-tag {
+[data-skin="brut"] .upd-pill {
   transform: none; border-radius: 0; border: 2px solid var(--text);
 }
 [data-skin="brut"] .logo-plate > span, [data-skin="brut"] .chip > *,
@@ -235,9 +231,12 @@
 [data-skin="brut"] .ghost-chip > span, [data-skin="brut"] .upd-pill > * {
   transform: none;
 }
-[data-skin="brut"] .mode { clip-path: none; border-radius: 0; border: 2px solid var(--text); }
+[data-skin="brut"] .mode { border-radius: 0; border: 2px solid var(--text); }
+/* L'état du jeu et le pseudo sont du texte nu dans l'habillage d'origine ;
+   ici tout est encadré, donc ils reprennent une marge intérieure. */
+[data-skin="brut"] header .chip { padding: 3px 10px; }
 
-/* ─────────── CALME : rien que le contenu ───────────
+/* Calme : rien que le contenu.
    Ni cadre, ni biseau, ni dégradé. De l'air, des filets d'un pixel, une
    graisse légère. L'inverse exact de l'habillage d'origine. */
 [data-skin="calme"] body { background: var(--bg); }
@@ -247,13 +246,10 @@
   padding: 18px 22px;
   border-top: 1px solid var(--line);
 }
-[data-skin="calme"] .card::after { display: none; }
-[data-skin="calme"] .card::before { display: none; }
 [data-skin="calme"] .tag {
   transform: none; background: none; border-left: 0;
   padding: 0; margin-bottom: 18px;
 }
-[data-skin="calme"] .tag::after { display: none; }
 [data-skin="calme"] .tag > span {
   transform: none; font-style: normal; font-weight: 600;
   font-size: 12px; letter-spacing: .24em; color: var(--muted);
@@ -269,7 +265,7 @@
 [data-skin="calme"] .hd-streak, [data-skin="calme"] .streak-banner,
 [data-skin="calme"] .h2h-chip, [data-skin="calme"] .evo-tab,
 [data-skin="calme"] .hdr-btn, [data-skin="calme"] .ghost-chip,
-[data-skin="calme"] .upd-pill, [data-skin="calme"] .me-tag {
+[data-skin="calme"] .upd-pill {
   transform: none; border-radius: 4px;
 }
 [data-skin="calme"] .logo-plate > span, [data-skin="calme"] .chip > *,
@@ -279,12 +275,6 @@
 [data-skin="calme"] .ghost-chip > span, [data-skin="calme"] .upd-pill > * {
   transform: none;
 }
-[data-skin="calme"] .mode { clip-path: none; border-radius: 6px; }
+[data-skin="calme"] .mode { border-radius: 6px; }
 [data-skin="calme"] .tot::before { display: none; }
 
-/* ─── Fond du volet de configuration ───
-   Les habillages sobres remplacent la trame et les halos de l'Arène par un
-   aplat : « Papier » annonce « aucun dégradé », il ne peut pas en garder un. */
-[data-skin="papier"], [data-skin="console"], [data-skin="brut"], [data-skin="calme"] {
-  --surface-bg: var(--bg);
-}

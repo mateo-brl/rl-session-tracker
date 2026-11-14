@@ -142,7 +142,7 @@ function writeTest(fs, dir, token) {
   } catch (e) {
     return { state: WARN,
       detail: 'écriture possible, mais le fichier de test n’a pas pu être supprimé : ' + probe,
-      hint: 'Supprime-le à la main — il ne gêne pas le jeu.' };
+      hint: 'Supprime-le à la main : il ne gêne pas le jeu.' };
   }
   return { state: OK, detail: 'écriture et suppression réussies dans ' + dir };
 }
@@ -204,7 +204,7 @@ function run(deps) {
 
     add('install-' + i + '-config', 'Dossier de configuration (' + who + ')', () => {
       if (!fs.existsSync(cfgDir)) {
-        return { state: FAIL, detail: 'introuvable — ' + cfgDir,
+        return { state: FAIL, detail: 'introuvable : ' + cfgDir,
           hint: 'Installation incomplète ou déplacée : vérifie l’intégrité des'
             + ' fichiers du jeu, puis relance le diagnostic.' };
       }
@@ -214,7 +214,7 @@ function run(deps) {
     add('install-' + i + '-ini', 'DefaultStatsAPI.ini (' + who + ')', () => {
       const ini = path.join(cfgDir, 'DefaultStatsAPI.ini');
       if (!fs.existsSync(ini)) {
-        return { state: FAIL, detail: 'absent — ' + ini,
+        return { state: FAIL, detail: 'absent : ' + ini,
           hint: 'Clique « Réactiver la Stats API du jeu », accepte la fenêtre'
             + ' Windows, puis REDÉMARRE Rocket League : le jeu ne relit son ini'
             + ' qu’à son lancement.' };
@@ -225,12 +225,12 @@ function run(deps) {
       const ok = typeof d.iniConfigured === 'function' ? d.iniConfigured(p, port, []) : null;
       if (ok === false) {
         return { state: FAIL, detail: 'présent mais pas configuré pour le port ' + port
-            + ' — ' + ini,
+            + ' : ' + ini,
           hint: 'C’est la panne typique après une mise à jour du jeu ou une'
             + ' « vérification de l’intégrité des fichiers » : réactive la Stats'
             + ' API, puis redémarre Rocket League.' };
       }
-      if (ok === null) return { state: SKIP, detail: 'présent — ' + ini + ' (contenu non vérifié)' };
+      if (ok === null) return { state: SKIP, detail: 'présent : ' + ini + ' (contenu non vérifié)' };
       return { state: OK, detail: 'présent et configuré sur le port ' + port };
     });
 
@@ -240,7 +240,7 @@ function run(deps) {
       }
       const rate = Number(d.iniRate(p, []));
       if (!Number.isFinite(rate) || rate <= 0) {
-        return { state: FAIL, detail: 'PacketSendRate = 0 — la Stats API n’émet rien',
+        return { state: FAIL, detail: 'PacketSendRate = 0 : la Stats API n’émet rien',
           hint: 'C’est la valeur par défaut du jeu : réactive la Stats API, puis'
             + ' redémarre Rocket League.' };
       }
@@ -314,10 +314,10 @@ function run(deps) {
       return { state: FAIL,
         detail: 'Rocket League tourne, mais rien n’écoute sur 127.0.0.1:' + port,
         hint: 'L’ini n’était pas actif au DÉMARRAGE du jeu. Réactive la Stats API,'
-          + ' puis redémarre Rocket League — le jeu ne relit son ini qu’au lancement.' };
+          + ' puis redémarre Rocket League : le jeu ne relit son ini qu’au lancement.' };
     }
     return { state: SKIP,
-      detail: 'Rocket League est fermé — la Stats API n’existe que pendant le jeu' };
+      detail: 'Rocket League est fermé : la Stats API n’existe que pendant le jeu' };
   });
 
   add('statsapi-packet', 'Dernier paquet reçu', () => {
@@ -349,7 +349,7 @@ function run(deps) {
     try {
       st = fs.statSync(d.logFile);
     } catch (e) {
-      return { state: FAIL, detail: 'introuvable — ' + d.logFile,
+      return { state: FAIL, detail: 'introuvable : ' + d.logFile,
         hint: 'Sans journal, ni le vrai MMR ni la réconciliation automatique d’un'
           + ' forfait ne fonctionnent. Lance Rocket League une fois (le jeu le crée'
           + ' au démarrage) et vérifie Documents\\My Games\\Rocket League\\TAGame\\Logs.' };
@@ -357,7 +357,7 @@ function run(deps) {
     const written = Number(st.mtimeMs);
     const ecoule = at - written;
     const detail = size(Number(st.size)) + ', écrit ' + since(ecoule)
-      + ' (' + stamp(written) + ') — ' + d.logFile;
+      + ' (' + stamp(written) + ') : ' + d.logFile;
     if (ecoule > LOG_STALE_MS) {
       return { state: WARN, detail: detail,
         hint: 'Le jeu réécrit son journal à chaque lancement : celui-ci est vieux,'
@@ -379,7 +379,7 @@ function run(deps) {
     const quoi = q.known
       ? (q.ranked ? 'classé ' + (q.mode || '?') : 'casual ' + (q.mode || '?'))
       : 'playlist non répertoriée';
-    const detail = 'playlist ' + q.playlist + ' — ' + quoi
+    const detail = 'playlist ' + q.playlist + ' : ' + quoi
       + ', ' + since(at - q.at) + ' (' + stamp(q.at) + ')';
     if (!q.known) {
       return { state: WARN, detail: detail,
@@ -399,7 +399,7 @@ function run(deps) {
       return { state: WARN, detail: 'aucun relevé exploitable dans la fin du journal',
         hint: 'Le MMR n’est écrit qu’à une mise en file CLASSÉE, et seulement si tu'
           + ' es chef de groupe. Sans relevé, un forfait mal compté ne peut pas être'
-          + ' réconcilié tout seul — il reste la correction à la main dans'
+          + ' réconcilié tout seul : il reste la correction à la main dans'
           + ' l’historique.' };
     }
     return { state: OK, detail: (r.mode || '?') + ' = ' + Math.round(Number(r.mmr))
@@ -429,14 +429,14 @@ function run(deps) {
     const seen = Array.isArray(d.playersSeen) ? d.playersSeen.filter(Boolean) : [];
     if (!pseudo) {
       return { state: FAIL,
-        detail: 'aucun pseudo configuré — aucun match ne peut être attribué',
+        detail: 'aucun pseudo configuré : aucun match ne peut être attribué',
         hint: seen.length
           ? 'Choisis-toi parmi les joueurs croisés récemment : ' + seen.slice(0, 6).join(', ') + '.'
           : 'Joue deux ou trois matchs : l’application devine le pseudo toute seule'
             + ' (le seul joueur présent dans toutes tes parties).' };
     }
     if (!hist.length) {
-      return { state: SKIP, detail: '« ' + pseudo + ' » — aucun match récent pour le vérifier' };
+      return { state: SKIP, detail: '« ' + pseudo + ' » : aucun match récent pour le vérifier' };
     }
     // L'historique du dashboard porte `me` (non nul quand le pseudo a été
     // reconnu) ; un journal brut porte `players`. On accepte les deux formes :
@@ -484,10 +484,10 @@ function run(deps) {
       const e = mmr[mode];
       const learned = Number(steps[mode]);
       const detail = 'base ' + Math.round(Number(e.base))
-        + ' — ' + (e.fromLog ? 'relevé dans le journal du jeu' : 'saisi à la main')
+        + ' : ' + (e.fromLog ? 'relevé dans le journal du jeu' : 'saisi à la main')
         + (Number.isFinite(Number(e.setAt)) && e.setAt > 0
           ? ', ' + since(at - e.setAt) : '')
-        + ' — ' + (Number.isFinite(learned)
+        + ' : ' + (Number.isFinite(learned)
           ? 'pas appris ' + learned
           : 'pas non appris (moyenne ' + MMR_STEP + ')');
       if (!e.fromLog) {
@@ -512,7 +512,7 @@ function run(deps) {
     }
     const oldest = bad.reduce((a, b) => (Number(a.endedAt) <= Number(b.endedAt) ? a : b));
     return { state: bad.length > 2 ? FAIL : WARN,
-      detail: bad.length + ' sur ' + hist.length + ' — le plus ancien '
+      detail: bad.length + ' sur ' + hist.length + ' : le plus ancien '
         + since(at - Number(oldest.endedAt)) + ' (' + stamp(Number(oldest.endedAt)) + ')',
       hint: 'C’est la signature d’un forfait adverse arrivé sans aucun signal (ni'
         + ' vainqueur annoncé, ni podium). Corrige le résultat d’un clic dans'
@@ -549,7 +549,7 @@ function run(deps) {
     }
     const detail = swaps.length + ' swap(s) : '
       + Object.keys(by).map((k) => by[k] + ' ' + (SWAP_STATES[k] || k)).join(', ')
-      + (c.gameRunning ? ' — jeu ouvert, aucune écriture possible' : '');
+      + (c.gameRunning ? ' : jeu ouvert, aucune écriture possible' : '');
     if (by.missing) {
       return { state: FAIL, detail: detail,
         hint: 'Un fichier cible a disparu : retire le swap concerné, puis lance une'

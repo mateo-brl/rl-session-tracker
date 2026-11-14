@@ -527,7 +527,7 @@ async function enableStatsApi(port, opts) {
 
   if (raw === null) {
     return { ok: false, installs, configured: direct.length ? direct : null, userIni,
-      reason: r.ok ? 'aucun résultat — fenêtre admin refusée ?' : r.reason };
+      reason: r.ok ? 'aucun résultat : fenêtre admin refusée ?' : r.reason };
   }
   const lines = raw.replace(/^\uFEFF/, '').trim().split(/\r?\n/).filter(Boolean);
   if (!lines.length || lines[0] === 'NONE') {

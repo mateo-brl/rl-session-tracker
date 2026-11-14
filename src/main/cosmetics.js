@@ -441,7 +441,7 @@ class Cosmetics {
       const rep = this._writeDiagnostic(s, sourceFile, targetFile, e.message);
       this.log('cosmétiques : patch impossible pour « ' + s.label + ' » : ' + e.message);
       return { ok: false, error: 'Patch du paquet impossible : ' + e.message
-        + (rep ? ' — rapport : ' + rep : '') };
+        + (rep ? ' : rapport : ' + rep : '') };
     }
   }
 
@@ -574,7 +574,7 @@ class Cosmetics {
 
   _explain(e) {
     if (e && (e.code === 'EACCES' || e.code === 'EPERM')) {
-      return 'Accès refusé au dossier du jeu — droits insuffisants sur CookedPCConsole '
+      return 'Accès refusé au dossier du jeu : droits insuffisants sur CookedPCConsole '
         + '(l’élévation a été refusée ou a échoué).';
     }
     if (e && e.code === 'EBUSY') return 'Fichier verrouillé : le jeu ou Steam l’utilise encore.';

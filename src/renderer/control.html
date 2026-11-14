@@ -5,91 +5,18 @@
 <meta http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
 <title>RL Session Tracker</title>
+<link rel="stylesheet" href="tokens.css" />
 <style>
-  @font-face { font-family:'Barlow Condensed'; font-weight:600; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-600-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
-    src:url('fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
-  @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
-    src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
-
-  :root {
-    --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d; --line:#39414f;
-    --text:#e3e8ef; --muted:#8b93a1;
-    --blue:#4dabff; --blue-deep:#1466b8;
-    --orange:#e0741a; --orange-deep:#a34f00;
-    --gold:#ffc233;
-    /* Rouge d'erreur (swap cosmétique dont l'original a disparu du jeu) :
-       volontairement hors thème — la couleur « défaite » choisie par
-       l'utilisateur peut être verte ou bleue, un état cassé doit rester
-       reconnaissable quel que soit le thème. */
-    --red:#ff4d5e;
-    /* Dérivées (même convention que le dashboard) : voiles translucides et
-       arêtes recalculés tout seuls quand applyTheme() repeint --blue,
-       --orange ou --bg — aucune couleur nouvelle en dur, les 8 thèmes de
-       l'utilisateur restent intacts. */
-    --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
-    --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
-    --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
-    --edge:rgba(0, 0, 0, .62);
-    /* ─── Ingrédients réglables (atelier) ───
-       Trois variables traversent tous les habillages. Elles ont pour valeur
-       par défaut exactement ce que faisait le code avant leur introduction :
-       une installation qui n'y touche jamais ne voit aucune différence. */
-    --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
-    --num-style:italic;          /* chiffres penchés, ADN des scores RL */
-    --cut:18px;                  /* taille du chanfrein des cartes */
-    --cut-sm:12px;               /* idem, sur les tuiles */
-    --skew:-14deg;               /* inclinaison des plaques et pastilles */
-    --dens:1;                    /* densité : 1 confortable, .8 dense, 1.15 canapé */
-
-    /* Fond du volet de contenu : l'habillage peut le remplacer par un aplat.
-       Sans cette variable, la trame et les halos de l'Arène restaient visibles
-       sous « Papier » ou « Console », qui annoncent l'inverse. */
-    --surface-bg:
-      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
-      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
-      repeating-linear-gradient(-38deg, transparent 0 26px, var(--text-ghost) 26px 27px),
-      var(--bg);
-  }
-  * { box-sizing:border-box; margin:0; padding:0; }
-
-  /* ─── Navigation au clavier ───
-     Les éléments étaient bien atteignables au Tab (ce sont des <button> et
-     des <input> natifs), mais RIEN ne montrait où l'on se trouvait : le
-     contour du navigateur était retiré sur les champs et aucun état de focus
-     n'existait sur les boutons. Un contour franc, posé une fois pour toutes
-     sur ce qui reçoit le focus au clavier. :focus-visible et non :focus, pour
-     ne pas cercler ce qu'on vient de cliquer à la souris. */
-  :focus-visible {
-    outline:2px solid var(--blue);
-    outline-offset:2px;
-    border-radius:2px;
-  }
-  /* Les champs avaient outline:none sans remplacement digne de ce nom : la
-     bordure qui change de couleur ne se voit pas sur un fond déjà bordé. */
-  input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline:2px solid var(--blue);
-    outline-offset:1px;
-  }
-
   html,body { height:100%; }
   body {
     background:var(--bg); color:var(--text);
-    font-family:'Segoe UI',ui-sans-serif,system-ui,sans-serif;
+    font-family:var(--body-font); font-size:var(--fs-sm);
     -webkit-user-select:none; user-select:none; overflow:hidden;
   }
   .cond { font-family:var(--ui-font); }
-  /* Habillage sélectionné : la pastille est remplie, pour qu'on voie d'un
-     coup d'œil lequel est actif parmi les six. */
-  /* ─── Vitrine des habillages ─── */
-  .look-active {
-    margin-left:auto; font-size:12px; color:var(--muted);
-    letter-spacing:.06em; text-transform:uppercase;
-  }
-  .look-active b { color:var(--text); font-style:italic; }
+  /* Vitrine des habillages. */
+  .look-active { margin-left:auto; font-size:var(--fs-sm); color:var(--muted); }
+  .look-active b { color:var(--text); }
   .look-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
   .look-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:14px; }
   .look-item {
@@ -119,17 +46,14 @@
     background:linear-gradient(180deg, var(--blue), var(--orange));
     transform:skewX(-14deg);
   }
-  .look-prev .plabel {
-    font-size:8.5px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--muted); margin-top:4px;
-  }
+  .look-prev .plabel { font-size:10px; color:var(--muted); margin-top:4px; }
   .look-body { padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px; flex:1; }
-  .look-name { font-weight:800; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .look-name { font-weight:800; font-size:var(--fs-md); display:flex; align-items:center; gap:8px; }
   .look-name .badge-on {
-    font-size:9px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
-    background:var(--blue); color:#fff; padding:1px 6px;
+    font-size:var(--fs-xs); font-weight:700;
+    background:var(--blue); color:var(--on-blue); padding:0 6px;
   }
-  .look-desc { font-size:12.5px; color:var(--muted); line-height:1.45; flex:1; }
+  .look-desc { font-size:var(--fs-sm); color:var(--muted); line-height:1.45; flex:1; }
   .look-btns { display:flex; gap:8px; }
   .look-btns button { margin-top:0; flex:1; }
   /* Barre d'essayage : elle dit que rien n'est enregistré, et comment sortir. */
@@ -140,19 +64,19 @@
     border-top:2px solid var(--blue);
   }
   .try-bar.on { display:flex; }
-  .try-bar .t { font-size:13px; color:var(--muted); }
-  .try-bar .t b { color:var(--text); font-style:italic; }
+  .try-bar .t { font-size:var(--fs-sm); color:var(--muted); }
+  .try-bar .t b { color:var(--text); }
   .try-bar button { margin-top:0; }
   .try-bar .grow { flex:1; }
 
   .chip.on { background:var(--blue); border-color:var(--blue); }
-  .chip.on > span { color:#fff; }
+  .chip.on > span { color:var(--on-blue); }
 
-  /* ─── Barre de titre (fenêtre sans cadre) ─── */
+  /* Barre de titre (fenêtre sans cadre) */
   .titlebar {
     height:42px; display:flex; align-items:center; justify-content:space-between;
     padding-left:14px; -webkit-app-region:drag; position:relative;
-    background:linear-gradient(90deg, var(--panel2), var(--panel) 46%);
+    background:var(--panel);
   }
   /* Filet bleu → orange sous le bandeau, comme l'en-tête du dashboard :
      les deux couleurs d'équipe, l'identité de l'appli au premier regard. */
@@ -164,25 +88,25 @@
   .tb-title {
     display:flex; align-items:center; gap:8px;
     font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:16px; letter-spacing:.05em;
+    font-weight:800; font-size:var(--fs-md); letter-spacing:.05em;
     text-transform:uppercase; white-space:nowrap;
   }
   .tb-title b { color:var(--blue); }
   /* Sigle « RL » sur plaque inclinée pleine, repris du logo du dashboard. */
   .tb-plate {
     display:inline-block; transform:skewX(-14deg);
-    background:var(--blue); color:#fff; padding:0 8px; line-height:20px;
+    background:var(--blue); color:var(--on-blue); padding:0 8px; line-height:20px;
   }
   .tb-plate > span { display:inline-block; transform:skewX(14deg); }
   .tb-buttons { display:flex; -webkit-app-region:no-drag; }
   .tb-btn {
     width:44px; height:42px; border:0; background:transparent; cursor:pointer;
-    color:var(--muted); font-size:14px; font-family:inherit;
+    color:var(--muted); font-size:var(--fs-sm); font-family:inherit;
   }
   .tb-btn:hover { background:var(--panel2); color:var(--text); }
-  .tb-btn.close:hover { background:var(--orange-deep); color:#fff; }
+  .tb-btn.close:hover { background:var(--orange-deep); color:var(--on-orange-deep); }
 
-  /* ─── Coque : barre latérale + volet de contenu ─── */
+  /* Coque : barre latérale + volet de contenu */
   /* Tout ce qui est sous la barre de titre est explicitement no-drag :
      la fenêtre est redimensionnable et la barre latérale doit rester
      cliquable jusqu'au dernier pixel. */
@@ -190,7 +114,7 @@
 
   .side {
     width:220px; flex:none; display:flex; flex-direction:column;
-    background:linear-gradient(180deg, var(--panel2), var(--panel) 28%);
+    background:var(--panel);
     border-right:1px solid var(--line);
   }
   /* Statut en un coup d'œil, visible quelle que soit la section ouverte :
@@ -203,33 +127,25 @@
     transform:skewX(-14deg); }
   .sq.ok { background:var(--blue); }
   .sq.warn { background:var(--orange); }
-  .side-status span:last-child {
-    font-family:inherit; font-style:italic;
-    font-weight:800; font-size:15px; letter-spacing:.06em; line-height:1.15;
-    text-transform:uppercase;
-  }
+  .side-status span:last-child { font-weight:600; font-size:var(--fs-sm); line-height:1.25; }
   .nav-list { flex:1; overflow-y:auto; padding:10px 0; }
   .nav {
     display:flex; align-items:center; gap:11px; width:100%;
-    padding:11px 16px 11px 15px; border:0; border-left:3px solid transparent;
+    padding:10px 16px 10px 15px; border:0; border-left:3px solid transparent;
     background:transparent; color:var(--muted); text-align:left; cursor:pointer;
-    font-family:inherit; font-weight:700; font-size:15.5px;
-    letter-spacing:.08em; text-transform:uppercase; position:relative;
+    font-family:inherit; font-weight:600; font-size:var(--fs-sm); position:relative;
   }
-  .nav svg { width:17px; height:17px; flex:none; stroke:currentColor; fill:none;
+  .nav svg { width:14px; height:14px; flex:none; stroke:currentColor; fill:none;
     stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
   .nav:hover { color:var(--text); background:var(--text-ghost); }
-  /* Item actif : plaque bleue qui s'éteint vers la droite + liseré gauche,
-     le même langage que les cartouches du dashboard. Le texte passe en
-     blanc franc : --blue-deep est assez sombre quel que soit le thème. */
+  /* Section ouverte : aplat et liseré gauche, le texte passe à la couleur
+     pleine. Pas de dégradé, l'état se lit à la barre et à la graisse. */
   .nav.active {
-    color:#fff; border-left-color:var(--blue);
-    background:linear-gradient(90deg, var(--blue-deep),
-      color-mix(in srgb, var(--blue-deep) 30%, transparent) 65%, transparent);
+    color:var(--text); border-left-color:var(--blue); background:var(--panel2);
   }
   /* Pastille d'alerte : quelque chose attend sur l'accueil (mise à jour,
      Stats API en panne, pseudo à confirmer) alors qu'on est ailleurs. */
-  .nav .ext { width:13px; height:13px; margin-left:auto; opacity:.7; }
+  .nav .ext { margin-left:auto; }
   .nav .badge { display:none; width:8px; height:8px; margin-left:auto;
     background:var(--orange); transform:skewX(-14deg); flex:none; }
   .nav.alert .badge { display:block; }
@@ -237,9 +153,8 @@
 
   .content {
     flex:1; min-width:0; overflow-y:auto; padding:22px 28px 30px;
-    /* Fond « arène » du dashboard : deux halos aux couleurs des équipes et
-       une fine trame diagonale — le volet n'est pas un aplat muet. */
-    background:var(--surface-bg);
+    /* Aplat : derrière des formulaires, un fond qui ne dit rien se lit mieux. */
+    background:var(--bg);
   }
   .content::-webkit-scrollbar { width:8px; }
   .content::-webkit-scrollbar-thumb { background:var(--line); }
@@ -250,60 +165,43 @@
   .sec.active { display:block; }
   .sec-head { margin-bottom:18px; }
   /* Le skew fait dépasser le coin bas-gauche du cartouche de quelques px :
-     un peu de marge pour ne pas le rogner, et overflow:hidden pour couper
-     le filet de 100vw qui prolonge la plaque vers la droite. */
-  .tag-row { overflow:hidden; padding:2px 0 2px 6px; }
+     un peu de marge pour ne pas le rogner. */
+  .tag-row { display:flex; align-items:center; padding:2px 0 2px 6px; }
   .tag {
-    display:inline-block; transform:skewX(-14deg); position:relative;
-    background:linear-gradient(90deg, var(--blue-deep), var(--panel2) 135%);
-    border-left:4px solid var(--blue);
-    padding:6px 16px 6px 12px; width:max-content;
-  }
-  .tag::after {
-    content:''; position:absolute; left:calc(100% + 10px); top:50%; height:1px;
-    width:100vw; background:linear-gradient(90deg, var(--line), transparent 72%);
-    pointer-events:none;
+    display:inline-block; transform:skewX(var(--skew));
+    background:var(--blue-deep);
+    padding:6px 16px 6px 14px; width:max-content;
   }
   .tag > span {
-    display:inline-block; transform:skewX(14deg);
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:17px; letter-spacing:.16em;
-    text-transform:uppercase; color:var(--text);
+    display:inline-block; transform:skewX(calc(-1 * var(--skew)));
+    font-family:var(--ui-font); font-style:var(--num-style);
+    font-weight:800; font-size:var(--fs-md); letter-spacing:.06em;
+    text-transform:uppercase; color:var(--on-blue-deep);
   }
-  .sec-sub { margin-top:9px; font-size:13px; color:var(--muted); }
+  .sec-sub { margin-top:10px; font-size:var(--fs-sm); color:var(--muted); }
 
-  /* ─── Cartes : plaques à deux chanfreins, coin d'accent, arête basse ─── */
+  /* Cartes : la même plaque à deux chanfreins que sur le dashboard, sans
+     autre décor. Les deux dégradés d'angle redessinent le filet le long des
+     chanfreins, que le clip-path emporte avec le coin. */
   .card {
+    --card-edge:var(--line);
     position:relative;
-    background:linear-gradient(168deg, var(--panel2), var(--panel) 42%);
-    border:1px solid var(--line);
+    background:
+      linear-gradient(225deg, var(--card-edge) calc(var(--cut) * .7071 + 1px), transparent 0)
+        top right / calc(var(--cut) + 2px) calc(var(--cut) + 2px) no-repeat border-box,
+      linear-gradient(45deg, var(--card-edge) calc((var(--cut) - 4px) * .7071 + 1px), transparent 0)
+        bottom left / calc(var(--cut) - 2px) calc(var(--cut) - 2px) no-repeat border-box,
+      var(--panel);
+    border:1px solid var(--card-edge);
     clip-path:polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%,
       calc(var(--cut) - 4px) 100%, 0 calc(100% - var(--cut) + 4px));
-    box-shadow:inset 0 -3px 0 var(--edge);
-    padding:15px 18px 17px; margin-bottom:14px;
+    padding:16px 18px 18px; margin-bottom:14px;
   }
-  .card::before {
-    content:''; position:absolute; left:0; top:0; right:0; height:3px;
-    background:linear-gradient(90deg, var(--blue), var(--blue-soft) 55%, transparent 85%);
-    pointer-events:none;
-  }
-  .card::after {
-    content:''; position:absolute; top:0; right:0; width:16px; height:16px;
-    background:var(--blue); pointer-events:none;
-  }
-  .card h2 {
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:13px; text-transform:uppercase;
-    letter-spacing:.14em; color:var(--muted); margin-bottom:11px;
-    border-left:3px solid var(--blue); padding-left:8px;
-  }
-  /* Carte d'alerte : mêmes plaques, accent orange (couleur « défaite »). */
-  .card.warn::before {
-    background:linear-gradient(90deg, var(--orange), var(--orange-soft) 55%, transparent 85%);
-  }
-  .card.warn::after { background:var(--orange); }
-  .card.warn h2 { border-left-color:var(--orange); }
-  .card p.txt { font-size:13px; color:var(--muted); line-height:1.55; }
+  .card h2 { font-weight:700; font-size:var(--fs-md); color:var(--text); margin-bottom:11px; }
+  /* Carte d'alerte : le filet passe à l'orange, et le titre le dit. */
+  .card.warn { --card-edge:var(--orange); }
+  .card.warn h2 { color:var(--orange); }
+  .card p.txt { font-size:var(--fs-sm); color:var(--muted); line-height:1.55; }
   .card p.txt b { color:var(--text); }
   /* Deux cartes côte à côte quand la place le permet ; en dessous de
      1 000 px de large (fenêtre proche du minimum), une seule colonne. */
@@ -312,155 +210,147 @@
   .grid2 > .card { margin-bottom:0; }
   @media (max-width:999px) { .grid2 { grid-template-columns:1fr; } }
 
-  /* ─── Accueil : tuiles d'état ─── */
-  .stat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
-  @media (max-width:1199px) { .stat-grid { grid-template-columns:1fr 1fr; } }
-  .stat {
-    background:var(--panel2); border:1px solid var(--line);
-    border-left:3px solid var(--line); padding:10px 13px 11px; min-width:0;
-  }
+  /* Accueil : l'état se lit en lignes, libellé à gauche, valeur à droite.
+     Quatre tuiles identiques donnaient le même poids à tout. */
+  .stat-list { display:grid; grid-template-columns:max-content 1fr; column-gap:28px; }
+  .stat { display:contents; }
   /* Sélecteur enfant direct : le résumé de session contient lui-même des
-     <span class="w|l"> colorés qui ne doivent surtout pas devenir des
-     libellés en bloc. */
-  .stat > span { display:block; font-size:11px; font-weight:600;
-    letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
-  .stat b {
-    display:block; margin-top:5px; font-family:'Barlow Condensed',sans-serif;
-    font-style:italic; font-weight:800; font-size:20px; line-height:1.15;
-    overflow-wrap:anywhere;
-  }
+     <span class="w|l"> colorés qui ne doivent pas devenir des libellés. */
+  .stat > span, .stat > b { padding:9px 0; border-top:1px solid var(--line); }
+  .stat:first-child > span, .stat:first-child > b { border-top:0; padding-top:2px; }
+  .stat > span { color:var(--muted); }
+  .stat b { font-weight:600; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
   .stat b.live { color:var(--blue); }
   .stat b .w { color:var(--blue); }
   .stat b .l { color:var(--orange); }
 
-  /* ─── Champs ─── */
-  label.field { display:block; font-size:12.5px; color:var(--muted);
+  /* Champs */
+  label.field { display:block; font-size:var(--fs-sm); color:var(--muted);
     margin-bottom:5px; }
   input[type=text], input[type=number] {
-    width:100%; background:var(--panel2); border:1px solid var(--line);
-    color:var(--text); font-size:14px; padding:9px 11px; font-family:inherit;
+    width:100%; background:var(--panel2); border:1px solid var(--line-strong);
+    color:var(--text); font-size:var(--fs-sm); padding:9px 11px; font-family:inherit;
     border-radius:0;
   }
-  input:focus { outline:none; border-color:var(--blue); }
   input[type=number] { -moz-appearance:textfield; }
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance:none; }
-  .hint { font-size:11.5px; color:var(--muted); margin-top:7px; line-height:1.5; }
+  .hint { font-size:var(--fs-xs); color:var(--muted); margin-top:7px; line-height:1.5; }
+  /* Une aide longue ne montre que sa première phrase : le reste se déplie.
+     Le réglage reste lisible, l'explication reste à un clic. */
+  .hint .more-btn {
+    border:0; background:none; padding:0; margin-left:6px; cursor:pointer;
+    font:inherit; color:var(--text); text-decoration:underline;
+    text-underline-offset:2px;
+  }
+  .hint .rest[hidden] { display:none; }
   .hint.warn { color:var(--orange); }
 
   .mmr-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .mmr-cell span {
-    display:block; font-family:'Barlow Condensed',sans-serif;
-    font-style:italic; font-weight:800; font-size:12px; color:var(--text);
-    letter-spacing:.08em; margin-bottom:4px; text-transform:uppercase;
+    display:block; font-weight:600; font-size:var(--fs-sm); color:var(--text);
+    margin-bottom:4px;
   }
   .mmr-cell input { font-variant-numeric:tabular-nums; }
   /* Rang en clair sous le MMR : simple info de contexte à côté d'un champ
-     de réglage, jamais la donnée principale — d'où une taille réduite et
+     de réglage, jamais la donnée principale : d'où une taille réduite et
      la même couleur atténuée que .hint. Masqué par défaut (display:none
      inline) : le rang n'existe pas tant que le mode n'a pas de MMR connu. */
-  .mmr-rank { display:block; font-size:10.5px; color:var(--muted);
-    margin-top:4px; letter-spacing:.02em; }
+  .mmr-rank { display:block; font-size:var(--fs-xs); color:var(--muted); margin-top:4px; }
 
   .check { display:flex; align-items:center; gap:9px; padding:6px 0;
-    font-size:13px; cursor:pointer; }
-  .check input { accent-color:var(--blue); width:15px; height:15px;
+    font-size:var(--fs-sm); cursor:pointer; }
+  .check input { accent-color:var(--blue); width:16px; height:16px;
     cursor:pointer; flex:none; }
 
   .color-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
-  .color-grid label { font-size:11.5px; color:var(--muted); display:flex;
+  .color-grid label { font-size:var(--fs-xs); color:var(--muted); display:flex;
     flex-direction:column; gap:5px; }
   input[type=color] {
     width:100%; height:32px; padding:2px; cursor:pointer; border-radius:0;
-    background:var(--panel2); border:1px solid var(--line);
+    background:var(--panel2); border:1px solid var(--line-strong);
   }
   input[type=color]::-webkit-color-swatch-wrapper { padding:2px; }
   input[type=color]::-webkit-color-swatch { border:0; }
   select {
-    width:100%; background:var(--panel2); border:1px solid var(--line);
-    color:var(--text); font-size:13px; padding:8px 10px; font-family:inherit;
+    width:100%; background:var(--panel2); border:1px solid var(--line-strong);
+    color:var(--text); font-size:var(--fs-sm); padding:8px 10px; font-family:inherit;
     border-radius:0;
   }
-  select:focus { outline:none; border-color:var(--blue); }
   .duo { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:8px; }
   .gap { height:12px; }
 
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip {
-    border:1px solid var(--line); background:var(--panel2); color:var(--text);
-    transform:skewX(-12deg); padding:7px 16px; font-size:13px; font-weight:600;
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--text);
+    transform:skewX(-12deg); padding:7px 16px; font-size:var(--fs-sm); font-weight:600;
     font-family:inherit; cursor:pointer;
   }
   .chip > span { display:inline-block; transform:skewX(12deg); }
   .chip:hover { border-color:var(--blue); color:var(--blue); }
 
-  /* ─── Raccourci clavier ─── */
+  /* Raccourci clavier */
   .keys { display:flex; align-items:center; gap:6px; flex-wrap:wrap;
     margin:6px 0 2px; }
   .keys kbd {
     display:inline-block; min-width:34px; text-align:center; padding:4px 10px;
-    background:var(--panel2); border:1px solid var(--line);
+    background:var(--panel2); border:1px solid var(--line-strong);
     border-bottom-width:3px; color:var(--text);
-    font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:14px;
-    letter-spacing:.06em;
+    font-family:inherit; font-weight:600; font-size:var(--fs-sm);
   }
-  .keys i { color:var(--muted); font-style:normal; font-size:13px; }
+  .keys i { color:var(--muted); font-style:normal; font-size:var(--fs-sm); }
   .keys.bad kbd { border-color:var(--orange-deep); color:var(--muted);
     text-decoration:line-through; }
 
-  /* ─── Boutons ─── */
+  /* Boutons. Un seul bouton plein par écran, celui qui ouvre le dashboard ;
+     les autres sont en creux, bordés du filet fort. */
   button.primary {
-    width:100%; border:0; padding:12px; cursor:pointer;
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:16px; letter-spacing:.1em;
-    text-transform:uppercase; color:#fff; background:var(--blue-deep);
+    width:100%; border:0; padding:11px 12px; cursor:pointer;
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm);
+    color:var(--on-blue-deep); background:var(--blue-deep);
   }
-  button.primary:hover { background:var(--blue); }
+  button.primary:hover { box-shadow:inset 0 -3px 0 var(--blue); }
   button.primary:disabled { opacity:.55; cursor:progress; }
   button.ghost {
-    width:100%; border:1px solid var(--line); background:var(--panel);
-    color:var(--text); padding:10px; font-size:12.5px; font-weight:600;
+    width:100%; border:1px solid var(--line-strong); background:var(--panel);
+    color:var(--text); padding:9px 10px; font-size:var(--fs-sm); font-weight:600;
     font-family:inherit; cursor:pointer; margin-top:8px;
-    text-transform:uppercase; letter-spacing:.06em;
   }
   button.ghost:hover { border-color:var(--blue); }
   button.ghost:disabled { opacity:.6; cursor:progress; }
   button.ghost.danger:hover { border-color:var(--orange); color:var(--orange); }
 
-  /* ─── Mise à jour ─── */
+  /* Mise à jour */
   .upd-row { display:flex; align-items:center; justify-content:space-between;
     gap:10px; }
-  .upd-txt { font-size:13px; color:var(--muted); line-height:1.5; }
+  .upd-txt { font-size:var(--fs-sm); color:var(--muted); line-height:1.5; }
   .upd-txt b { color:var(--text); }
   .upd-btn {
     border:0; padding:9px 16px; cursor:pointer; white-space:nowrap;
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:14px; letter-spacing:.08em;
-    text-transform:uppercase; color:#fff; background:var(--blue-deep);
+    font-family:inherit; font-weight:700; font-size:var(--fs-sm);
+    color:var(--on-blue-deep); background:var(--blue-deep);
   }
-  .upd-btn:hover { background:var(--blue); }
+  .upd-btn:hover { box-shadow:inset 0 -3px 0 var(--blue); }
   .upd-btn:disabled { opacity:.55; cursor:progress; }
   .upd-btn.ghosty { background:var(--panel2); color:var(--text);
-    border:1px solid var(--line); }
+    border:1px solid var(--line-strong); }
   .progress { height:8px; background:var(--panel2);
     border:1px solid var(--line); margin-top:10px; overflow:hidden; }
   .progress i { display:block; height:100%; width:0; background:var(--blue);
     transition:width .3s; }
-  .upd-err { color:var(--orange); font-size:12px; margin-top:8px; }
+  .upd-err { color:var(--orange); font-size:var(--fs-xs); margin-top:8px; }
 
-  /* ─── Version ─── */
+  /* Version */
   .ver-row { display:flex; align-items:center; justify-content:space-between;
     gap:12px; flex-wrap:wrap; }
   .ver-num {
-    font-family:'Barlow Condensed',sans-serif; font-style:italic;
-    font-weight:800; font-size:24px; letter-spacing:.04em;
-    font-variant-numeric:tabular-nums;
+    font-family:var(--ui-font); font-style:var(--num-style);
+    font-weight:800; font-size:var(--fs-xl); font-variant-numeric:tabular-nums;
   }
-  .ver-num small { font-size:13px; color:var(--muted); font-style:normal;
-    font-weight:600; letter-spacing:.1em; text-transform:uppercase;
-    margin-right:8px; }
+  .ver-num small { font-family:var(--body-font); font-size:var(--fs-sm); color:var(--muted);
+    font-style:normal; font-weight:600; margin-right:8px; }
 
-  /* ─── Cosmétiques : liste des swaps ─── */
+  /* Cosmétiques : liste des swaps */
   .swap { display:flex; align-items:center; gap:12px; padding:10px 0;
     border-top:1px solid var(--line); }
   .swap:first-child { border-top:0; padding-top:2px; }
@@ -475,17 +365,16 @@
   .swap.st-unknown .swap-dot { background:transparent;
     border:1px solid var(--muted); }
   .swap-main { flex:1; min-width:0; }
-  .swap-main b { display:block; font-size:13.5px; font-weight:600;
+  .swap-main b { display:block; font-size:var(--fs-sm); font-weight:600;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   /* Cible + installation + « désactivé » : on laisse passer à la ligne
-     plutôt que couper — un fichier tronqué ne se reconnaît plus. */
-  .swap-main small { display:block; font-size:11.5px; color:var(--muted);
+     plutôt que couper : un fichier tronqué ne se reconnaît plus. */
+  .swap-main small { display:block; font-size:var(--fs-xs); color:var(--muted);
     margin-top:2px; overflow-wrap:anywhere; }
   .swap.off .swap-main { opacity:.55; }
   .swap-st { flex:none; border:1px solid var(--line); color:var(--muted);
-    padding:2px 8px; transform:skewX(-12deg); font-size:10.5px;
-    font-weight:700; letter-spacing:.1em; text-transform:uppercase;
-    white-space:nowrap; }
+    padding:2px 8px; transform:skewX(-12deg); font-size:var(--fs-xs);
+    font-weight:600; white-space:nowrap; }
   .swap-st > span { display:inline-block; transform:skewX(12deg); }
   .st-applied .swap-st { color:var(--blue); border-color:var(--blue); }
   .st-reverted .swap-st { color:var(--orange); border-color:var(--orange); }
@@ -494,37 +383,36 @@
      dessinée comme les plaques (rail et curseur inclinés). */
   .switch { position:relative; width:36px; height:18px; flex:none; margin:0;
     appearance:none; -webkit-appearance:none; cursor:pointer;
-    background:var(--line); transform:skewX(-12deg); }
-  .switch::before { content:''; position:absolute; top:3px; left:3px;
+    background:var(--panel2); border:1px solid var(--line-strong); transform:skewX(-12deg); }
+  .switch::before { content:''; position:absolute; top:2px; left:2px;
     width:12px; height:12px; background:var(--muted); transition:left .15s; }
-  .switch:checked { background:var(--blue-deep); }
-  .switch:checked::before { left:21px; background:#fff; }
+  .switch:checked { background:var(--blue-deep); border-color:var(--blue); }
+  .switch:checked::before { left:20px; background:var(--on-blue-deep); }
   .switch:disabled { opacity:.5; cursor:not-allowed; }
   .swap-actions { display:flex; gap:6px; flex:none; }
   .mini {
-    border:1px solid var(--line); background:var(--panel2); color:var(--text);
-    padding:6px 10px; font-size:11.5px; font-weight:600; font-family:inherit;
-    cursor:pointer; text-transform:uppercase; letter-spacing:.05em;
-    white-space:nowrap;
+    border:1px solid var(--line-strong); background:var(--panel2); color:var(--text);
+    padding:6px 10px; font-size:var(--fs-xs); font-weight:600; font-family:inherit;
+    cursor:pointer; white-space:nowrap;
   }
   .mini:hover { border-color:var(--blue); }
   .mini.danger:hover { border-color:var(--orange); color:var(--orange); }
   .mini:disabled, .mini:disabled:hover { opacity:.45; cursor:not-allowed;
-    border-color:var(--line); color:var(--text); }
+    border-color:var(--line-strong); color:var(--text); }
   /* Verrouillé (jeu en cours) ≠ occupé : pas de curseur « en cours ». */
   button.lock:disabled { cursor:not-allowed; opacity:.45; }
-  /* Suggestions de fichiers cibles : liste EN FLUX sous le champ, pas en
-     surimpression — le clip-path de la carte rognerait un menu flottant
+  /* Suggestions de fichiers cibles : liste en flux sous le champ, pas en
+     surimpression : le clip-path de la carte rognerait un menu flottant
      qui dépasse de la plaque. */
   .suggest { max-height:200px; overflow-y:auto; background:var(--panel2);
-    border:1px solid var(--line); border-top:0; }
+    border:1px solid var(--line-strong); border-top:0; }
   .suggest::-webkit-scrollbar { width:8px; }
   .suggest::-webkit-scrollbar-thumb { background:var(--line); }
   .suggest button { display:block; width:100%; text-align:left; border:0;
     background:transparent; color:var(--text); padding:7px 11px;
-    font-size:12.5px; font-family:inherit; cursor:pointer; }
-  .suggest button:hover { background:var(--blue-deep); color:#fff; }
-  .suggest .none { padding:7px 11px; font-size:12px; color:var(--muted); }
+    font-size:var(--fs-xs); font-family:inherit; cursor:pointer; }
+  .suggest button:hover { background:var(--blue-deep); color:var(--on-blue-deep); }
+  .suggest .none { padding:7px 11px; font-size:var(--fs-xs); color:var(--muted); }
 
   /* Sous-réglage coupé par un interrupteur général (les quatre cases et la
      durée des alertes) : grisé et non cliquable, sinon rien ne distingue une
@@ -532,10 +420,10 @@
   .check input:disabled, .check input:disabled + span { opacity:.5; cursor:not-allowed; }
   select:disabled { opacity:.5; cursor:not-allowed; }
 
-  /* ─── Diagnostic ───
+  /* Diagnostic.
      Le rapport se lit d'abord aux pastilles : c'est ce que l'utilisateur
      survole en trois secondes avant de tout copier. La couleur ne porte
-     jamais l'information seule (le libellé d'état est écrit à droite) —
+     jamais l'information seule (le libellé d'état est écrit à droite) :
      un vert et un orange se confondent sur un écran mal réglé, et deux des
      habillages repeignent --blue en vert. */
   .diag-list { margin-top:12px; }
@@ -550,16 +438,15 @@
   .diag-row.st-skip .diag-dot { background:transparent;
     box-shadow:inset 0 0 0 1px var(--line); }
   .diag-main { flex:1; min-width:0; }
-  .diag-main b { display:block; font-size:13.5px; font-weight:600; }
-  .diag-main small { display:block; font-size:11.5px; color:var(--muted);
+  .diag-main b { display:block; font-size:var(--fs-sm); font-weight:600; }
+  .diag-main small { display:block; font-size:var(--fs-xs); color:var(--muted);
     line-height:1.5; margin-top:2px; word-break:break-word; }
   /* Le conseil ne s'affiche que quand ça ne va pas : sur une ligne verte il
      n'aurait rien à dire, et il ferait perdre la ligne qui coince. */
   .diag-main .fix { color:var(--orange); }
   .diag-row.st-fail .fix { color:var(--red); }
   .diag-st { flex:none; border:1px solid var(--line); color:var(--muted);
-    transform:skewX(-12deg); padding:2px 9px; font-size:10.5px;
-    font-weight:700; letter-spacing:.07em; text-transform:uppercase; }
+    transform:skewX(-12deg); padding:2px 9px; font-size:var(--fs-xs); font-weight:600; }
   .diag-st > span { display:inline-block; transform:skewX(12deg); }
   .st-ok .diag-st { color:var(--blue); border-color:var(--blue); }
   .st-warn .diag-st { color:var(--orange); border-color:var(--orange); }
@@ -584,7 +471,7 @@
 
   <div class="shell">
 
-    <!-- ─── Barre latérale ─── -->
+    <!-- Barre latérale -->
     <nav class="side">
       <div class="side-status">
         <span class="sq" id="dot"></span>
@@ -592,37 +479,29 @@
       </div>
       <div class="nav-list" id="navList">
         <button class="nav" data-sec="home">
-          <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>
           <span data-i18n="navHome">Accueil</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="account">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
           <span data-i18n="navAccount">Compte &amp; MMR</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="looks">
-          <svg viewBox="0 0 24 24"><path d="M4 5h7v6H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 13h7v6H4z"/></svg>
           <span data-i18n="navLooks">Habillages</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="display">
-          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>
           <span data-i18n="navDisplay">Dashboard</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="stream">
-          <svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="1"/><path d="M16 10l5-3v10l-5-3z"/></svg>
           <span data-i18n="navStream">Streaming</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="app">
-          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
           <span data-i18n="navApp">Application</span><i class="badge"></i>
         </button>
         <button class="nav" data-sec="cosmetics">
-          <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.6 0 2.2-1.1 1.6-2.2-.6-1.2.1-2.3 1.5-2.3h1.4a3.5 3.5 0 0 0 3.5-3.5C20 7.6 16.4 3 12 3z"/><circle cx="7.5" cy="11.5" r="1.1"/><circle cx="10" cy="7.5" r="1.1"/><circle cx="14.5" cy="7" r="1.1"/></svg>
           <span data-i18n="navCosmetics">Cosmétiques</span><i class="badge"></i>
         </button>
         <!-- Pas une section : ouvre la fenêtre Cartes. Le petit carré fléché
              à droite le signale, pour qu'on ne cherche pas le contenu ici. -->
         <button class="nav" id="mapsNav">
-          <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg>
           <span data-i18n="navMaps">Cartes workshop</span>
           <svg class="ext" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/></svg>
         </button>
@@ -632,10 +511,10 @@
       </div>
     </nav>
 
-    <!-- ─── Volet de contenu ─── -->
+    <!-- Volet de contenu -->
     <main class="content" id="content">
 
-      <!-- ── Accueil / État ── -->
+      <!-- Accueil / État -->
       <section class="sec" data-sec="home">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navHome">Accueil</span></div></div>
@@ -654,8 +533,7 @@
 
         <div class="card">
           <h2 data-i18n="hStatus">État</h2>
-          <div class="stat-grid">
-            <div class="stat"><span>Rocket League</span><b id="rGame">–</b></div>
+          <div class="stat-list">
             <div class="stat"><span data-i18n="lStats">Stats API du jeu</span><b id="rApi">–</b></div>
             <div class="stat"><span id="rMatchLabel">Match</span><b id="rMatch">–</b></div>
             <div class="stat"><span data-i18n="lSession">Session</span><b id="rSession">–</b></div>
@@ -678,7 +556,7 @@
              joueur sur un ou plusieurs matchs de la session (changement de
              pseudo en jeu, espace insécable, variante unicode...). Sans ce
              signal, la courbe MMR se fige en silence pendant que le vrai MMR
-             du joueur continue de bouger — voir buildPseudoChips() plus bas.
+             du joueur continue de bouger : voir buildPseudoChips() plus bas.
              La carte entière suit la visibilité de l'avertissement. -->
         <div class="card warn" id="unknownCard" style="display:none">
           <h2 data-i18n="hUnknown">Matchs non attribués</h2>
@@ -705,7 +583,7 @@
         </div>
       </section>
 
-      <!-- ── Compte & MMR ── -->
+      <!-- Compte & MMR -->
       <section class="sec" data-sec="account">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navAccount">Compte &amp; MMR</span></div></div>
@@ -744,13 +622,13 @@
           <h2 data-i18n="lMmr">Mon MMR (optionnel)</h2>
           <div class="mmr-grid">
             <div class="mmr-cell"><span>1v1</span>
-              <input type="number" id="mmr1v1" min="0" max="3000" placeholder="—" />
+              <input type="number" id="mmr1v1" min="0" max="3000" placeholder="MMR" />
               <small class="mmr-rank" id="mmrRank1v1" style="display:none"></small></div>
             <div class="mmr-cell"><span>2v2</span>
-              <input type="number" id="mmr2v2" min="0" max="3000" placeholder="—" />
+              <input type="number" id="mmr2v2" min="0" max="3000" placeholder="MMR" />
               <small class="mmr-rank" id="mmrRank2v2" style="display:none"></small></div>
             <div class="mmr-cell"><span>3v3</span>
-              <input type="number" id="mmr3v3" min="0" max="3000" placeholder="—" />
+              <input type="number" id="mmr3v3" min="0" max="3000" placeholder="MMR" />
               <small class="mmr-rank" id="mmrRank3v3" style="display:none"></small></div>
           </div>
           <div class="hint" data-i18n="hintMmr">Recopie le MMR affiché dans le jeu (Paramètres → Interface → « Afficher le MMR », depuis la saison 22). Ensuite l'appli l'estime toute seule match après match (environ ±9), reviens le corriger quand tu veux.</div>
@@ -759,7 +637,7 @@
         </div>
       </section>
 
-      <!-- ── Dashboard & overlay ── -->
+      <!-- Dashboard & overlay -->
       <section class="sec" data-sec="display">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navDisplay">Dashboard</span></div></div>
@@ -831,7 +709,7 @@
 
           <!-- Alertes : elles ne remplacent pas l'écran de fin de match
                (juste au-dessus), elles signalent en cours de session ce qui
-               ne se voit pas dans les chiffres — une série qui tient, un
+               ne se voit pas dans les chiffres : une série qui tient, un
                rang qui change, un record qui tombe. Quatre cases séparées
                parce qu'un joueur qui les veut toutes est rare : celui qui
                stream coupe le MVP, celui qui grimpe ne garde que le rang. -->
@@ -859,7 +737,7 @@
         </div>
       </section>
 
-      <!-- ── Habillages : la vitrine ──
+      <!-- Habillages : la vitrine.
            Un seul endroit où la forme, la palette et la disposition forment un
            « look » qu'on essaie avec ses vraies données avant d'appliquer.
            Jusqu'ici ces trois choses se réglaient dans trois cartes
@@ -950,7 +828,7 @@
         </div>
       </section>
 
-      <!-- ── Streaming ── -->
+      <!-- Streaming -->
       <section class="sec" data-sec="stream">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navStream">Streaming</span></div></div>
@@ -973,7 +851,7 @@
           <div class="hint" data-i18n="hintObsAnim">Ces deux réglages valent pour l’overlay servi à OBS. La bannière couvre toute la source pendant la célébration : coupe-la si ta source occupe tout l’écran. Aucun son ne sort jamais de l’overlay.</div>
 
           <!-- Toile : les blocs sont posés en pourcentages, donc une source
-               OBS plus étroite que la toile du compositeur ne décale rien —
+               OBS plus étroite que la toile du compositeur ne décale rien :
                elle rétrécit tout, textes compris, jusqu'à l'illisible. D'où
                le choix explicite, et surtout la taille à recopier telle
                quelle dans la source Navigateur. -->
@@ -1011,7 +889,7 @@
         </div>
 
         <!-- Ancien bandeau : conservé pour ceux qui l'avaient déjà réglé dans
-             OBS. Ses six réglages ne pilotent QUE /classic — les laisser dans
+             OBS. Ses six réglages ne pilotent que /classic : les laisser dans
              la carte de l'overlay composable en faisait des interrupteurs
              débranchés. -->
         <details class="card" id="obsClassicCard">
@@ -1056,7 +934,7 @@
              l'overlay de diffusion a été écrit avant l'arrivée d'Easy
              Anti-Cheat (avril 2026) pour le défunt plugin SOS. Le pont
              tourne déjà côté processus principal (obs.sosBridge / obs.sosPort,
-             state.sos) mais restait invisible sans cette commande — y compris
+             state.sos) mais restait invisible sans cette commande : y compris
              un éventuel conflit de port, jusqu'ici totalement silencieux. -->
         <div class="card">
           <h2 data-i18n="hSos">Pont compatible SOS</h2>
@@ -1078,7 +956,7 @@
         </div>
       </section>
 
-      <!-- ── Application ── -->
+      <!-- Application -->
       <section class="sec" data-sec="app">
         <div class="sec-head">
           <div class="tag-row"><div class="tag"><span data-i18n="navApp">Application</span></div></div>
@@ -1102,7 +980,7 @@
           <!-- Fenêtre : la case est l'INVERSE de config.trayOnly (cochée =
                visible dans la barre des tâches = trayOnly:false). On formule
                la case dans le sens « ce que je vois », pas dans celui de la
-               mécanique interne — voir le câblage plus bas. -->
+               mécanique interne : voir le câblage plus bas. -->
           <div class="card">
             <h2 data-i18n="hWindow">Fenêtre</h2>
             <label class="check"><input type="checkbox" id="optTray" /><span data-i18n="cTray">Garder la fenêtre dans la barre des tâches</span></label>
@@ -1143,14 +1021,14 @@
         </div>
       </section>
 
-      <!-- ── Cosmétiques ── -->
-      <!-- SEULE section de l'application qui touche aux fichiers du jeu.
+      <!-- Cosmétiques -->
+      <!-- Seule section de l'application qui touche aux fichiers du jeu.
            Un « swap » remplace un fichier de TAGame\CookedPCConsole par un
            fichier préparé par la communauté (.upk, ou .upk + .bnk pour un
            boost). Le processus principal sauvegarde l'original une fois,
            applique, restaure, et réapplique tout seul quand une mise à jour
            ou une vérification d'intégrité Steam/Epic a remis les originaux
-           — jamais pendant que Rocket League tourne. Ici on ne fait
+           : jamais pendant que Rocket League tourne. Ici on ne fait
            qu'afficher et demander (window.rl.cosmetics*), voir le câblage
            « Cosmétiques » plus bas. -->
       <section class="sec" data-sec="cosmetics">
@@ -1181,7 +1059,7 @@
                l'applique dans la foulée si le jeu est fermé. Une fois actif,
                c'est un swap comme un autre : il apparaît aussi dans la liste.
                Carte masquée si le processus principal n'expose pas de
-               préréglage (ancienne version) — ou n'en propose aucun : c'est
+               préréglage (ancienne version) : ou n'en propose aucun : c'est
                le cas depuis que le préréglage par copie brute du paquet a été
                retiré (le boost devient transparent en jeu). Aucun message
                « indisponible » dans ce cas, la carte n'existe simplement
@@ -1220,7 +1098,7 @@
             <div class="hint warn" id="cosRunning" style="display:none;margin:0 0 10px" data-i18n="cosRunning">Rocket League tourne : ferme le jeu d’abord. Rien n’est appliqué ni restauré tant qu’il est ouvert.</div>
             <div class="hint warn" id="cosErr" style="display:none;margin:0 0 10px"></div>
             <div id="cosList"></div>
-            <div class="hint" id="cosEmpty" style="display:none;margin-top:0" data-i18n="cosEmpty">Aucun swap pour l’instant. Pour en ajouter : indique ci-dessous le fichier du jeu à remplacer (tape le début de son nom et choisis dans la liste), donne un libellé, puis sélectionne le fichier préparé qui le remplace.</div>
+            <div class="hint" id="cosEmpty" data-nofold style="display:none;margin-top:0" data-i18n="cosEmpty">Aucun swap pour l’instant. Pour en ajouter : indique ci-dessous le fichier du jeu à remplacer (tape le début de son nom et choisis dans la liste), donne un libellé, puis sélectionne le fichier préparé qui le remplace.</div>
             <div class="hint" id="cosSummary" style="display:none"></div>
             <div class="duo">
               <button class="ghost" style="margin-top:0" id="cosApplyAll" data-i18n="bCosApplyAll">Tout appliquer</button>
@@ -1272,10 +1150,11 @@
   var cur = null;
   var editingPseudo = false;
 
-  // ─── Langue (FR / EN) ───
+  // Langue (FR / en)
   var I18N = {
     fr: {
       lStats: 'Stats API du jeu', lSession: 'Session',
+      hintMore: 'D\u00e9tails', hintLess: 'R\u00e9duire',
       // Panneau de configuration : barre de titre, navigation, sections.
       tMin: 'R\u00e9duire', tMax: 'Agrandir / restaurer', tClose: 'Fermer',
       navHome: 'Accueil', navAccount: 'Compte & MMR',
@@ -1400,7 +1279,7 @@
       diagStOk: 'OK', diagStWarn: '\u00c0 voir', diagStFail: '\u00c9chec',
       diagStSkip: 'Sans objet',
       diagAt: function (when, bad) {
-        return 'Rapport du ' + when + ' \u2014 '
+        return 'Rapport du ' + when + ' : '
           + (bad ? bad + (bad > 1 ? ' points \u00e0 corriger.' : ' point \u00e0 corriger.')
             : 'tout est en ordre.');
       },
@@ -1515,7 +1394,7 @@
       famSobre: 'Sobres',
       famBroadcast: 'Broadcast',
       famStream: 'Pour le stream',
-      descArena: 'L’origine. Plaques biseautées, italiques lourds, halos d’équipe.',
+      descArena: 'L’origine. Plaques biseautées, cartouches inclinés, halos d’équipe.',
       descConsole: 'Terminal à phosphore. Chasse fixe, cadres d’un pixel, scanlines.',
       descPapier: 'Imprimé clair. Empattements, filets fins, aucun aplat.',
       descNeon: 'Verre et enseignes. Coins arrondis, panneaux floutés, halos.',
@@ -1560,6 +1439,7 @@
     },
     en: {
       lStats: 'Game Stats API', lSession: 'Session',
+      hintMore: 'Details', hintLess: 'Less',
       // Settings panel: title bar, navigation, sections.
       tMin: 'Minimize', tMax: 'Maximize / restore', tClose: 'Close',
       navHome: 'Home', navAccount: 'Account & MMR',
@@ -1684,7 +1564,7 @@
       diagStOk: 'OK', diagStWarn: 'Check', diagStFail: 'Failed',
       diagStSkip: 'N/A',
       diagAt: function (when, bad) {
-        return 'Report from ' + when + ' — '
+        return 'Report from ' + when + ': '
           + (bad ? bad + (bad > 1 ? ' points to fix.' : ' point to fix.')
             : 'everything is in order.');
       },
@@ -1800,7 +1680,7 @@
       famSobre: 'Quiet',
       famBroadcast: 'Broadcast',
       famStream: 'For streaming',
-      descArena: 'The original. Chamfered plates, heavy italics, team halos.',
+      descArena: 'The original. Chamfered plates, slanted title plates, team halos.',
       descConsole: 'Phosphor terminal. Monospace, one-pixel frames, scanlines.',
       descPapier: 'Light print. Serifs, hairlines, no flat colour.',
       descNeon: 'Glass and signs. Rounded corners, blurred panels, halos.',
@@ -1852,6 +1732,33 @@
     if (!r || !r.rank) return '';
     return (T.tiers && T.tiers[r.tier]) || r.rank;
   }
+  // Aides longues : seule la première phrase reste affichée, le reste se
+  // déplie. Les aides ont toutes été écrites l'essentiel d'abord, donc la
+  // coupe tombe juste. Rien n'est plié en dessous de HINT_FOLD_MIN caractères de
+  // suite, ni dans une aide qui porte du balisage ou un avertissement, ni
+  // dans un état vide (data-nofold) : lui doit dire tout de suite quoi faire.
+  var HINT_FOLD_MIN = 70;
+  function foldHints() {
+    document.querySelectorAll('.hint[data-i18n]:not(.warn):not([data-nofold])').forEach(function (el) {
+      if (el.children.length) return;
+      var txt = el.textContent.replace(/\s+/g, ' ').trim();
+      var m = /^(.+?[.!?])\s+(\S.*)$/.exec(txt);
+      if (!m || m[2].length < HINT_FOLD_MIN) return;
+      el.textContent = m[1];
+      var rest = document.createElement('span');
+      rest.className = 'rest'; rest.hidden = true; rest.textContent = ' ' + m[2];
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'more-btn';
+      btn.setAttribute('aria-expanded', 'false');
+      btn.textContent = T.hintMore;
+      btn.onclick = function () {
+        rest.hidden = !rest.hidden;
+        btn.setAttribute('aria-expanded', String(!rest.hidden));
+        btn.textContent = rest.hidden ? T.hintMore : T.hintLess;
+      };
+      el.appendChild(rest); el.appendChild(btn);
+    });
+  }
   var langApplied = '';
   function applyLang(lang) {
     lang = I18N[lang] ? lang : 'fr';
@@ -1863,18 +1770,19 @@
       if (typeof v === 'string') el.innerHTML = v;
     });
     // Info-bulles (boutons de la barre de titre) : même mécanisme, mais sur
-    // l'attribut title — innerHTML écraserait le glyphe du bouton.
+    // l'attribut title : innerHTML écraserait le glyphe du bouton.
     document.querySelectorAll('[data-i18n-title]').forEach(function (el) {
       var v = T[el.dataset.i18nTitle];
       if (typeof v === 'string') el.title = v;
     });
+    foldHints();
     // Le rapport de diagnostic est construit en JS : ses pastilles d'état et
     // sa ligne de résumé n'ont pas d'attribut data-i18n, la boucle ci-dessus
     // les laisserait dans l'ancienne langue.
     if (diagReport) renderDiag(diagReport);
   }
 
-  // ─── Thème (partagé avec le dashboard et l'overlay) ───
+  // Thème (partagé avec le dashboard et l'overlay)
   var THEME_DEFAULT = { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' };
   var PRESETS = [
     { name: 'Bleu / Orange', t: THEME_DEFAULT },
@@ -1895,7 +1803,7 @@
     return '#' + c.map(function (v) { return v.toString(16).padStart(2, '0'); }).join('');
   }
   // Un fond clair (skin « Papier », ou une couleur choisie à la main) impose
-  // d'inverser tout ce qui se dérivait du fond : le texte, et le SENS des
+  // d'inverser tout ce qui se dérivait du fond : le texte, et le sens des
   // mélanges. Sans ça, panneaux et filets étaient éclaircis vers le blanc sur
   // un fond déjà blanc, et le texte clair restait illisible.
   function isLight(hex) {
@@ -1906,9 +1814,9 @@
     var b = parseInt(c.slice(4, 6), 16) / 255;
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55;
   }
-  // ─── Habillages (skins) : la FORME de l'interface, pas seulement ses
+  // Habillages (skins) : la forme de l'interface, pas seulement ses
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
-  // que les thèmes — l'utilisateur peut donc la retoucher ensuite.
+  // que les thèmes : l'utilisateur peut donc la retoucher ensuite.
   var SKINS = [
     { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
     { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
@@ -1938,9 +1846,9 @@
   }
   // Habillage essayé depuis la vitrine, poussé par le processus principal.
   var lookPreview = null;
-  // ─────────── Atelier : les ingrédients d'un habillage ───────────
+  // Atelier : les ingrédients d'un habillage
   // Trois familles de police, trois découpes, trois densités. Les valeurs
-  // « auto » laissent l'habillage décider — c'est le comportement d'avant,
+  // « auto » laissent l'habillage décider : c'est le comportement d'avant,
   // et donc le défaut.
   var TUNE_FONTS = {
     auto: null,
@@ -1978,6 +1886,18 @@
     if (t.italic === null || t.italic === undefined) s.removeProperty('--num-style');
     else s.setProperty('--num-style', t.italic ? 'italic' : 'normal');
   }
+  // Encre à poser sur un aplat de couleur : le noir du fond ou le blanc,
+  // celui des deux qui contraste le plus. Les palettes vont du blanc cassé
+  // au violet sombre, aucune des deux encres ne convient à toutes.
+  function inkOn(hex) {
+    var c = String(hex || '').replace('#', '');
+    var ch = [0, 2, 4].map(function (i) {
+      var v = parseInt(c.slice(i, i + 2), 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    var l = 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+    return (1.05 / (l + 0.05)) >= ((l + 0.05) / 0.0547) ? '#ffffff' : '#0c0e11';
+  }
   var themeApplied = '';
   function applyTheme(t) {
     t = Object.assign({}, THEME_DEFAULT, t || {});
@@ -1986,10 +1906,15 @@
     themeApplied = key;
     var s = document.documentElement.style;
     s.setProperty('--blue', t.win);
-    s.setProperty('--blue-deep', mix(t.win, '#000000', .42));
+    var blueDeep = mix(t.win, '#000000', .42), orangeDeep = mix(t.loss, '#000000', .35);
+    s.setProperty('--blue-deep', blueDeep);
     s.setProperty('--orange', t.loss);
-    s.setProperty('--orange-deep', mix(t.loss, '#000000', .35));
+    s.setProperty('--orange-deep', orangeDeep);
     s.setProperty('--gold', t.gold);
+    s.setProperty('--on-blue', inkOn(t.win));
+    s.setProperty('--on-blue-deep', inkOn(blueDeep));
+    s.setProperty('--on-orange-deep', inkOn(orangeDeep));
+    s.setProperty('--on-gold', inkOn(t.gold));
     s.setProperty('--bg', t.bg);
     var toward = isLight(t.bg) ? '#000000' : '#ffffff';
     s.setProperty('--text', isLight(t.bg) ? '#12161c' : '#eef1f5');
@@ -1997,9 +1922,10 @@
     s.setProperty('--panel', mix(t.bg, toward, .055));
     s.setProperty('--panel2', mix(t.bg, toward, .10));
     s.setProperty('--line', mix(t.bg, toward, .22));
+    s.setProperty('--line-strong', mix(t.bg, toward, isLight(t.bg) ? .52 : .45));
   }
-  // ─────────── Vitrine des habillages ───────────
-  // L'essayage applique l'habillage PARTOUT (cette fenêtre, le dashboard,
+  // Vitrine des habillages
+  // L'essayage applique l'habillage partout (cette fenêtre, le dashboard,
   // l'overlay) sans rien enregistrer : c'est le processus principal qui
   // rediffuse l'aperçu. Annuler remet la configuration réelle.
   var tryLook = null;          // { skin, theme, name } pendant un aperçu
@@ -2019,7 +1945,7 @@
     });
   }
 
-  // Vignette : les VRAIES classes de l'application dans un conteneur qui
+  // Vignette : les vraies classes de l'application dans un conteneur qui
   // porte l'habillage et sa palette. Ce que tu vois est ce que tu auras.
   function lookThumb(look) {
     var d = document.createElement('div');
@@ -2037,6 +1963,9 @@
     d.style.setProperty('--panel', mix(t.bg, toward, .055));
     d.style.setProperty('--panel2', mix(t.bg, toward, .10));
     d.style.setProperty('--line', mix(t.bg, toward, .22));
+    var deep = mix(t.win, '#000000', .42);
+    d.style.setProperty('--blue-deep', deep);
+    d.style.setProperty('--on-blue-deep', inkOn(deep));
     d.innerHTML = '<div class="card"><div class="tag"><span>' + T.tagSessionPrev + '</span></div>'
       + '<div class="wl"><span class="w">8</span><span class="sep">–</span><span class="l">4</span></div>'
       + '<div class="plabel">67 % ' + T.prevWinrate + '</div></div>';
@@ -2119,7 +2048,7 @@
       var meta = SKIN_META[sk.id] || { fam: [], desc: '' };
       if (lookFilter !== 'all' && meta.fam.indexOf(lookFilter) === -1) return;
       var isOn = live.skin === sk.id && !tryLook;
-      // La vignette montre l'habillage avec SA palette, sauf pour celui qui
+      // La vignette montre l'habillage avec sa palette, sauf pour celui qui
       // est actif : là on montre les couleurs réelles, retouches comprises.
       var shown = isOn ? live : { skin: sk.id, theme: sk.t };
       grid.appendChild(lookCard(shown, { active: isOn, desc: T[meta.desc] || '' }));
@@ -2148,7 +2077,7 @@
     }
   }
 
-  // ── Essayage : appliqué partout, enregistré nulle part.
+  // Essayage : appliqué partout, enregistré nulle part.
   function startTry(look, name) {
     tryLook = { skin: look.skin, theme: look.theme, tune: look.tune || null };
     applySkin(look.skin);
@@ -2181,7 +2110,7 @@
     if (e.key === 'Escape' && tryLook) { e.preventDefault(); endTry(false); }
   });
 
-  // ── Atelier : chaque changement passe par l'aperçu, donc se voit partout
+  // Atelier : chaque changement passe par l'aperçu, donc se voit partout
   // (dashboard et overlay compris) avant d'être enregistré.
   function tuneFromUI() {
     var sk = $('tuneSkew').value;
@@ -2233,7 +2162,7 @@
     tunePreview();
   };
 
-  // ── Codes de partage : un look tient dans une chaîne collable.
+  // Codes de partage : un look tient dans une chaîne collable.
   function lookToCode(look) {
     var payload = JSON.stringify({ v: 1, s: look.skin, t: look.theme, u: look.tune || null });
     return 'RLST-' + btoa(unescape(encodeURIComponent(payload)))
@@ -2336,15 +2265,13 @@
       ? (s.live ? T.stInMatch : T.stGame)
       : T.stWait;
 
-    $('rGame').textContent = running ? T.detected : T.waiting;
-    $('rGame').className = running ? 'live' : '';
     $('rApi').textContent = game.statsConnected ? T.apiOn : T.apiWait;
     $('rApi').className = game.statsConnected ? 'live' : '';
 
     // Panne détectée par l'application (ini réinitialisé par une mise à jour
     // ou une vérification d'intégrité) : on l'affiche tout de suite. Sinon,
     // repli heuristique : le jeu tourne depuis un moment sans que la Stats
-    // API ne se soit jamais connectée — très probablement un ini absent.
+    // API ne se soit jamais connectée : très probablement un ini absent.
     var broken = !!game.statsApiBroken && !game.statsConnected;
     var stuck = running && !game.statsConnected && game.since
       && (Date.now() - game.since > 2 * 60 * 1000);
@@ -2370,7 +2297,7 @@
 
     var ses = s.session;
     if (ses && ses.played) {
-      $('rSession').innerHTML = '<span class="w">' + ses.wins + ' ' + T.wShort + '</span> — '
+      $('rSession').innerHTML = '<span class="w">' + ses.wins + ' ' + T.wShort + '</span> – '
         + '<span class="l">' + ses.losses + ' ' + T.lShort + '</span>'
         + (ses.streak.count >= 2
           ? T.streakOf(ses.streak.count, ses.streak.type === 'W')
@@ -2492,7 +2419,7 @@
     }
 
     // Pont compatible SOS : même mécanisme que le serveur overlay ci-dessus
-    // (URL à copier quand ça tourne, erreur sinon) — sans quoi state.sos,
+    // (URL à copier quand ça tourne, erreur sinon) : sans quoi state.sos,
     // déjà diffusé par le processus principal, resterait lu par personne et
     // un conflit de port (running: false alors que sosBridge est activé)
     // passerait totalement inaperçu.
@@ -2528,7 +2455,7 @@
       }
       // Rang en clair, purement informatif à côté du champ MMR. Si le mode
       // n'a pas encore de MMR calibré ou que le rang est inconnu (rank
-      // vaut null), on n'affiche RIEN — surtout pas "Non classé", qui
+      // vaut null), on n'affiche rien : surtout pas "Non classé", qui
       // laisserait croire à une info fiable alors qu'on n'en sait rien.
       var rankEl = $('mmrRank' + mode);
       var rank = rankName(est[mode]);
@@ -2581,7 +2508,7 @@
 
     // Pastille sur « Accueil » : quelque chose y attend (mise à jour, Stats
     // API en panne, pseudo à confirmer, matchs non attribués) pendant qu'on
-    // règle autre chose — sinon l'alerte reste invisible jusqu'au prochain
+    // règle autre chose : sinon l'alerte reste invisible jusqu'au prochain
     // passage par l'accueil.
     var vis = function (id) { return $(id).style.display !== 'none'; };
     setNavAlert('home', vis('updCard') || vis('apiHint') || vis('whoCard') || vis('unknownCard'));
@@ -2591,7 +2518,7 @@
 
   // Processus principal d'une autre version que cette fenêtre (mise à jour
   // installée sans redémarrage) : les fonctions du pont manquent. On coupe
-  // les boutons concernés en le disant — un bouton qui ne réagit pas se lit
+  // les boutons concernés en le disant : un bouton qui ne réagit pas se lit
   // comme une panne de l'application. Appelé depuis render() et pas à
   // l'initialisation pour que le message soit dans la bonne langue.
   // On ne remet jamais un bouton en service ici : il peut être désactivé
@@ -2612,7 +2539,7 @@
 
   // Raccourci global : touches séparées à partir de l'accélérateur fourni par
   // le processus principal. Sans état (premier rendu, ancienne version du
-  // main) on montre la valeur par défaut, sans avertissement — on ne sait
+  // main) on montre la valeur par défaut, sans avertissement : on ne sait
   // pas, on n'alarme pas. `ok: false` = le système a refusé l'enregistrement
   // (déjà pris par un autre logiciel) : touches barrées + explication.
   var hotkeyShown = '';
@@ -2693,7 +2620,7 @@
     }
   }
 
-  // ─── Barre de titre ───
+  // Barre de titre
   $('min').onclick = function () { api.minimize && api.minimize(); };
   $('close').onclick = function () { api.close && api.close(); };
   $('max').onclick = function () { api.maximize && api.maximize(); };
@@ -2705,7 +2632,7 @@
     api.maximize && api.maximize();
   });
 
-  // ─── Navigation entre sections ───
+  // Navigation entre sections
   // Une seule section visible à la fois ; la dernière ouverte est mémorisée
   // pour rouvrir la fenêtre au même endroit. localStorage peut être
   // indisponible ou en lecture seule : on s'en passe sans bruit.
@@ -2719,7 +2646,7 @@
     navBtns.forEach(function (b) { b.classList.toggle('active', b.dataset.sec === id); });
     $('content').scrollTop = 0;
     try { localStorage.setItem(SECTION_KEY, id); } catch (e) { /* stockage indisponible */ }
-    // Cosmétiques : liste relue à chaque ouverture — une vérification des
+    // Cosmétiques : liste relue à chaque ouverture : une vérification des
     // fichiers Steam/Epic a pu passer par là depuis. (COS n'existe pas encore
     // lors du tout premier appel, à l'initialisation : le premier état la
     // relira de toute façon.)
@@ -2738,10 +2665,10 @@
   try { savedSection = localStorage.getItem(SECTION_KEY) || 'home'; } catch (e) { /* idem */ }
   showSection(savedSection);
 
-  // ─── Cosmétiques ───
+  // Cosmétiques
   // Seule section qui touche aux fichiers du jeu. Le renderer ne fait que
   // demander : c'est le processus principal qui sauvegarde l'original, copie,
-  // restaure, réapplique après une mise à jour — et refuse tout tant que
+  // restaure, réapplique après une mise à jour : et refuse tout tant que
   // Rocket League tourne (chaque appel renvoie alors { ok:false, error }).
   // Ici on affiche, on verrouille, et on n'avale jamais une erreur : chaque
   // échec s'écrit sous la liste jusqu'à l'action suivante.
@@ -2771,8 +2698,8 @@
     return parts.length ? parts[parts.length - 1] : s;
   }
 
-  // Jeu en cours selon TOUTES les sources connues (liste, state.cosmetics,
-  // processus détecté) : au moindre doute on verrouille — le processus
+  // Jeu en cours selon toutes les sources connues (liste, state.cosmetics,
+  // processus détecté) : au moindre doute on verrouille : le processus
   // principal refuserait de toute façon, autant ne pas promettre un clic.
   function cosGameRunning() {
     var d = COS.data || {};
@@ -2802,7 +2729,7 @@
         COS.err = (e && e.message) || String(e) || T.cosFail;
       });
     // Préréglages : API plus récente, absente d'un processus principal plus
-    // ancien — la carte reste alors masquée, sans erreur.
+    // ancien : la carte reste alors masquée, sans erreur.
     var presets = !api.cosmeticsPresets ? Promise.resolve()
       : Promise.resolve().then(function () { return api.cosmeticsPresets(); })
         .then(function (p) {
@@ -2815,7 +2742,7 @@
   }
 
   // Quand l'état poussé par le processus principal change (compteurs, jeu
-  // lancé ou fermé), la liste est relue ; sinon on ne touche à rien — sauf
+  // lancé ou fermé), la liste est relue ; sinon on ne touche à rien : sauf
   // si la langue a changé, les lignes portant des libellés traduits.
   function cosOnState(s) {
     if (!COS) return;
@@ -2954,7 +2881,7 @@
     installs.forEach(function (p) {
       var o = document.createElement('option');
       o.value = p;
-      o.textContent = cosInstallName(p) + ' — ' + p;
+      o.textContent = cosInstallName(p) + ' : ' + p;
       sel.appendChild(o);
     });
     if (installs.indexOf(prev) >= 0) sel.value = prev;
@@ -3014,7 +2941,7 @@
     entries.forEach(function (p) {
       var o = document.createElement('option');
       o.value = p.install;
-      o.textContent = cosInstallName(p.install) + ' — ' + p.install;
+      o.textContent = cosInstallName(p.install) + ' : ' + p.install;
       sel.appendChild(o);
     });
     if (entries.some(function (p) { return p.install === prev; })) sel.value = prev;
@@ -3053,7 +2980,7 @@
     targets.forEach(function (t) {
       var o = document.createElement('option');
       o.value = t;
-      o.textContent = t === entry.recommended ? t + ' — ' + T.cosRecommended : t;
+      o.textContent = t === entry.recommended ? t + ' (' + T.cosRecommended + ')' : t;
       tsel.appendChild(o);
     });
     if (targets.indexOf(tprev) >= 0) tsel.value = tprev;
@@ -3135,14 +3062,14 @@
   $('cosRestoreAll').onclick = function () { cosAction('cosmeticsRestoreAll', []); };
 
   // Extension attendue du fichier de remplacement, déduite de la cible :
-  // dite AVANT d'ouvrir la boîte de dialogue, pas découverte après coup.
+  // dite avant d'ouvrir la boîte de dialogue, pas découverte après coup.
   function cosUpdateExt() {
     var m = /\.(upk|bnk)$/i.exec($('cosTarget').value.trim());
     $('cosExt').textContent = m ? T.cosExt('.' + m[1].toLowerCase()) : T.cosExtNone;
   }
 
   // Suggestions de cibles : recherche côté processus principal (200 max),
-  // avec un délai après la frappe et un n° de séquence — une réponse lente
+  // avec un délai après la frappe et un n° de séquence : une réponse lente
   // ne doit pas écraser celle d'une frappe plus récente.
   function cosSuggest() {
     var box = $('cosSuggest');
@@ -3194,7 +3121,7 @@
   });
   $('cosInstall').addEventListener('change', function () {
     // Autre installation, autres fichiers : la cible saisie n'y existe
-    // peut-être pas — on repart de zéro.
+    // peut-être pas : on repart de zéro.
     $('cosTarget').value = '';
     cosUpdateExt();
   });
@@ -3238,7 +3165,7 @@
   // échéant ; la liste elle-même arrive avec le premier état.
   renderCosmetics();
 
-  // ─── Réglages ───
+  // Réglages
   $('pseudo').addEventListener('input', function () { editingPseudo = true; });
   function savePseudo() {
     editingPseudo = false;
@@ -3262,7 +3189,7 @@
       // "1,234"...) met l'input en badInput : sa .value vaut alors '' au
       // même titre qu'un champ réellement vide. Sans ce garde-fou, une
       // simple faute de frappe serait traitée plus bas comme un effacement
-      // volontaire du MMR — et donc de tout l'historique de la courbe
+      // volontaire du MMR : et donc de tout l'historique de la courbe
       // d'évolution (voir la confirmation juste en dessous). On ignore
       // silencieusement la saisie tant qu'elle n'est pas valide plutôt que
       // de la traiter comme une valeur.
@@ -3339,7 +3266,7 @@
     api.setConfig && api.setConfig({ lang: $('optLang').value });
   });
 
-  // ─── Apparence ───
+  // Apparence
   [['cWin', 'win'], ['cLoss', 'loss'], ['cBg', 'bg'], ['cGold', 'gold']]
     .forEach(function (pair) {
       $(pair[0]).addEventListener('change', function () {
@@ -3350,7 +3277,7 @@
       });
     });
 
-  // ─── Animations ───
+  // Animations
   function saveAnim() {
     api.setConfig && api.setConfig({ anim: {
       preset: $('animPreset').value,
@@ -3361,9 +3288,9 @@
   ['animPreset', 'sndPreset', 'animEnd', 'animGoal'].forEach(function (id) {
     $(id).addEventListener('change', saveAnim);
   });
-  // ─── Alertes ───
+  // Alertes
   // Quatre cases séparées : celui qui stream coupe le MVP, celui qui grimpe
-  // ne garde que le rang. La durée est un menu et non un curseur — entre
+  // ne garde que le rang. La durée est un menu et non un curseur : entre
   // 6 et 7 secondes personne ne fait la différence, et le contrat borne à
   // 15 s de toute façon.
   function saveAlerts() {
@@ -3434,14 +3361,14 @@
   };
 
 
-  // ─── Mode streamer (OBS) ───
+  // Mode streamer (OBS)
   // Tous les réglages s'appliquent en direct dans OBS, sans recharger la
   // source : la page overlay reçoit la configuration par le flux SSE.
   function saveObs() {
     var portEl = $('obsSosPort');
     // Comme pour les champs MMR plus haut : un <input type="number"> renvoie
     // .value === '' aussi bien quand il est vraiment vide que lorsque la
-    // saisie est encore invalide (badInput — collage cassé, frappe en
+    // saisie est encore invalide (badInput : collage cassé, frappe en
     // cours). Contrairement au MMR, un port vide n'a ici aucun sens : on
     // retombe sur le dernier port connu plutôt que d'envoyer 0 (que
     // config.js rejetterait de toute façon, hors plage 1024-65535, mais
@@ -3483,9 +3410,9 @@
       done();
     }
   };
-  // ─── Toile de l'overlay ───
+  // Toile de l'overlay
   // Les blocs sont posés en pourcentages : une source OBS plus étroite que
-  // la toile ne décale rien, elle rétrécit tout — textes compris. D'où le
+  // la toile ne décale rien, elle rétrécit tout : textes compris. D'où le
   // choix explicite, et la taille affichée telle qu'on doit la recopier.
   // Les bornes du contrat (320 → 3840) sont réappliquées ici : un
   // <input type="number"> hors bornes se contente de se colorer, il envoie
@@ -3547,7 +3474,7 @@
     }, function () { /* presse-papier refusé : le champ reste sélectionnable */ });
   };
 
-  // ─── Presets de disposition ───
+  // Presets de disposition
   // Le fichier ne contient que la mise en page : rien de personnel n'en
   // sort, et rien n'écrase la session en l'important.
   function presetAction(btn, label, call, done) {
@@ -3602,7 +3529,7 @@
     }
   };
 
-  // ─── Mini-overlay ───
+  // Mini-overlay
   function saveOverlayCfg() {
     api.setConfig && api.setConfig({ overlayCfg: {
       showStreak: $('ovStreak').checked,
@@ -3615,7 +3542,7 @@
     $(id).addEventListener('change', saveOverlayCfg);
   });
 
-  // ─── Actions ───
+  // Actions
   $('dashBtn').onclick = function () { api.openDashboard && api.openDashboard(); };
   $('updCheckBtn').onclick = function () {
     // Retour immédiat : l'état « checking » n'arrive qu'au prochain push.
@@ -3645,7 +3572,7 @@
 
   // Copie dans le presse-papier. navigator.clipboard n'est pas garanti
   // (contexte non sécurisé selon la version d'Electron), d'où le repli sur
-  // execCommand — avec un <textarea> et non un <input> : le rapport de
+  // execCommand : avec un <textarea> et non un <input> : le rapport de
   // diagnostic fait plusieurs lignes, un champ simple les écraserait en une.
   function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -3672,12 +3599,12 @@
     b._t = setTimeout(function () { b.textContent = back; }, 2000);
   }
 
-  // ─── Diagnostic ───
+  // Diagnostic
   // Tout le contenu vient du processus principal : cette fenêtre met en
   // forme, elle ne conclut rien. L'important est la version texte : deux
   // mécanismes (l'ini Stats API d'une installation Steam, la réconciliation
   // d'un forfait adverse) ne se vérifient qu'en conditions réelles, chez
-  // quelqu'un d'autre — sans rapport à recoller dans un message, un test
+  // quelqu'un d'autre : sans rapport à recoller dans un message, un test
   // ne remonte rien d'exploitable.
   var DIAG_STATES = ['ok', 'warn', 'fail', 'skip'];
   var DIAG_LABEL = { ok: 'diagStOk', warn: 'diagStWarn', fail: 'diagStFail', skip: 'diagStSkip' };
@@ -3744,14 +3671,14 @@
 
   // Version texte : c'est elle qui voyage dans un message. États en clair et
   // en ASCII pour rester lisibles quel que soit le client de messagerie, et
-  // identiques dans les deux langues — celui qui reçoit le rapport n'a pas
+  // identiques dans les deux langues : celui qui reçoit le rapport n'a pas
   // forcément réglé l'application dans la même.
   function diagText(rep) {
     var lines = [T.diagTxtHead((cur && cur.version) || '?', diagWhen(rep.at))];
     (Array.isArray(rep.checks) ? rep.checks : []).forEach(function (c) {
       var st = diagState(c);
       lines.push('[' + st.toUpperCase() + '] ' + ((c && (c.label || c.id)) || '?')
-        + (c && c.detail ? ' — ' + c.detail : ''));
+        + (c && c.detail ? ' : ' + c.detail : ''));
       if (c && c.hint && (st === 'warn' || st === 'fail')) {
         lines.push('       ' + T.diagTxtHint + ' ' + c.hint);
       }
@@ -3801,7 +3728,7 @@
     });
   };
 
-  // ─── Export du journal des matchs ───
+  // Export du journal des matchs
   // Même mécanique de retour d'information que « Réactiver la Stats API » :
   // le bouton se désactive et affiche lui-même le résultat, pas de popup.
   $('exportBtn').onclick = function () {
@@ -3810,7 +3737,7 @@
     Promise.resolve(api.exportMatches ? api.exportMatches() : null)
       .then(function (res) {
         // Annulation silencieuse : l'utilisateur a fermé la boîte de
-        // dialogue « Enregistrer sous » sans choisir de fichier — ni
+        // dialogue « Enregistrer sous » sans choisir de fichier : ni
         // succès ni erreur, on rétablit juste le bouton.
         if (res && res.canceled) {
           b.disabled = false; b.textContent = T.bExport;
@@ -3824,7 +3751,7 @@
       });
   };
 
-  // ─── État live ───
+  // État live
   if (api.onLookPreview) {
     api.onLookPreview(function (l) {
       lookPreview = l;

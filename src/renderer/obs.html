@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  obs.html — Overlay de stream, servi par le serveur local (obs-server.js)
+  obs.html : Overlay de stream, servi par le serveur local (obs-server.js)
   et capturé dans OBS via une source « Navigateur » :
 
       http://127.0.0.1:49350/overlay   (taille conseillée : 860 × 220)
@@ -31,7 +31,7 @@
     font-family:'Barlow Condensed','Segoe UI',sans-serif;
     color:var(--text); -webkit-user-select:none; user-select:none;
   }
-  /* Bandeau principal — coin droit biseauté, liseré bleu/orange. */
+  /* Bandeau principal : coin droit biseauté, liseré bleu/orange. */
   #wrap { position:relative; display:inline-block; margin:12px;
     transition:opacity .6s; }
   #wrap.stale { opacity:.35; }     /* application fermée : on s'efface */
@@ -106,7 +106,7 @@
   #banner.W .stripe { background:var(--blue); }
   #banner.L .stripe { background:var(--orange); }
 
-  /* ─── Style « Compact » : une seule ligne fine, idéale près de la cam ─── */
+  /* Style « Compact » : une seule ligne fine, idéale près de la cam */
   body[data-style="compact"] .cell { flex-direction:row; align-items:baseline;
     gap:10px; padding:9px 16px 8px; }
   body[data-style="compact"] .k { margin:0; font-size:11px; }
@@ -119,7 +119,7 @@
   body[data-style="compact"] #banner .res { font-size:24px; }
   body[data-style="compact"] #banner .sc { font-size:20px; }
 
-  /* ─── Style « Vertical » : carte empilée, pour le bord de l'écran ─── */
+  /* Style « Vertical » : carte empilée, pour le bord de l'écran */
   body[data-style="vertical"] #bar { flex-direction:column; min-width:230px; }
   body[data-style="vertical"] .cell { padding:13px 18px 11px; }
   body[data-style="vertical"] .cell + .cell { border-left:0;
@@ -241,10 +241,10 @@
     if (oc.showLive !== false && live && live.active && !live.training && live.score) {
       $('liveCell').style.display = 'flex';
       $('liveK').innerHTML = '<span class="live-dot"></span>' + T.live;
-      // h2h ne contient QUE les adversaires déjà croisés (pas tous les
+      // h2h ne contient que les adversaires déjà croisés (pas tous les
       // adversaires du match) : en 2v2/3v3, un seul nom dans h2h ne veut
-      // PAS dire un seul adversaire dans le match — le réglage « (1v1) »
-      // n'a de sens que pour un VRAI 1v1, vérifié via le nombre de joueurs
+      // Pas dire un seul adversaire dans le match : le réglage « (1v1) »
+      // n'a de sens que pour un vrai 1v1, vérifié via le nombre de joueurs
       // (sinon le bandeau affiche « vs X » comme un duel devant tout le
       // stream alors que X n'est qu'un des adversaires).
       var isDuel = Array.isArray(live.players) && live.players.length === 2;

@@ -182,7 +182,7 @@ function openOverlayComposer() {
     show: false,
     icon: ICON,
     autoHideMenuBar: true,
-    title: 'RL Session Tracker — Compositeur d’overlay',
+    title: 'RL Session Tracker – Compositeur d’overlay',
     webPreferences: {
       preload: PRELOAD,
       contextIsolation: true,
@@ -219,7 +219,7 @@ function openDashboard(opts, onReady) {
     show: false,
     icon: ICON,
     autoHideMenuBar: true,
-    title: 'RL Session Tracker — Dashboard',
+    title: 'RL Session Tracker – Dashboard',
     webPreferences: {
       preload: PRELOAD,
       contextIsolation: true,

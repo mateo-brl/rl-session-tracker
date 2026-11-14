@@ -1,0 +1,83 @@
+/* tokens.css : ce que les fenêtres ont en commun.
+ *
+ * Polices, couleurs, échelle typographique, ingrédients de forme et contour
+ * de focus. Chargé avant le <style> de chaque fenêtre, donc une fenêtre peut
+ * encore surcharger une valeur, mais elle n'a plus à la recopier.
+ *
+ * Les couleurs d'ici ne sont que les valeurs de départ : applyTheme() les
+ * repose en style inline sur <html> dès que la configuration arrive.
+ */
+
+@font-face { font-family:'Barlow Condensed'; font-weight:500; font-style:normal;
+  src:url('fonts/barlow-condensed-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family:'Barlow Condensed'; font-weight:600; font-style:normal;
+  src:url('fonts/barlow-condensed-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:normal;
+  src:url('fonts/barlow-condensed-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:normal;
+  src:url('fonts/barlow-condensed-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family:'Barlow Condensed'; font-weight:700; font-style:italic;
+  src:url('fonts/barlow-condensed-latin-700-italic.woff2') format('woff2'); }
+@font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
+  src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
+
+:root {
+  /* Surfaces et texte. */
+  --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d;
+  --text:#e3e8ef; --muted:#8b93a1;
+  /* Deux filets. --line sépare des zones (cartes, lignes de tableau) : il
+     peut rester discret. --line-strong borde ce sur quoi on agit (champ,
+     case, bouton) et tient 3:1 contre les trois surfaces. */
+  --line:#39414f; --line-strong:#737d8c;
+
+  /* Les deux équipes, et l'or des MVP. */
+  --blue:#4dabff; --blue-deep:#1466b8;
+  --orange:#e0741a; --orange-deep:#a34f00;
+  --gold:#ffc233;
+  /* Texte posé sur un aplat d'accent. applyTheme() choisit le noir ou le
+     blanc selon la couleur du thème, pour tenir 4,5:1 sur les huit palettes. */
+  --on-blue:#0c0e11; --on-blue-deep:#ffffff;
+  --on-orange-deep:#ffffff; --on-gold:#0c0e11;
+  /* Rouge d'erreur, hors thème : la couleur « défaite » peut être verte ou
+     bleue, un état cassé doit rester reconnaissable. */
+  --red:#ff4d5e;
+
+  /* Échelle de rang du jeu (Bronze à Supersonic Legend). Une donnée que le
+     joueur reconnaît, pas un choix de palette : applyTheme() n'y touche pas. */
+  --tier-1:#b07a4a; --tier-2:#a7b0bb; --tier-3:#dcae44; --tier-4:#43b8ae;
+  --tier-5:#3f6bd0; --tier-6:#c092ff; --tier-7:#e5602f; --tier-8:#ffd36e;
+
+  /* Dérivées : elles suivent le thème sans couleur en dur. */
+  --blue-soft:color-mix(in srgb, var(--blue) 12%, transparent);
+  --orange-soft:color-mix(in srgb, var(--orange) 12%, transparent);
+  --text-ghost:color-mix(in srgb, var(--text) 4%, transparent);
+  --edge:rgba(0, 0, 0, .62);
+
+  /* Échelle typographique. Plancher à 12 px : en dessous, rien ne se lit sur
+     un second écran à deux mètres. Les trois derniers paliers sont réservés
+     aux scores. */
+  --fs-xs:12px; --fs-sm:14px; --fs-md:16px; --fs-lg:20px; --fs-xl:24px;
+  --fs-2xl:32px; --fs-3xl:44px; --fs-4xl:64px; --fs-5xl:112px;
+
+  /* Ingrédients de forme, réglables depuis l'atelier des habillages. */
+  --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
+  --body-font:'Segoe UI',ui-sans-serif,system-ui,sans-serif;
+  --num-style:italic;          /* chiffres penchés des scores */
+  --cut:18px;                  /* chanfrein des cartes */
+  --cut-sm:12px;               /* chanfrein des tuiles */
+  --skew:-14deg;               /* inclinaison des plaques */
+  --dens:1;                    /* densité : 1 confortable, .8 dense, 1.15 canapé */
+}
+
+* { box-sizing:border-box; margin:0; padding:0; }
+
+/* Contour de focus au clavier. :focus-visible et non :focus, pour ne pas
+   cercler ce qu'on vient de cliquer à la souris. */
+:focus-visible {
+  outline:2px solid var(--blue);
+  outline-offset:2px;
+  border-radius:2px;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline-offset:1px;
+}
