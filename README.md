@@ -64,7 +64,7 @@ A transparent OBS overlay served locally, laid out in a drag-and-drop composer a
 <td valign="top">
 
 ### 🎨 Make it yours
-Six complete skins, eight color themes, movable and resizable blocks, three layout profiles, and looks you can share with a code.
+Twenty-one complete skins, eight color themes, movable and resizable blocks, three layout profiles, and looks you can share with a code.
 
 </td>
 <td valign="top">
@@ -82,9 +82,9 @@ No sign-up, no third-party site, no telemetry. Matches are stored in a local JSO
 
 <img src="docs/en/victory.gif" width="100%" alt="Animated end-of-match victory screen on the dashboard" />
 
-### Six skins, not just six palettes
+### Twenty-one skins, not just palettes
 
-Each skin changes the typography, card shapes, borders, shadows and background. Shown here: Neon, Paper, Console and Brut. Arena (top of the page) and Calm complete the set.
+Each skin changes the typography, card shapes, borders and background: a stadium LED board, a locker-room whiteboard, a pitch, teletext, a squared match sheet… The showcase filters them (dark, light, quiet, bold, stadium, retro), searches them by name and keeps your favourites.
 
 <img src="docs/en/skins.png" width="100%" alt="The dashboard in four skins: Neon, Paper, Console and Brut" />
 
@@ -143,7 +143,7 @@ The app lives in the system tray. **Ctrl+Alt+R** opens the settings from anywher
 
 - Every block can be moved, resized, hidden and configured (modes shown, rows, columns, counters).
 - Three layout profiles and bonus widgets: clock, MMR goal, now playing.
-- Six skins (Arena, Console, Paper, Neon, Brut, Calm) plus a workshop to change typography, card cut and density on top of any skin.
+- Twenty-one skins (Arena, Scoreboard, Locker room, Pitch, Boost, Slate, Jersey, Tifo, Trophy, Night match, Teletext, Arcade cabinet, VCR, Garage, Gauge, Aquadome, Gazette, Notebook, Sticker, Frost, Ink) plus a workshop to change typography, card cut and density on top of any skin.
 - Eight color themes or fully custom colors. Save a look under a name and share it as a code.
 - Five end-of-match animation styles, four jingles, and a tilt-o-meter after three losses in a row.
 - Alerts for win streaks, rank ups, MVPs and broken records.

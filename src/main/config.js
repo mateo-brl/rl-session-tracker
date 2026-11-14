@@ -9,7 +9,15 @@ const { MMR_STEP_MIN, MMR_STEP_MAX } = require('./session');
 
 // Habillages connus. Une valeur inconnue (fichier édité à la main, retour
 // arrière de version) est ignorée : on garde celui déjà en place.
-const SKINS = ['arena', 'console', 'papier', 'neon', 'brut', 'calme'];
+// Le catalogue vit avec les fenêtres : une seule liste pour l'affichage et
+// pour la validation. Un identifiant d'habillage retiré est remplacé par son
+// successeur (voir LEGACY dans skins.js).
+const SKIN_CATALOG = require('../renderer/skins.js');
+const SKINS = SKIN_CATALOG.ids;
+const skinId = (id) => {
+  const s = typeof id === 'string' ? (SKIN_CATALOG.legacy[id] || id) : '';
+  return SKINS.includes(s) ? s : null;
+};
 
 // Nettoyage d'une disposition (dashboard ou overlay) : positions bornées,
 // réglages par bloc bornés eux aussi. Une seule implémentation pour les deux,
@@ -158,6 +166,15 @@ function init(userDataDir) {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
     config = { ...DEFAULTS, ...raw };
+    // Un fichier écrit par une version précédente peut nommer un habillage
+    // retiré : il passe à son successeur, pour la fenêtre comme pour les
+    // looks enregistrés.
+    config.skin = skinId(config.skin) || DEFAULTS.skin;
+    if (Array.isArray(config.looks)) {
+      config.looks = config.looks
+        .filter((l) => l && skinId(l.skin))
+        .map((l) => ({ ...l, skin: skinId(l.skin) }));
+    }
   } catch (e) {
     config = { ...DEFAULTS };
     // ENOENT : premier lancement, il n'y a simplement pas encore de fichier —
@@ -276,7 +293,8 @@ function update(partial) {
       const out = [];
       for (const l of partial.looks.slice(0, 24)) {
         if (!l || typeof l !== 'object') continue;
-        if (!SKINS.includes(l.skin)) continue;
+        const lookSkin = skinId(l.skin);
+        if (!lookSkin) continue;
         const t = {};
         for (const k of ['win', 'loss', 'bg', 'gold']) {
           if (HEX.test(String(l.theme && l.theme[k] || ''))) t[k] = String(l.theme[k]).toLowerCase();
@@ -285,16 +303,14 @@ function update(partial) {
         const entry = {
           id: String(l.id || '').slice(0, 24) || ('l' + out.length),
           name: String(l.name || '').slice(0, 40) || 'Look',
-          skin: l.skin, theme: t,
+          skin: lookSkin, theme: t,
         };
         if (l.tune && typeof l.tune === 'object') entry.tune = l.tune;
         out.push(entry);
       }
       config.looks = out;
     }
-    if (typeof partial.skin === 'string' && SKINS.includes(partial.skin)) {
-      config.skin = partial.skin;
-    }
+    if (skinId(partial.skin)) config.skin = skinId(partial.skin);
     if (partial.theme === null) config.theme = null;
     else if (partial.theme && typeof partial.theme === 'object') {
       const t = {};

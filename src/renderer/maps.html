@@ -284,6 +284,7 @@
   </section>
 
 
+<script src="skins.js"></script>
 <script>
 (function () {
   'use strict';
@@ -409,7 +410,7 @@
 
   // Habillage (repris de la fenêtre de contrôle)
   var THEME_DEFAULT = { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' };
-  var SKIN_IDS = ['arena', 'console', 'papier', 'neon', 'brut', 'calme'];
+  var SKIN_IDS = window.RL_SKINS.ids;
   function mix(a, b, f) {
     var pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
     var c = [16, 8, 0].map(function (sh) {

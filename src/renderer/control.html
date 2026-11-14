@@ -18,35 +18,46 @@
   .look-active { margin-left:auto; font-size:var(--fs-sm); color:var(--muted); }
   .look-active b { color:var(--text); }
   .look-filters { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
-  .look-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(232px, 1fr)); gap:14px; }
+  /* Recherche et décompte, au-dessus des filtres : avec une vingtaine
+     d'habillages, on cherche un nom autant qu'on parcourt. */
+  .look-tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .look-tools input { flex:1 1 220px; max-width:320px; }
+  .look-count { font-size:var(--fs-sm); color:var(--muted); }
+  .look-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(206px, 1fr)); gap:14px; }
   .look-item {
     border:1px solid var(--line); background:var(--panel2);
     display:flex; flex-direction:column; overflow:hidden;
   }
   .look-item.on { border-color:var(--blue); }
-  /* La vignette : un dashboard en réduction, avec les classes réelles. Le
-     conteneur porte l'habillage et sa palette, donc skins.css s'y applique
-     exactement comme sur le vrai écran. */
+  .look-none { grid-column:1 / -1; padding:18px 4px; font-size:var(--fs-sm); color:var(--muted); line-height:1.5; }
+  .look-none button { width:auto; padding:8px 16px; margin-top:10px; display:block; }
+  /* La vignette : un bloc « Session » grandeur nature, avec les vraies
+     classes, puis réduit d'un coup par zoom. Le conteneur porte l'habillage
+     et sa palette : skins.css s'y applique comme sur le vrai écran, polices,
+     tailles et motifs compris. */
   .look-prev {
-    height:118px; padding:10px; overflow:hidden; position:relative;
-    background:var(--bg); color:var(--text);
-    font-family:'Barlow Condensed','Segoe UI',sans-serif;
+    height:132px; padding:10px 12px; overflow:hidden; position:relative;
+    background:var(--page-bg); color:var(--text); font-family:var(--ui-font);
   }
-  .look-prev .card { padding:8px 10px; height:100%; }
-  .look-prev .tag { margin-bottom:8px; padding:3px 9px; }
-  .look-prev .tag > span { font-size:9px; letter-spacing:.14em; }
-  .look-prev .wl { display:flex; align-items:baseline; gap:8px; }
-  .look-prev .wl .w, .look-prev .wl .l {
-    font-size:30px; font-weight:800; font-style:italic; line-height:.95;
-  }
-  .look-prev .wl .w { color:var(--blue); }
-  .look-prev .wl .l { color:var(--orange); }
-  .look-prev .wl .sep {
-    font-size:0; width:3px; height:20px; align-self:center;
-    background:linear-gradient(180deg, var(--blue), var(--orange));
-    transform:skewX(-14deg);
-  }
-  .look-prev .plabel { font-size:10px; color:var(--muted); margin-top:4px; }
+  .look-prev > .card { zoom:.44; margin:0; }
+  :where(.look-prev) .tag { margin-bottom:14px; padding:5px 14px 5px 12px; }
+  :where(.look-prev) .tag > span { font-size:var(--fs-sm); letter-spacing:.08em; }
+  /* Le bilan et la suite de résultats, repris du dashboard : mêmes classes,
+     mêmes règles, pour que les habillages les trouvent où ils les attendent. */
+  .wl { display:flex; align-items:flex-start; gap:16px; font-variant-numeric:tabular-nums; }
+  .wl-col { display:flex; flex-direction:column; gap:6px; }
+  .wl .w, .wl .l { font-family:var(--num-font); font-size:var(--fs-4xl);
+    font-weight:var(--num-weight); font-style:var(--num-style); line-height:.95; }
+  .wl .w { color:var(--blue); }
+  .wl .l { color:var(--orange); }
+  .wl .sep { font-size:0; width:5px; height:42px; margin-top:8px;
+    background:var(--line-strong); transform:skewX(var(--skew)); }
+  .wl .cap { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
+  .pips { display:flex; align-items:flex-end; gap:5px; margin-top:14px; }
+  .pips i { width:10px; height:9px; display:block; transform:skewX(var(--skew)); background:var(--panel2); }
+  .pips i.W { height:20px; background:var(--blue); }
+  .pips i.L { height:10px; background:var(--orange); }
+  .pips i.last { box-shadow:0 4px 0 var(--text); }
   .look-body { padding:11px 13px 13px; display:flex; flex-direction:column; gap:6px; flex:1; }
   .look-name { font-weight:800; font-size:var(--fs-md); display:flex; align-items:center; gap:8px; }
   .look-name .badge-on {
@@ -56,6 +67,12 @@
   .look-desc { font-size:var(--fs-sm); color:var(--muted); line-height:1.45; flex:1; }
   .look-btns { display:flex; gap:8px; }
   .look-btns button { margin-top:0; flex:1; }
+  /* Étoile des favoris : pleine quand l'habillage en fait partie. */
+  .look-btns .look-fav { flex:none; width:40px; padding:0; display:grid; place-items:center; }
+  .look-fav svg { width:17px; height:17px; fill:none; stroke:currentColor;
+    stroke-width:1.8; stroke-linejoin:round; }
+  .look-fav[aria-pressed="true"] { border-color:var(--blue); color:var(--blue); }
+  .look-fav[aria-pressed="true"] svg { fill:currentColor; }
   /* Barre d'essayage : elle dit que rien n'est enregistré, et comment sortir. */
   .try-bar {
     position:fixed; left:0; right:0; bottom:0; z-index:60;
@@ -94,10 +111,10 @@
   .tb-title b { color:var(--blue); }
   /* Sigle « RL » sur plaque inclinée pleine, repris du logo du dashboard. */
   .tb-plate {
-    display:inline-block; transform:skewX(-14deg);
+    display:inline-block; transform:skewX(var(--skew));
     background:var(--blue); color:var(--on-blue); padding:0 8px; line-height:20px;
   }
-  .tb-plate > span { display:inline-block; transform:skewX(14deg); }
+  .tb-plate > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .tb-buttons { display:flex; -webkit-app-region:no-drag; }
   .tb-btn {
     width:44px; height:42px; border:0; background:transparent; cursor:pointer;
@@ -124,7 +141,7 @@
     border-bottom:1px solid var(--line);
   }
   .sq { width:10px; height:10px; background:var(--muted); flex:none;
-    transform:skewX(-14deg); }
+    transform:skewX(var(--skew)); }
   .sq.ok { background:var(--blue); }
   .sq.warn { background:var(--orange); }
   .side-status span:last-child { font-weight:600; font-size:var(--fs-sm); line-height:1.25; }
@@ -147,7 +164,7 @@
      Stats API en panne, pseudo à confirmer) alors qu'on est ailleurs. */
   .nav .ext { margin-left:auto; }
   .nav .badge { display:none; width:8px; height:8px; margin-left:auto;
-    background:var(--orange); transform:skewX(-14deg); flex:none; }
+    background:var(--orange); transform:skewX(var(--skew)); flex:none; }
   .nav.alert .badge { display:block; }
   .side-foot { padding:14px; border-top:1px solid var(--line); }
 
@@ -176,8 +193,11 @@
     display:inline-block; transform:skewX(calc(-1 * var(--skew)));
     font-family:var(--ui-font); font-style:var(--num-style);
     font-weight:800; font-size:var(--fs-md); letter-spacing:.06em;
-    text-transform:uppercase; color:var(--on-blue-deep);
+    text-transform:var(--tag-case); color:var(--on-blue-deep);
   }
+  /* Le titre de section garde sa taille quel que soit l'habillage : celui-ci
+     en change la police et la couleur, pas la place dans la page. */
+  .sec-head .tag > span { font-size:17px; }
   .sec-sub { margin-top:10px; font-size:var(--fs-sm); color:var(--muted); }
 
   /* Cartes : la même plaque à deux chanfreins que sur le dashboard, sans
@@ -201,6 +221,7 @@
   /* Carte d'alerte : le filet passe à l'orange, et le titre le dit. */
   .card.warn { --card-edge:var(--orange); }
   .card.warn h2 { color:var(--orange); }
+  .card { border-radius:var(--card-radius, 0); }
   .card p.txt { font-size:var(--fs-sm); color:var(--muted); line-height:1.55; }
   .card p.txt b { color:var(--text); }
   /* Deux cartes côte à côte quand la place le permet ; en dessous de
@@ -283,10 +304,10 @@
   .chips { display:flex; flex-wrap:wrap; gap:8px; }
   .chip {
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--text);
-    transform:skewX(-12deg); padding:7px 16px; font-size:var(--fs-sm); font-weight:600;
+    transform:skewX(var(--skew)); padding:7px 16px; font-size:var(--fs-sm); font-weight:600;
     font-family:inherit; cursor:pointer;
   }
-  .chip > span { display:inline-block; transform:skewX(12deg); }
+  .chip > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .chip:hover { border-color:var(--blue); color:var(--blue); }
 
   /* Raccourci clavier */
@@ -357,7 +378,7 @@
   /* Pastille de statut : même carré incliné que le statut de la barre
      latérale. Bleu = en place, orange = à réappliquer, rouge = original
      introuvable, gris = en attente, creux = illisible. */
-  .swap-dot { width:10px; height:10px; flex:none; transform:skewX(-14deg);
+  .swap-dot { width:10px; height:10px; flex:none; transform:skewX(var(--skew));
     background:var(--muted); }
   .swap.st-applied .swap-dot { background:var(--blue); }
   .swap.st-reverted .swap-dot { background:var(--orange); }
@@ -373,9 +394,9 @@
     margin-top:2px; overflow-wrap:anywhere; }
   .swap.off .swap-main { opacity:.55; }
   .swap-st { flex:none; border:1px solid var(--line); color:var(--muted);
-    padding:2px 8px; transform:skewX(-12deg); font-size:var(--fs-xs);
+    padding:2px 8px; transform:skewX(var(--skew)); font-size:var(--fs-xs);
     font-weight:600; white-space:nowrap; }
-  .swap-st > span { display:inline-block; transform:skewX(12deg); }
+  .swap-st > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .st-applied .swap-st { color:var(--blue); border-color:var(--blue); }
   .st-reverted .swap-st { color:var(--orange); border-color:var(--orange); }
   .st-missing .swap-st { color:var(--red); border-color:var(--red); }
@@ -383,7 +404,7 @@
      dessinée comme les plaques (rail et curseur inclinés). */
   .switch { position:relative; width:36px; height:18px; flex:none; margin:0;
     appearance:none; -webkit-appearance:none; cursor:pointer;
-    background:var(--panel2); border:1px solid var(--line-strong); transform:skewX(-12deg); }
+    background:var(--panel2); border:1px solid var(--line-strong); transform:skewX(var(--skew)); }
   .switch::before { content:''; position:absolute; top:2px; left:2px;
     width:12px; height:12px; background:var(--muted); transition:left .15s; }
   .switch:checked { background:var(--blue-deep); border-color:var(--blue); }
@@ -431,7 +452,7 @@
     border-top:1px solid var(--line); }
   .diag-row:first-child { border-top:0; padding-top:2px; }
   .diag-dot { width:10px; height:10px; flex:none; margin-top:4px;
-    transform:skewX(-14deg); background:var(--muted); }
+    transform:skewX(var(--skew)); background:var(--muted); }
   .diag-row.st-ok .diag-dot { background:var(--blue); }
   .diag-row.st-warn .diag-dot { background:var(--orange); }
   .diag-row.st-fail .diag-dot { background:var(--red); }
@@ -446,8 +467,8 @@
   .diag-main .fix { color:var(--orange); }
   .diag-row.st-fail .fix { color:var(--red); }
   .diag-st { flex:none; border:1px solid var(--line); color:var(--muted);
-    transform:skewX(-12deg); padding:2px 9px; font-size:var(--fs-xs); font-weight:600; }
-  .diag-st > span { display:inline-block; transform:skewX(12deg); }
+    transform:skewX(var(--skew)); padding:2px 9px; font-size:var(--fs-xs); font-weight:600; }
+  .diag-st > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .st-ok .diag-st { color:var(--blue); border-color:var(--blue); }
   .st-warn .diag-st { color:var(--orange); border-color:var(--orange); }
   .st-fail .diag-st { color:var(--red); border-color:var(--red); }
@@ -750,13 +771,17 @@
         </div>
 
         <div class="card">
+          <div class="look-tools">
+            <input type="text" id="lookSearch" autocomplete="off" spellcheck="false" />
+            <span class="look-count" id="lookCount"></span>
+          </div>
           <div class="look-filters" id="lookFilters"></div>
           <div class="look-grid" id="lookGrid"></div>
         </div>
 
         <!-- Atelier : on n'y choisit pas un look, on l'assemble. Chaque
              ingrédient se pose en variable CSS par-dessus l'habillage, donc
-             il traverse les six sans en casser aucun. -->
+             il les traverse tous sans en casser aucun. -->
         <div class="card">
           <h2 data-i18n="hAtelier">Atelier</h2>
           <div class="hint" data-i18n="hintAtelier">Pars d'un habillage et change ce qui te gêne. « Auto » laisse l'habillage décider, c'est le réglage d'origine.</div>
@@ -1142,6 +1167,7 @@
     <button class="primary" id="tryApply" data-i18n="bTryApply">Appliquer</button>
   </div>
 
+  <script src="skins.js"></script>
   <script>
 (function () {
   'use strict';
@@ -1390,16 +1416,17 @@
       bLookDel: 'Retirer',
       lookActiveLbl: 'Look actif',
       lookTweaked: 'retouché',
-      famAll: 'Tout',
-      famSobre: 'Sobres',
-      famBroadcast: 'Broadcast',
-      famStream: 'Pour le stream',
-      descArena: 'L’origine. Plaques biseautées, cartouches inclinés, halos d’équipe.',
-      descConsole: 'Terminal à phosphore. Chasse fixe, cadres d’un pixel, scanlines.',
-      descPapier: 'Imprimé clair. Empattements, filets fins, aucun aplat.',
-      descNeon: 'Verre et enseignes. Coins arrondis, panneaux floutés, halos.',
-      descBrut: 'Brutaliste. Cadres de trois pixels, ombres décalées, typo énorme.',
-      descCalme: 'Rien que le contenu. Ni cadre ni biseau, de l’air et des filets.',
+      famAll: 'Tout', famFav: 'Favoris', famDark: 'Sombres', famLight: 'Clairs',
+      famSobre: 'Sobres', famVif: 'Vifs', famStade: 'Stade', famRetro: 'R\u00e9tro',
+      lookSearchPh: 'Chercher un habillage',
+      lookCount: function (n, total) {
+        return n === total ? total + ' habillages' : n + ' sur ' + total;
+      },
+      lookNone: 'Aucun habillage ne correspond.',
+      lookNoneFav: 'Aucun favori pour l\u2019instant. L\u2019\u00e9toile d\u2019une vignette l\u2019ajoute ici.',
+      bLookAll: 'Tout afficher',
+      favAdd: 'Ajouter aux favoris', favDel: 'Retirer des favoris',
+      prevWins: 'Victoires', prevLosses: 'D\u00e9faites',
       myLooksEmpty: 'Aucun look enregistré. Règle tes couleurs, puis crée-en un.',
       lookFromCode: 'Look collé',
       lookBadCode: 'Code illisible. Colle le code entier, il commence par RLST-.',
@@ -1676,16 +1703,17 @@
       bLookDel: 'Remove',
       lookActiveLbl: 'Active look',
       lookTweaked: 'tweaked',
-      famAll: 'All',
-      famSobre: 'Quiet',
-      famBroadcast: 'Broadcast',
-      famStream: 'For streaming',
-      descArena: 'The original. Chamfered plates, slanted title plates, team halos.',
-      descConsole: 'Phosphor terminal. Monospace, one-pixel frames, scanlines.',
-      descPapier: 'Light print. Serifs, hairlines, no flat colour.',
-      descNeon: 'Glass and signs. Rounded corners, blurred panels, halos.',
-      descBrut: 'Brutalist. Three-pixel frames, offset shadows, huge type.',
-      descCalme: 'Content only. No frame, no chamfer, air and hairlines.',
+      famAll: 'All', famFav: 'Favourites', famDark: 'Dark', famLight: 'Light',
+      famSobre: 'Quiet', famVif: 'Bold', famStade: 'Stadium', famRetro: 'Retro',
+      lookSearchPh: 'Search skins',
+      lookCount: function (n, total) {
+        return n === total ? total + ' skins' : n + ' of ' + total;
+      },
+      lookNone: 'No skin matches.',
+      lookNoneFav: 'No favourites yet. The star on a card adds it here.',
+      bLookAll: 'Show all',
+      favAdd: 'Add to favourites', favDel: 'Remove from favourites',
+      prevWins: 'Wins', prevLosses: 'Losses',
       myLooksEmpty: 'No saved look yet. Set your colours, then create one.',
       lookFromCode: 'Pasted look',
       lookBadCode: 'Unreadable code. Paste the whole thing, it starts with RLST-.',
@@ -1817,27 +1845,14 @@
   // Habillages (skins) : la forme de l'interface, pas seulement ses
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
   // que les thèmes : l'utilisateur peut donc la retoucher ensuite.
-  var SKINS = [
-    { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
-    { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
-    { id: 'papier',  name: 'Papier',   t: { win: '#1a5fd0', loss: '#a8350a', bg: '#f4f1ea', gold: '#8a5209' } },
-    { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
-    { id: 'brut',    name: 'Brut',     t: { win: '#00e0ff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
-    { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
-  ];
-  // Familles, pour filtrer : un habillage peut en porter plusieurs.
-  var SKIN_META = {
-    arena:   { fam: ['broadcast'], desc: 'descArena' },
-    console: { fam: ['stream'],    desc: 'descConsole' },
-    papier:  { fam: ['sobre'],     desc: 'descPapier' },
-    neon:    { fam: ['broadcast', 'stream'], desc: 'descNeon' },
-    brut:    { fam: ['stream'],    desc: 'descBrut' },
-    calme:   { fam: ['sobre'],     desc: 'descCalme' },
-  };
+  var SKINS = window.RL_SKINS.list;
   function skinById(id) {
+    id = window.RL_SKINS.legacy[id] || id;
     for (var i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
     return SKINS[0];
   }
+  function skinName(sk) { return (langApplied === 'en' && sk.nameEn) || sk.name; }
+  function skinDesc(sk) { return (sk.desc && (sk.desc[langApplied] || sk.desc.fr)) || ''; }
   function applySkin(id) {
     var s = skinById(id);
     if (document.documentElement.dataset.skin !== s.id) {
@@ -1930,6 +1945,36 @@
   // rediffuse l'aperçu. Annuler remet la configuration réelle.
   var tryLook = null;          // { skin, theme, name } pendant un aperçu
   var lookFilter = 'all';
+  var lookQuery = '';
+  // Favoris : une préférence de vitrine, propre à cette machine. Elle reste
+  // dans le stockage de la fenêtre plutôt que dans la configuration, qui se
+  // transporte d'une installation à l'autre.
+  var FAV_KEY = 'rlst.favSkins';
+  function favSkins() {
+    try {
+      var a = JSON.parse(localStorage.getItem(FAV_KEY) || '[]');
+      return Array.isArray(a) ? a : [];
+    } catch (e) { return []; }
+  }
+  function setFavSkin(id, on) {
+    var a = favSkins().filter(function (x) { return x !== id; });
+    if (on) a.push(id);
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(a)); } catch (e) { /* stockage indisponible : pas de favoris */ }
+  }
+  function plain(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+  function skinInFilter(sk, f) {
+    if (f === 'all') return true;
+    if (f === 'fav') return favSkins().indexOf(sk.id) !== -1;
+    if (f === 'dark') return !isLight(sk.t.bg);
+    if (f === 'light') return isLight(sk.t.bg);
+    return sk.fam.indexOf(f) !== -1;
+  }
+  function skinInQuery(sk, q) {
+    if (!q) return true;
+    return plain(sk.name + ' ' + (sk.nameEn || '') + ' ' + skinDesc(sk)).indexOf(q) !== -1;
+  }
 
   function currentLook() {
     var cfg = (cur && cur.config) || {};
@@ -1963,12 +2008,17 @@
     d.style.setProperty('--panel', mix(t.bg, toward, .055));
     d.style.setProperty('--panel2', mix(t.bg, toward, .10));
     d.style.setProperty('--line', mix(t.bg, toward, .22));
+    d.style.setProperty('--line-strong', mix(t.bg, toward, light ? .52 : .45));
     var deep = mix(t.win, '#000000', .42);
     d.style.setProperty('--blue-deep', deep);
+    d.style.setProperty('--on-blue', inkOn(t.win));
     d.style.setProperty('--on-blue-deep', inkOn(deep));
     d.innerHTML = '<div class="card"><div class="tag"><span>' + T.tagSessionPrev + '</span></div>'
-      + '<div class="wl"><span class="w">8</span><span class="sep">–</span><span class="l">4</span></div>'
-      + '<div class="plabel">67 % ' + T.prevWinrate + '</div></div>';
+      + '<div class="wl"><div class="wl-col"><span class="w">8</span><span class="cap">'
+      + T.prevWins + '</span></div><span class="sep">\u2013</span><div class="wl-col">'
+      + '<span class="l">4</span><span class="cap">' + T.prevLosses + '</span></div></div>'
+      + '<div class="pips"><i class="W"></i><i class="W"></i><i class="L"></i><i class="W"></i>'
+      + '<i class="L"></i><i class="W"></i><i class="W last"></i></div></div>';
     return d;
   }
 
@@ -1981,7 +2031,7 @@
     body.className = 'look-body';
     var name = document.createElement('div');
     name.className = 'look-name';
-    name.textContent = o.name || skinById(look.skin).name;
+    name.textContent = o.name || skinName(skinById(look.skin));
     if (o.active) {
       var b = document.createElement('span');
       b.className = 'badge-on';
@@ -2000,9 +2050,20 @@
     main.textContent = o.active ? T.bLookTweak : T.bLookTry;
     main.onclick = function () {
       if (o.active) { showSection('display'); return; }
-      startTry(look, o.name || skinById(look.skin).name);
+      startTry(look, o.name || skinName(skinById(look.skin)));
     };
     btns.appendChild(main);
+    if (o.favId) {
+      var isFav = favSkins().indexOf(o.favId) !== -1;
+      var fav = document.createElement('button');
+      fav.className = 'ghost look-fav';
+      fav.setAttribute('aria-pressed', String(isFav));
+      fav.title = isFav ? T.favDel : T.favAdd;
+      fav.setAttribute('aria-label', fav.title);
+      fav.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/></svg>';
+      fav.onclick = function () { setFavSkin(o.favId, !isFav); renderLooks(); };
+      btns.appendChild(fav);
+    }
     if (o.onDelete) {
       var del = document.createElement('button');
       del.className = 'ghost danger';
@@ -2019,7 +2080,7 @@
     if (!cur) return;
     var cfg = cur.config || {};
     var live = tryLook || currentLook();
-    var activeName = skinById(live.skin).name;
+    var activeName = skinName(skinById(live.skin));
     var la = $('lookActive');
     la.textContent = T.lookActiveLbl + ' ';
     var strong = document.createElement('b');
@@ -2027,32 +2088,58 @@
     la.appendChild(strong);
     if (isTweaked(live)) la.appendChild(document.createTextNode(' (' + T.lookTweaked + ')'));
 
-    // Filtres
+    // Recherche et filtres. Le champ de recherche est dans la page, pas
+    // reconstruit ici : il perdrait le focus à chaque frappe.
+    var search = $('lookSearch');
+    search.placeholder = T.lookSearchPh;
+    search.setAttribute('aria-label', T.lookSearchPh);
+    var q = plain(lookQuery).trim();
     var fbox = $('lookFilters');
     fbox.innerHTML = '';
-    [['all', T.famAll], ['sobre', T.famSobre], ['broadcast', T.famBroadcast], ['stream', T.famStream]]
+    [['all', T.famAll], ['fav', T.famFav], ['dark', T.famDark], ['light', T.famLight],
+      ['sobre', T.famSobre], ['vif', T.famVif], ['stade', T.famStade], ['retro', T.famRetro]]
       .forEach(function (f) {
+        var n = SKINS.filter(function (sk) { return skinInFilter(sk, f[0]); }).length;
         var b = document.createElement('button');
         b.className = 'chip' + (lookFilter === f[0] ? ' on' : '');
+        b.setAttribute('aria-pressed', String(lookFilter === f[0]));
         var sp = document.createElement('span');
-        sp.textContent = f[1];
+        sp.textContent = f[1] + ' ' + n;
         b.appendChild(sp);
         b.onclick = function () { lookFilter = f[0]; renderLooks(); };
         fbox.appendChild(b);
       });
 
-    // Habillages livrés
+    // Habillages livrés : l'actif d'abord, puis l'ordre du catalogue.
     var grid = $('lookGrid');
     grid.innerHTML = '';
-    SKINS.forEach(function (sk) {
-      var meta = SKIN_META[sk.id] || { fam: [], desc: '' };
-      if (lookFilter !== 'all' && meta.fam.indexOf(lookFilter) === -1) return;
+    var shownSkins = SKINS.filter(function (sk) {
+      return skinInFilter(sk, lookFilter) && skinInQuery(sk, q);
+    });
+    shownSkins.sort(function (a, b) {
+      return (b.id === live.skin) - (a.id === live.skin);
+    });
+    $('lookCount').textContent = T.lookCount(shownSkins.length, SKINS.length);
+    shownSkins.forEach(function (sk) {
       var isOn = live.skin === sk.id && !tryLook;
       // La vignette montre l'habillage avec sa palette, sauf pour celui qui
       // est actif : là on montre les couleurs réelles, retouches comprises.
       var shown = isOn ? live : { skin: sk.id, theme: sk.t };
-      grid.appendChild(lookCard(shown, { active: isOn, desc: T[meta.desc] || '' }));
+      grid.appendChild(lookCard(shown, { active: isOn, desc: skinDesc(sk), favId: sk.id }));
     });
+    if (!shownSkins.length) {
+      var none = document.createElement('div');
+      none.className = 'look-none';
+      none.textContent = (lookFilter === 'fav' && !q) ? T.lookNoneFav : T.lookNone;
+      var all = document.createElement('button');
+      all.className = 'ghost';
+      all.textContent = T.bLookAll;
+      all.onclick = function () {
+        lookFilter = 'all'; lookQuery = ''; $('lookSearch').value = ''; renderLooks();
+      };
+      none.appendChild(all);
+      grid.appendChild(none);
+    }
 
     // Looks enregistrés
     var mine = $('myLookGrid');
@@ -2062,7 +2149,7 @@
         theme: Object.assign({}, THEME_DEFAULT, l.theme || {}), tune: l.tune || null };
       mine.appendChild(lookCard(look, {
         name: l.name,
-        desc: skinById(l.skin).name + (isTweaked(look) ? ' · ' + T.lookTweaked : ''),
+        desc: skinName(skinById(l.skin)) + (isTweaked(look) ? ', ' + T.lookTweaked : ''),
         onDelete: function () {
           var next = (cur.config.looks || []).filter(function (x) { return x.id !== l.id; });
           api.setConfig && api.setConfig({ looks: next });
@@ -2104,6 +2191,7 @@
     }
     renderLooks();
   }
+  $('lookSearch').oninput = function () { lookQuery = this.value; renderLooks(); };
   $('tryApply').onclick = function () { endTry(true); };
   $('tryCancel').onclick = function () { endTry(false); };
   document.addEventListener('keydown', function (e) {
@@ -2210,7 +2298,7 @@
   };
   $('lookSave').onclick = function () {
     var live = tryLook || currentLook();
-    var name = window.prompt(T.lookNamePrompt, skinById(live.skin).name);
+    var name = window.prompt(T.lookNamePrompt, skinName(skinById(live.skin)));
     if (!name) return;
     var looks = ((cur && cur.config && cur.config.looks) || []).slice(0, 23);
     looks.push({ id: 'l' + Date.now().toString(36), name: String(name).slice(0, 40),

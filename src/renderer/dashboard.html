@@ -112,17 +112,20 @@
 
   html,body { height:100%; }
   body {
-    /* Deux halos aux couleurs des équipes, bleu en haut à droite, orange en
-       bas à gauche : le plateau dit de quel jeu il s'agit sans rien peindre
-       derrière les chiffres. */
-    background:
-      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
-      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
-      var(--bg);
+    background:var(--page-bg);
     color:var(--text);
     font-family:var(--ui-font);
     -webkit-user-select:none; user-select:none; overflow:hidden;
     display:flex; flex-direction:column;
+  }
+  /* Arène : deux halos aux couleurs des équipes, bleu en haut à droite,
+     orange en bas à gauche. Les autres habillages posent leur propre fond
+     par --page-bg. */
+  html:not([data-skin]) body, html[data-skin="arena"] body {
+    background:
+      radial-gradient(120% 85% at 88% -12%, var(--blue-soft), transparent 55%),
+      radial-gradient(110% 80% at 6% 112%, var(--orange-soft), transparent 52%),
+      var(--bg);
   }
   .cond { font-family:var(--ui-font); }
   /* Bouton discret logé dans l'étiquette de la carte : remet les compteurs de
@@ -163,7 +166,7 @@
   .tag > span {
     display:inline-block; transform:skewX(calc(-1 * var(--skew)));
     font-style:var(--num-style); font-weight:800; font-size:var(--fs-sm);
-    letter-spacing:.08em; text-transform:uppercase; color:var(--on-blue-deep);
+    letter-spacing:.08em; text-transform:var(--tag-case); color:var(--on-blue-deep);
   }
 
   /* En-tête : barre de score broadcast */
@@ -191,10 +194,10 @@
   .logo b { color:var(--blue); font-weight:800; }
   /* Sigle « RL » sur plaque inclinée pleine : le logo devient un badge. */
   .logo-plate {
-    display:inline-block; transform:skewX(-14deg);
+    display:inline-block; transform:skewX(var(--skew));
     background:var(--blue); color:var(--on-blue); padding:1px 9px;
   }
-  .logo-plate > span { display:inline-block; transform:skewX(14deg); }
+  .logo-plate > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   /* Score de session dans le bandeau : il ne s'affiche que si le bloc
      « Session » est masqué. Les deux ensemble, c'était le même chiffre écrit
      deux fois à vingt centimètres d'écart. */
@@ -209,14 +212,14 @@
   .hd-score .hd-w { color:var(--blue); }
   .hd-score .hd-l { color:var(--orange); }
   .hd-bar { width:3px; height:24px; background:var(--line);
-    transform:skewX(-14deg); flex:none; }
+    transform:skewX(var(--skew)); flex:none; }
   .hd-wr { font-size:var(--fs-lg); font-weight:800; font-style:italic;
     color:var(--text); }
   .hd-streak {
-    display:none; transform:skewX(-14deg);
+    display:none; transform:skewX(var(--skew));
     font-style:italic; font-weight:800; font-size:var(--fs-md); padding:2px 10px;
   }
-  .hd-streak > span { display:inline-block; transform:skewX(14deg); }
+  .hd-streak > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .hd-streak.hot { background:var(--blue-deep); color:var(--on-blue-deep); }
   .hd-streak.tilt { background:var(--orange-deep); color:var(--on-orange-deep); }
   /* En mode « Personnaliser », la place est reprise par les outils. */
@@ -238,9 +241,9 @@
   .upd-pill {
     display:none; align-items:center; gap:12px;
     background:var(--panel2); border:1px solid var(--blue-deep);
-    transform:skewX(-14deg); padding:5px 8px 5px 14px;
+    transform:skewX(var(--skew)); padding:5px 8px 5px 14px;
   }
-  .upd-pill > * { transform:skewX(14deg); }
+  .upd-pill > * { transform:skewX(calc(-1 * var(--skew))); }
   .upd-pill span { font-weight:600; font-size:var(--fs-sm); letter-spacing:.04em; }
   .upd-pill button {
     border:0; background:var(--blue); color:var(--on-blue); cursor:pointer;
@@ -355,10 +358,10 @@
 
   .hdr-btn {
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
-    transform:skewX(-14deg); padding:7px 14px; cursor:pointer;
+    transform:skewX(var(--skew)); padding:7px 14px; cursor:pointer;
     font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
-  .hdr-btn > span { display:inline-block; transform:skewX(14deg); }
+  .hdr-btn > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .hdr-btn:hover { border-color:var(--blue); color:var(--text); }
   .hdr-btn.accent { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
@@ -370,10 +373,10 @@
   body.editing #editBtn { display:none; }
   .ghost-chip {
     border:1px dashed var(--line-strong); background:transparent; color:var(--muted);
-    transform:skewX(-14deg); padding:6px 12px; cursor:pointer;
+    transform:skewX(var(--skew)); padding:6px 12px; cursor:pointer;
     font-family:inherit; font-weight:700; font-size:var(--fs-xs);
   }
-  .ghost-chip > span { display:inline-block; transform:skewX(14deg); }
+  .ghost-chip > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .ghost-chip:hover { border-color:var(--blue); color:var(--text); }
 
   /* En écoute.
@@ -457,7 +460,7 @@
   .pips { display:flex; align-items:flex-end; gap:5px; margin-top:14px; flex-wrap:wrap; }
   .pips i {
     width:10px; height:9px; display:block; font-style:normal;
-    transform:skewX(-14deg); background:var(--panel2);
+    transform:skewX(var(--skew)); background:var(--panel2);
   }
   /* Victoire pleine hauteur, défaite à mi-hauteur : la série se lit comme un
      profil, sans dépendre de la teinte. */
@@ -474,11 +477,11 @@
     font-variant-numeric:tabular-nums; }
   .kv span { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
   .streak-banner {
-    display:none; margin-top:10px; transform:skewX(-14deg); width:max-content;
+    display:none; margin-top:10px; transform:skewX(var(--skew)); width:max-content;
     padding:8px 18px; font-style:italic; font-weight:800; font-size:var(--fs-md);
     letter-spacing:.06em; text-transform:uppercase;
   }
-  .streak-banner > span { display:inline-block; transform:skewX(14deg); }
+  .streak-banner > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .streak-banner.hot { display:block; background:var(--blue-deep); color:var(--on-blue-deep); }
   .streak-banner.tilt { display:block; background:var(--orange-deep); color:var(--on-orange-deep); }
 
@@ -544,7 +547,7 @@
   .rank-bar {
     margin-top:6px; height:6px; background:var(--panel2);
     box-shadow:inset 0 0 0 1px var(--line);
-    transform:skewX(-14deg); overflow:hidden;
+    transform:skewX(var(--skew)); overflow:hidden;
   }
   .rank-bar i { display:block; height:100%; background:var(--blue); }
   /* Reste avant le rang suivant : forme courte sur la ligne du MMR, le
@@ -588,15 +591,15 @@
      1,94:1 sur le panneau crème, très loin des 4,5:1 exigés pour du 11 px.
      Ces teintes sont l'échelle de rang du jeu et restent figées ; c'est leur
      usage qui change. Le libellé prend la couleur du texte, donc lisible sur
-     les six habillages, et l'identité de palier survit dans le filet. */
+     tous les habillages, et l'identité de palier survit dans le filet. */
   .rank-pill {
-    display:inline-block; transform:skewX(-14deg);
+    display:inline-block; transform:skewX(var(--skew));
     background:var(--panel2); border:1px solid var(--line);
     box-shadow:inset 3px 0 0 var(--tier-c, var(--muted));
     color:var(--text);
     padding:2px 9px 2px 11px; font-weight:700; font-size:var(--fs-xs); line-height:1.5;
   }
-  .rank-pill > span { display:inline-block; transform:skewX(14deg); }
+  .rank-pill > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .rank-pill:empty { display:none; }
   .rank-pill.sm { padding:1px 7px; }
   .rank-pill.rk0 { --tier-c:var(--muted); }
@@ -696,10 +699,10 @@
   .evo-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .evo-tab {
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
-    transform:skewX(-14deg); padding:4px 12px; cursor:pointer;
+    transform:skewX(var(--skew)); padding:4px 12px; cursor:pointer;
     font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
-  .evo-tab > span { display:inline-block; transform:skewX(14deg); }
+  .evo-tab > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .evo-tab.on { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
   .evo-chart { flex:1; min-height:52px; position:relative; }
@@ -750,10 +753,10 @@
   .ranked-toggle { display:flex; align-items:center; gap:6px; margin-top:10px; }
   .ranked-toggle button {
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
-    transform:skewX(-14deg); padding:5px 14px; cursor:pointer;
+    transform:skewX(var(--skew)); padding:5px 14px; cursor:pointer;
     font-family:inherit; font-weight:700; font-size:var(--fs-sm);
   }
-  .ranked-toggle button > span { display:inline-block; transform:skewX(14deg); }
+  .ranked-toggle button > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .ranked-toggle button.on { border-color:var(--blue); color:var(--on-blue-deep);
     background:var(--blue-deep); }
 
@@ -771,7 +774,7 @@
      chips, à la place des bordures droites d'origine. */
   .tot { text-align:center; position:relative; }
   .tot::before { content:''; position:absolute; left:-7px; top:12%; bottom:12%;
-    width:2px; background:var(--line); transform:skewX(-14deg); }
+    width:2px; background:var(--line); transform:skewX(var(--skew)); }
   .tot:first-child::before { display:none; }
   .tot b { display:block; font-size:var(--fs-2xl); font-weight:800; font-style:var(--num-style);
     font-variant-numeric:tabular-nums; line-height:1.1; }
@@ -801,11 +804,11 @@
   table.hist tr.busy td { opacity:.45; pointer-events:none; }
   td.res { width:44px; }
   .res-chip {
-    display:inline-block; transform:skewX(-14deg); width:28px;
+    display:inline-block; transform:skewX(var(--skew)); width:28px;
     text-align:center; font-style:italic; font-weight:800; font-size:var(--fs-md);
     padding:2px 0; position:relative;
   }
-  .res-chip > span { display:inline-block; transform:skewX(14deg); }
+  .res-chip > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .res-chip.W { background:var(--blue-deep); color:var(--on-blue-deep); }
   .res-chip.L { background:var(--orange-deep); color:var(--on-orange-deep); }
   .res-chip.U { background:var(--panel2); color:var(--muted); }
@@ -821,11 +824,11 @@
   td.hfix { width:1%; text-align:right; padding-left:2px; }
   .fixbtn {
     border:1px solid var(--line-strong); background:var(--panel2); color:var(--muted);
-    transform:skewX(-14deg); padding:2px 8px; margin-left:4px; cursor:pointer;
+    transform:skewX(var(--skew)); padding:2px 8px; margin-left:4px; cursor:pointer;
     font-family:inherit; font-style:italic; font-weight:800; font-size:var(--fs-xs);
     opacity:0; transition:opacity .12s;
   }
-  .fixbtn > span { display:inline-block; transform:skewX(14deg); }
+  .fixbtn > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   table.hist tr:hover .fixbtn, .fixbtn:focus-visible { opacity:1; }
   .fixbtn:hover { color:var(--text); border-color:var(--blue); }
   /* Le bouton du résultat actuellement retenu est marqué et inerte :
@@ -876,7 +879,7 @@
   /* Barre de progression inclinée, dans le langage diagonal du reste. */
   .goal-bar { height:11px; background:var(--panel2);
     border:1px solid var(--line); overflow:hidden;
-    transform:skewX(-14deg); margin:0 5px; }
+    transform:skewX(var(--skew)); margin:0 5px; }
   .goal-bar i { display:block; height:100%; width:0; background:var(--blue);
     transition:width .4s; }
   .goal-sub { font-size:var(--fs-sm); font-weight:600; color:var(--muted); }
@@ -998,16 +1001,16 @@
     100% { transform:translateX(0); }
   }
   .result-sub {
-    transform:skewX(-14deg); background:var(--panel2);
+    transform:skewX(var(--skew)); background:var(--panel2);
     border:1px solid var(--line); padding:8px 22px;
     font-weight:700; font-size:var(--fs-xl); letter-spacing:.08em;
     font-variant-numeric:tabular-nums; text-transform:uppercase;
   }
-  .result-sub > span { display:inline-block; transform:skewX(14deg); }
+  .result-sub > span { display:inline-block; transform:skewX(calc(-1 * var(--skew))); }
   .result-streak { font-size:var(--fs-md); font-weight:700; color:var(--muted); }
   .confetti-piece {
     position:absolute; top:-26px; width:9px; height:18px;
-    animation:fall linear forwards; transform:skewX(-14deg);
+    animation:fall linear forwards; transform:skewX(var(--skew));
   }
   @keyframes fall {
     to { transform:translateY(108vh) rotate(620deg); opacity:.85; }
@@ -1148,6 +1151,15 @@
     35% { background:#000; }
   }
   body[data-anim="cinema"] .live.goal { animation:goalflash-cinema 1.2s ease-in-out; }
+
+  /* Scores et compteurs : leur police et leur graisse viennent de l'habillage. */
+  .wl .w, .wl .l, .live-score .s0, .live-score .s1, .live-time, .kv b, .tot b,
+  .mode .rec, .mode .mmr-val, .wr-num b, .clock, .clock-big, .hd-score .hd-w,
+  .hd-score .hd-l, .hd-wr, .goal-nums b, .evo-stat b, td.hscore, .result-text {
+    font-family:var(--num-font); font-weight:var(--num-weight);
+  }
+  .wr-num b, .kv b, .hd-score .hd-w, .hd-score .hd-l, .hd-wr, .clock,
+  .mode .rec, .mode .mmr-val, .evo-stat.now b { font-style:var(--num-style); }
 </style>
   <link rel="stylesheet" href="skins.css" />
 </head>
@@ -1393,6 +1405,7 @@
     <div class="result-streak" id="resultStreak"></div>
   </div>
 
+<script src="skins.js"></script>
 <script>
 (function () {
   'use strict';
@@ -1776,15 +1789,9 @@
   // Habillages (skins) : la forme de l'interface, pas seulement ses
   // couleurs. Chaque skin apporte sa palette, appliquée par le même chemin
   // que les thèmes : l'utilisateur peut donc la retoucher ensuite.
-  var SKINS = [
-    { id: 'arena',   name: 'Arène',    t: { win: '#4dabff', loss: '#e0741a', bg: '#0c0e11', gold: '#ffc233' } },
-    { id: 'console', name: 'Console',  t: { win: '#35e06a', loss: '#ff5f56', bg: '#04070a', gold: '#ffd166' } },
-    { id: 'papier',  name: 'Papier',   t: { win: '#1a5fd0', loss: '#a8350a', bg: '#f4f1ea', gold: '#8a5209' } },
-    { id: 'neon',    name: 'Néon',     t: { win: '#22d3ee', loss: '#f43f5e', bg: '#0b0716', gold: '#facc15' } },
-    { id: 'brut',    name: 'Brut',     t: { win: '#00e0ff', loss: '#ff2d2d', bg: '#000000', gold: '#ffe600' } },
-    { id: 'calme',   name: 'Calme',    t: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } },
-  ];
+  var SKINS = window.RL_SKINS.list;
   function skinById(id) {
+    id = window.RL_SKINS.legacy[id] || id;
     for (var i = 0; i < SKINS.length; i++) if (SKINS[i].id === id) return SKINS[i];
     return SKINS[0];
   }
@@ -1899,7 +1906,7 @@
     // elle recouvre quelque chose : elle est donc posée sur la couture entre
     // « Session » et « Par mode », où elle masque deux étiquettes, pas des
     // chiffres.
-    alerts: { x: 14, y: 19, w: 60, h: 12 },
+    alerts: { x: 6, y: 18, w: 37, h: 14 },
   };
   // Écran en portrait : les deux colonnes 55/44 pensées pour un moniteur
   // paysage y donnaient des cartes squelettiques, aux trois quarts vides.

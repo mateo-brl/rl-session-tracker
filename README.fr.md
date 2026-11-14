@@ -64,7 +64,7 @@ Un overlay OBS transparent servi en local, composé par glisser-déposer à la t
 <td valign="top">
 
 ### 🎨 À ton image
-Six habillages complets, huit thèmes de couleurs, des blocs déplaçables et redimensionnables, trois profils de disposition, et des looks à partager par un code.
+Vingt et un habillages complets, huit thèmes de couleurs, des blocs déplaçables et redimensionnables, trois profils de disposition, et des looks à partager par un code.
 
 </td>
 <td valign="top">
@@ -82,9 +82,9 @@ Pas d'inscription, pas de site tiers, pas de télémétrie. Les matchs sont stoc
 
 <img src="docs/fr/victory.gif" width="100%" alt="Écran de victoire animé en fin de match sur le dashboard" />
 
-### Six habillages, pas juste six palettes
+### Vingt et un habillages, pas juste des palettes
 
-Chaque habillage change la typographie, la découpe des cartes, les filets, les ombres et le fond. Ici : Néon, Papier, Console et Brut. Arène (en haut de la page) et Calme complètent la série.
+Chaque habillage change la typographie, la découpe des cartes, les filets et le fond : tableau lumineux de stade, tableau blanc de vestiaire, pelouse, télétexte, feuille de match à carreaux… La vitrine les filtre (sombres, clairs, sobres, vifs, stade, rétro), les cherche par nom et garde tes favoris.
 
 <img src="docs/fr/skins.png" width="100%" alt="Le dashboard dans quatre habillages : Néon, Papier, Console et Brut" />
 
@@ -143,7 +143,7 @@ L'appli vit dans la zone de notification. **Ctrl+Alt+R** ouvre les réglages de 
 
 - Chaque bloc se déplace, se redimensionne, se masque et se règle (modes affichés, lignes, colonnes, compteurs).
 - Trois profils de disposition et des widgets bonus : horloge, objectif de MMR, en écoute.
-- Six habillages (Arène, Console, Papier, Néon, Brut, Calme) et un atelier pour changer typographie, découpe des cartes et densité par-dessus n'importe lequel.
+- Vingt et un habillages (Arène, Afficheur, Vestiaire, Pelouse, Boost, Ardoise, Maillot, Tifo, Trophée, Nocturne, Télétexte, Borne, Magnéto, Garage, Compteur, Aquadôme, Gazette, Carnet, Vignette, Givre, Encre) et un atelier pour changer typographie, découpe des cartes et densité par-dessus n'importe lequel.
 - Huit thèmes de couleurs ou des couleurs entièrement libres. Enregistre un look sous un nom et partage-le par un code.
 - Cinq styles d'animation de fin de match, quatre jingles, et un tiltomètre après trois défaites d'affilée.
 - Alertes pour les séries, les montées de rang, les MVP et les records battus.

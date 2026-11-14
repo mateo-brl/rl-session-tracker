@@ -252,3 +252,30 @@ test('looks : un look enregistré emporte ses ingrédients d’atelier', () => {
   c.update({ looks: [{ id: 'b', name: 'Cassé', skin: 'neon', theme: { win: '#22d3ee' } }] });
   assert.equal(c.get().looks.length, 0);
 });
+
+test('habillages : un identifiant retiré passe à son successeur', () => {
+  const c = freshConfig();
+  c.update({ skin: 'console' });
+  assert.equal(c.get().skin, 'afficheur');
+  c.update({ skin: 'pelouse' });
+  assert.equal(c.get().skin, 'pelouse');
+  // Un identifiant inconnu est ignoré : l'habillage en place reste.
+  c.update({ skin: 'inexistant' });
+  assert.equal(c.get().skin, 'pelouse');
+  c.update({ looks: [{ id: 'a', name: 'Ancien', skin: 'calme',
+    theme: { win: '#6ea8fe', loss: '#e0805a', bg: '#101215', gold: '#d8b25a' } }] });
+  assert.equal(c.get().looks[0].skin, 'ardoise');
+});
+
+test('habillages : le catalogue en compte au moins vingt, tous distincts', () => {
+  const { ids, list, legacy } = require('../src/renderer/skins.js');
+  assert.ok(ids.length >= 21);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(ids[0], 'arena');
+  for (const s of list) {
+    for (const k of ['win', 'loss', 'bg', 'gold']) assert.match(s.t[k], /^#[0-9a-f]{6}$/);
+    assert.ok(s.name && s.nameEn && s.desc.fr && s.desc.en && s.fam.length);
+  }
+  // Chaque habillage retiré pointe vers un habillage qui existe.
+  for (const to of Object.values(legacy)) assert.ok(ids.includes(to));
+});

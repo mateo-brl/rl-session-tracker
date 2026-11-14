@@ -21,6 +21,49 @@
 @font-face { font-family:'Barlow Condensed'; font-weight:800; font-style:italic;
   src:url('fonts/barlow-condensed-latin-800-italic.woff2') format('woff2'); }
 
+/* Polices des habillages (toutes sous licence OFL, voir fonts/LICENCES.md).
+   Le navigateur ne charge un fichier que si un habillage affiché s'en sert. */
+@font-face { font-family:'Doto'; font-weight:900; font-style:normal; font-display:swap;
+  src:url('fonts/doto-latin-900-normal.woff2') format('woff2'); }
+@font-face { font-family:'Martian Mono'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/martian-mono-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Martian Mono'; font-weight:700; font-style:normal; font-display:swap;
+  src:url('fonts/martian-mono-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'Archivo'; font-weight:500; font-style:normal; font-display:swap;
+  src:url('fonts/archivo-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family:'Archivo'; font-weight:800; font-style:normal; font-display:swap;
+  src:url('fonts/archivo-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family:'Unbounded'; font-weight:600; font-style:normal; font-display:swap;
+  src:url('fonts/unbounded-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family:'Unbounded'; font-weight:800; font-style:normal; font-display:swap;
+  src:url('fonts/unbounded-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family:'Outfit'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/outfit-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Outfit'; font-weight:600; font-style:normal; font-display:swap;
+  src:url('fonts/outfit-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family:'Familjen Grotesk'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/familjen-grotesk-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Familjen Grotesk'; font-weight:700; font-style:normal; font-display:swap;
+  src:url('fonts/familjen-grotesk-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'Anton'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/anton-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'DM Serif Display'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/dm-serif-display-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Chakra Petch'; font-weight:500; font-style:normal; font-display:swap;
+  src:url('fonts/chakra-petch-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family:'Chakra Petch'; font-weight:700; font-style:normal; font-display:swap;
+  src:url('fonts/chakra-petch-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'Press Start 2P'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/press-start-2p-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Saira Stencil One'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/saira-stencil-one-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'VT323'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/vt323-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family:'Caveat'; font-weight:700; font-style:normal; font-display:swap;
+  src:url('fonts/caveat-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family:'Graduate'; font-weight:400; font-style:normal; font-display:swap;
+  src:url('fonts/graduate-latin-400-normal.woff2') format('woff2'); }
+
 :root {
   /* Surfaces et texte. */
   --bg:#0c0e11; --panel:#171b22; --panel2:#1f242d;
@@ -59,10 +102,16 @@
   --fs-xs:12px; --fs-sm:14px; --fs-md:16px; --fs-lg:20px; --fs-xl:24px;
   --fs-2xl:32px; --fs-3xl:44px; --fs-4xl:64px; --fs-5xl:112px;
 
-  /* Ingrédients de forme, réglables depuis l'atelier des habillages. */
+  /* Ingrédients de forme. Un habillage les redéfinit (skins.css), l'atelier
+     peut encore passer par-dessus en style inline. */
   --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
   --body-font:'Segoe UI',ui-sans-serif,system-ui,sans-serif;
+  --num-font:var(--ui-font);   /* police des scores et des compteurs */
+  --num-weight:800;
   --num-style:italic;          /* chiffres penchés des scores */
+  --tag-case:uppercase;        /* casse des étiquettes de section */
+  --card-radius:0px;
+  --page-bg:var(--bg);         /* fond de page : aplat, ou motif d'habillage */
   --cut:18px;                  /* chanfrein des cartes */
   --cut-sm:12px;               /* chanfrein des tuiles */
   --skew:-14deg;               /* inclinaison des plaques */

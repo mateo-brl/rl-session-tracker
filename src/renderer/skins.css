@@ -1,280 +1,723 @@
-/* skins.css : Habillages complets de l'interface.
+/* skins.css : la forme de chaque habillage.
  *
- * Un « thème » de l'application ne changeait jusqu'ici que quatre couleurs.
- * Un skin change la forme : police, découpe des cartes, biseaux, filets,
- * ombres, casse et fond de page. Il s'applique par un attribut sur la racine
- * (data-skin) et vaut pour le dashboard et la fenêtre de configuration, qui
- * partagent les mêmes classes (.card, .tag, .chip, header…).
+ * Un habillage se pose par un attribut (data-skin) sur la racine de la
+ * fenêtre, ou sur une vignette de la vitrine. Il s'écrit en deux temps :
  *
- * Ce fichier est chargé après le <style> de chaque fenêtre, et chaque règle
- * est préfixée par [data-skin="…"] : elle l'emporte donc sans qu'aucune règle
- * existante n'ait à être touchée. Le skin par défaut, « arena », n'a aucune
- * règle ici : c'est l'habillage d'origine.
+ *   1. des variables sur l'élément qui porte l'attribut : polices, inclinaison
+ *      des plaques, chanfrein, rayon, fond de page. La plupart des habillages
+ *      tiennent presque entièrement là-dedans ;
+ *   2. quelques règles dans un bloc @scope, pour ce que les variables ne
+ *      savent pas dire (un score dans un rond, des aimants, un filet double).
  *
- * Les couleurs restent pilotées par applyTheme() (variables --bg, --blue,
- * --orange, --gold posées en style inline sur <html>) : choisir un skin
- * applique sa palette par ce même chemin, et l'utilisateur garde la main
- * dessus ensuite. Ici, uniquement de la forme.
+ * @scope s'arrête au premier descendant qui porte lui-même data-skin : une
+ * vignette de la vitrine montre donc son habillage, jamais celui de la
+ * fenêtre qui l'entoure.
+ *
+ * Les couleurs viennent d'applyTheme(), en style inline sur le même élément.
+ * Un habillage qui a besoin d'une surface à lui la dérive du thème par
+ * color-mix() et la marque !important : elle suit alors les retouches de
+ * couleur de l'utilisateur au lieu de les figer.
+ *
+ * Chargé après le <style> de chaque fenêtre. Le catalogue (noms, palettes,
+ * descriptions) est dans skins.js.
  */
 
-/* Console : terminal à phosphore.
-   Tout en chasse fixe, aucun biseau, cadres d'un pixel, balayage de
-   scanlines sur le fond. Les titres deviennent des invites « > ». */
-[data-skin="console"] body {
-  font-family: 'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', ui-monospace, monospace;
-  background:
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, .04) 0 1px, transparent 1px 3px),
+/* Valeurs de départ, redites ici pour chaque porteur de data-skin : la
+   vignette d'Arène doit retrouver les siennes au milieu d'une fenêtre qui
+   en porte d'autres. */
+[data-skin] {
+  --ui-font:'Barlow Condensed','Segoe UI',sans-serif;
+  --num-font:var(--ui-font); --num-weight:800; --num-style:italic;
+  --tag-case:uppercase; --skew:-14deg; --cut:18px; --cut-sm:12px;
+  --card-radius:0px; --page-bg:var(--bg);
+  --fs-xs:12px; --fs-sm:14px; --fs-md:16px; --fs-lg:20px; --fs-xl:24px;
+  --fs-2xl:32px; --fs-3xl:44px; --fs-4xl:64px; --fs-5xl:112px;
+}
+
+/* Afficheur : tableau lumineux de stade.
+   Chiffres en matrice de points, libellés en capitales espacées comme sur
+   un vrai panneau, deux points d'horloge entre les scores. */
+[data-skin="afficheur"] {
+  --ui-font:'Martian Mono',ui-monospace,monospace;
+  --num-font:'Doto','Martian Mono',monospace; --num-weight:900; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-sm:12px; --fs-md:13px; --fs-lg:16px; --fs-xl:22px;
+}
+@scope ([data-skin="afficheur"]) to (:scope [data-skin]) {
+  .wr-ring { width:128px; height:128px; }
+  .card { background:var(--panel); border:1px solid var(--line); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--muted); }
+  .tag > span { font-style:normal; font-weight:400;
+    font-size:var(--fs-xs); letter-spacing:.14em; }
+  header { background:none; border-bottom:2px solid var(--line); }
+  header::after { display:none; }
+  .logo { font-style:normal; font-size:var(--fs-sm); }
+  .logo-plate { background:none; color:var(--blue); padding:0; transform:none; }
+  .logo-plate > span { transform:none; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:12px; height:60px; transform:none;
+    background:linear-gradient(var(--text) 0 12px, transparent 12px 48px, var(--text) 48px); }
+  .wl .sep { display:none; }
+  .res-chip.W { background:none; color:var(--blue); }
+  .res-chip.L { background:none; color:var(--orange); }
+  .mode { background:none; }
+}
+
+/* Vestiaire : tableau blanc tactique.
+   Cartes blanches sur fond gris clair, titres soulignés au feutre, aimants
+   ronds pour les résultats : plein pour une victoire, en anneau pour une
+   défaite, donc lisibles sans la couleur. */
+[data-skin="vestiaire"] {
+  --ui-font:'Archivo','Segoe UI',sans-serif; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:6px;
+  --panel:color-mix(in srgb, var(--bg), #fff 85%) !important;
+  --panel2:color-mix(in srgb, var(--bg), #fff 35%) !important;
+}
+@scope ([data-skin="vestiaire"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:0; clip-path:none; }
+  .card.live.playing { box-shadow:inset 0 0 0 3px var(--text); }
+  .tag { background:none; padding:0 0 3px; border-bottom:4px solid var(--blue); }
+  .card.live .tag { border-bottom-color:var(--orange); }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-style:normal; font-weight:800;
+    font-size:var(--fs-sm); letter-spacing:0; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:34px; height:8px; background:var(--text); transform:none; }
+  .wl .sep { display:none; }
+  .wl { gap:22px; }
+  .pips i { width:16px; border-radius:50%; transform:none; }
+  .pips i.W { height:16px; }
+  .pips i.L { height:16px; background:none; border:4px solid var(--orange); }
+  .pips i.last { box-shadow:0 6px 0 -2px var(--text); }
+  .res-chip { width:22px; height:22px; line-height:22px; padding:0; border-radius:50%;
+    transform:none; font-size:var(--fs-xs); font-style:normal; }
+  .res-chip > span { transform:none; }
+  .res-chip.L { background:none; box-shadow:inset 0 0 0 3px var(--orange); color:var(--orange); }
+  .mode { background:var(--panel2); }
+}
+
+/* Pelouse : le terrain.
+   Bandes de tonte en fond, cadres tracés à la chaux, et le score du match
+   posé dans le rond central. */
+[data-skin="pelouse"] {
+  --num-style:normal; --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px;
+  --page-bg:repeating-linear-gradient(90deg, var(--bg) 0 120px,
+    color-mix(in srgb, var(--bg), #fff 3.5%) 120px 240px);
+  --muted:color-mix(in srgb, var(--text) 74%, var(--bg)) !important;
+  --line:color-mix(in srgb, var(--text) 36%, var(--bg)) !important;
+  --line-strong:color-mix(in srgb, var(--text) 64%, var(--bg)) !important;
+}
+@scope ([data-skin="pelouse"]) to (:scope [data-skin]) {
+  .card { background:none; border:2px solid var(--text); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-style:normal; font-weight:700;
+    font-size:var(--fs-md); letter-spacing:0; }
+  header { background:none; border-bottom:2px solid var(--text); }
+  header::after { display:none; }
+  .logo { font-style:normal; text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .live-score { aspect-ratio:1; padding:26px; justify-content:center;
+    border:2px solid var(--text); border-radius:50%; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:2px; height:96px; background:var(--text); transform:none; }
+  .wl .sep { width:2px; background:var(--text); }
+  .mode { background:none; }
+  .tot::before { transform:none; }
+}
+
+/* Boost : tout en rondeurs.
+   Coins très arrondis, jauge épaisse à bouts ronds, et les deux scores dans
+   des pastilles : pleine pour ton équipe, en anneau pour celle d'en face. */
+[data-skin="boost"] {
+  --ui-font:'Outfit','Segoe UI',sans-serif;
+  --num-font:'Unbounded','Outfit',sans-serif; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:26px;
+}
+@scope ([data-skin="boost"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:0; clip-path:none;
+    padding:calc(18px * var(--dens)) calc(22px * var(--dens)); }
+  .card.live.playing { box-shadow:inset 0 0 0 2px var(--blue); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--muted); }
+  .tag > span { font-style:normal; font-weight:600;
+    font-size:var(--fs-sm); letter-spacing:0; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-family:var(--num-font); font-style:normal; font-size:var(--fs-md);
+    text-transform:none; letter-spacing:0; }
+  .logo-plate { border-radius:999px; }
+  .hdr-btn, .evo-tab, .ranked-toggle button, .fixbtn, .ghost-chip, .chip,
+  .rank-pill, .ot-mini, .mvp-chip, .ff-chip, .h2h-chip, .tag-btn,
+  button.primary, button.ghost { border-radius:999px; }
+  .wr-ring circle { stroke-width:14; }
+  .wr-ring .arc { stroke-linecap:round; }
+  .live-score { gap:16px; }
+  .live-score .s0, .live-score .s1 { width:1.5em; height:1.5em; border-radius:50%;
+    display:grid; place-items:center; text-shadow:none;
+    font-size:calc(var(--fs-5xl) * .8); }
+  .live-score .s0 { background:var(--blue); color:var(--on-blue); }
+  .live-score .s1 { box-shadow:inset 0 0 0 6px var(--orange); }
+  .live-score .vs, .wl .sep { display:none; }
+  .wl { gap:22px; }
+  .res-chip { width:26px; height:26px; line-height:26px; padding:0; border-radius:50%;
+    transform:none; font-size:var(--fs-sm); font-style:normal; }
+  .res-chip > span { transform:none; }
+  .res-chip.W { background:var(--blue); color:var(--on-blue); }
+  .res-chip.L { background:none; box-shadow:inset 0 0 0 2px var(--orange); color:var(--orange); }
+  .mode { background:var(--panel2); border-radius:18px;
+    border-top-color:transparent; border-right-color:transparent; border-bottom-color:transparent; }
+  .pips i { border-radius:999px; transform:none; }
+  .tot::before { display:none; }
+  table.hist td, .live-players td { border-top-color:transparent; }
+}
+
+/* Ardoise : rien que le contenu.
+   Un gris moyen plutôt qu'un noir, aucun cadre, de grands chiffres fins. */
+[data-skin="ardoise"] {
+  --ui-font:'Familjen Grotesk','Segoe UI',sans-serif;
+  --num-weight:400; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px;
+  --muted:color-mix(in srgb, var(--text) 70%, var(--bg)) !important;
+  --line:color-mix(in srgb, var(--text) 24%, var(--bg)) !important;
+}
+@scope ([data-skin="ardoise"]) to (:scope [data-skin]) {
+  .card { background:none; border:0; }
+  .tag { background:none; padding:0; margin-bottom:10px; }
+  .tag > span, .tag-btn { color:var(--muted); }
+  .tag > span { font-style:normal; font-weight:400;
+    font-size:var(--fs-md); letter-spacing:0; }
+  header { background:none; }
+  header::after { height:1px; background:var(--line); }
+  .logo { font-style:normal; font-weight:700; text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { display:none; }
+  .wl .w, .wl .l, .live-score .s0, .live-score .s1 { letter-spacing:-.04em; text-shadow:none; }
+  .live-score .vs, .wl .sep { display:none; }
+  .live-score { gap:30px; }
+  .wl { gap:26px; }
+  .mode { background:none; border-top:0; border-right:0; border-bottom:0; border-left-width:2px; }
+  .res-chip.W { background:none; color:var(--blue); }
+  .res-chip.L { background:none; color:var(--orange); }
+  .mvp-chip { background:none; color:var(--text); padding:0; }
+  .tot::before { display:none; }
+  .hdr-btn, .evo-tab, .ranked-toggle button { background:none; }
+}
+
+/* Maillot : le vestiaire côté textile.
+   Numéros dans une police de flocage, cernés d'un liseré clair comme sur un
+   maillot, et un col bicolore en tête de chaque carte. */
+[data-skin="maillot"] {
+  --num-font:'Graduate','Barlow Condensed',serif; --num-weight:400; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+}
+@scope ([data-skin="maillot"]) to (:scope [data-skin]) {
+  .card { border:0; padding-top:calc(24px * var(--dens));
+    background:linear-gradient(var(--blue) 0 5px, var(--text) 5px 8px, transparent 8px), var(--panel); }
+  .card.live.playing { background:linear-gradient(var(--orange) 0 5px, var(--text) 5px 8px, transparent 8px), var(--panel); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-style:normal; letter-spacing:.1em; }
+  header { background:var(--panel); }
+  header::after { height:6px; background:linear-gradient(var(--blue) 0 50%, var(--text) 50%); }
+  .logo { font-style:normal; }
+  .wl .w, .wl .l, .live-score .s0, .live-score .s1 { text-shadow:none;
+    paint-order:stroke fill; -webkit-text-stroke:.07em var(--text); letter-spacing:.04em; }
+  .live-score .vs, .wl .sep { background:var(--line-strong); }
+  .mode { background:var(--panel2); }
+  .res-chip, .res-chip > span { transform:none; }
+}
+
+/* Tifo : la banderole de tribune.
+   Tout l'écran prend la couleur du fond ; les cartes sont des pans plus
+   sombres, les titres des bandes claires en lettres d'affiche. */
+[data-skin="tifo"] {
+  --num-font:'Anton','Barlow Condensed',sans-serif; --num-weight:400; --num-style:normal;
+  --skew:-8deg; --cut:0px; --cut-sm:0px;
+  --panel:color-mix(in srgb, var(--bg), #000 30%) !important;
+  --panel2:color-mix(in srgb, var(--bg), #000 46%) !important;
+  --muted:color-mix(in srgb, var(--text) 80%, var(--bg)) !important;
+  --line:color-mix(in srgb, var(--text) 26%, var(--bg)) !important;
+  --line-strong:color-mix(in srgb, var(--text) 66%, var(--bg)) !important;
+}
+@scope ([data-skin="tifo"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:0; }
+  .card.live.playing { box-shadow:inset 0 6px 0 var(--text); }
+  .tag { background:var(--text); }
+  .tag > span, .tag-btn { color:var(--bg); }
+  .tag > span { font-family:var(--num-font); font-weight:400;
+    font-style:normal; font-size:var(--fs-md); letter-spacing:.04em; }
+  header { background:var(--panel2); }
+  header::after { height:4px; background:var(--text); }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .live-score .s0, .live-score .s1 { text-shadow:5px 5px 0 var(--panel2); }
+  .live-score .vs, .wl .sep { background:var(--text); }
+  .mode { background:var(--panel2); border-top-color:transparent;
+    border-right-color:transparent; border-bottom-color:transparent; }
+  .evo-tab.on, .ranked-toggle button.on, .hdr-btn.accent {
+    background:var(--text); color:var(--bg); border-color:var(--text); }
+  .res-chip.W { background:var(--text); color:var(--bg); }
+  .res-chip.L { background:var(--orange); color:var(--bg); }
+  .alert-plate { background:var(--text); color:var(--bg); border-left-color:var(--orange); }
+}
+
+/* Trophée : la plaque gravée.
+   Chiffres à empattements, double filet doré autour des cartes, libellés en
+   petites capitales espacées comme sur un socle. */
+[data-skin="trophee"] {
+  --ui-font:'Outfit','Segoe UI',sans-serif;
+  --num-font:'DM Serif Display',Georgia,serif; --num-weight:400; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+}
+@scope ([data-skin="trophee"]) to (:scope [data-skin]) {
+  .card { background:var(--panel);
+    border:1px solid color-mix(in srgb, var(--blue) 50%, var(--bg));
+    box-shadow:inset 0 0 0 4px var(--panel),
+      inset 0 0 0 5px color-mix(in srgb, var(--blue) 28%, var(--bg)); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--blue); }
+  .tag > span { font-style:normal; font-weight:600;
+    font-size:var(--fs-xs); letter-spacing:.18em; }
+  header { background:none; }
+  header::after { height:1px; background:var(--blue); }
+  .logo { font-family:var(--num-font); font-style:normal; font-weight:400;
+    text-transform:none; letter-spacing:0; }
+  .logo-plate { display:none; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:1px; background:var(--blue); transform:none; }
+  .wl .sep { width:1px; background:var(--line-strong); transform:none; }
+  .mode { background:none; }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip.W { background:none; color:var(--blue); }
+  .res-chip.L { background:none; color:var(--orange); }
+  .tot::before { transform:none; width:1px; }
+}
+
+/* Nocturne : le match de nuit.
+   Deux projecteurs éclairent le haut de l'écran, le reste est calme : coins
+   doux, panneaux à peine détachés du fond. */
+[data-skin="nocturne"] {
+  --ui-font:'Outfit','Segoe UI',sans-serif; --num-weight:600; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:12px;
+  --page-bg:
+    radial-gradient(46% 42% at 16% -6%, color-mix(in srgb, #fff 15%, transparent), transparent 72%),
+    radial-gradient(46% 42% at 84% -6%, color-mix(in srgb, #fff 15%, transparent), transparent 72%),
     var(--bg);
 }
-[data-skin="console"] .cond { font-family: inherit; }
-[data-skin="console"] .card {
-  clip-path: none; border-radius: 0;
-  border: 1px solid var(--blue);
-  background: var(--panel);
-  box-shadow: none;
-}
-[data-skin="console"] .mode { border-radius: 0; }
-[data-skin="console"] .tag {
-  transform: none; background: none; border-left: 0;
-  padding: 0 0 8px; margin-bottom: 10px;
-}
-[data-skin="console"] .tag > span {
-  transform: none; font-style: normal; font-family: inherit;
-  font-size: 12px; letter-spacing: .2em; color: var(--text);
-}
-[data-skin="console"] .tag > span::before { content: '> '; color: var(--blue); }
-[data-skin="console"] header { background: var(--panel); }
-[data-skin="console"] header::after { height: 1px; }
-[data-skin="console"] .logo,
-[data-skin="console"] .wl .w, [data-skin="console"] .wl .l,
-[data-skin="console"] .mode .mmr-val, [data-skin="console"] .clock,
-[data-skin="console"] .live-score .s0, [data-skin="console"] .live-score .s1 {
-  font-family: inherit; font-style: normal;
-  text-shadow: 0 0 14px currentColor;
-}
-/* Toutes les pastilles inclinées redeviennent des rectangles nets. */
-[data-skin="console"] .logo-plate, [data-skin="console"] .chip,
-[data-skin="console"] .rank-pill, [data-skin="console"] .res-chip,
-[data-skin="console"] .hd-streak, [data-skin="console"] .streak-banner,
-[data-skin="console"] .h2h-chip, [data-skin="console"] .evo-tab,
-[data-skin="console"] .hdr-btn, [data-skin="console"] .ghost-chip,
-[data-skin="console"] .upd-pill {
-  transform: none; border-radius: 0;
-}
-[data-skin="console"] .logo-plate > span, [data-skin="console"] .chip > *,
-[data-skin="console"] .rank-pill > span, [data-skin="console"] .res-chip > span,
-[data-skin="console"] .hd-streak > span, [data-skin="console"] .streak-banner > span,
-[data-skin="console"] .evo-tab > span, [data-skin="console"] .hdr-btn > span,
-[data-skin="console"] .ghost-chip > span, [data-skin="console"] .upd-pill > * {
-  transform: none;
+@scope ([data-skin="nocturne"]) to (:scope [data-skin]) {
+  .card { background:color-mix(in srgb, var(--panel) 86%, transparent);
+    border:1px solid var(--line); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--muted); }
+  .tag > span { font-style:normal; font-weight:600;
+    font-size:var(--fs-sm); letter-spacing:0; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; text-transform:none; letter-spacing:0; }
+  .logo-plate { border-radius:6px; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:2px; background:var(--line-strong); transform:none; }
+  .wl .sep { width:2px; }
+  .mode { background:var(--panel2); border-radius:8px; }
+  .hdr-btn, .evo-tab, .ranked-toggle button, button.ghost, button.primary { border-radius:8px; }
 }
 
-/* Papier : imprimé clair.
-   Fond crème, texte noir, empattements, filets fins. Aucun aplat de couleur,
-   aucun dégradé : une page de rapport, pas un habillage télé. */
-[data-skin="papier"] body {
-  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
-  background: var(--bg);
+/* Télétexte : la page des résultats.
+   Lettres à gros pixels, bandeaux de couleur pleine pour les titres, aucun
+   cadre : les blocs se suivent comme les rubriques d'une page. */
+[data-skin="teletexte"] {
+  --ui-font:'VT323',ui-monospace,monospace; --num-weight:400; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-xs:16px; --fs-sm:18px; --fs-md:20px; --fs-lg:24px; --fs-xl:30px;
+  --fs-2xl:40px; --fs-3xl:52px; --fs-4xl:80px; --fs-5xl:136px;
+  --panel:var(--bg) !important;
+  --muted:color-mix(in srgb, var(--text) 76%, var(--bg)) !important;
 }
-[data-skin="papier"] .cond { font-family: inherit; }
-[data-skin="papier"] .card {
-  clip-path: none; border-radius: 2px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  box-shadow: none;
-  padding: 20px 24px;
+@scope ([data-skin="teletexte"]) to (:scope [data-skin]) {
+  .wr-ring { width:128px; height:128px; }
+  .card { background:none; border:0; }
+  .tag { display:block; width:auto; background:var(--blue); padding:0 8px; margin-bottom:8px; }
+  .card.live .tag { background:var(--gold); }
+  .card.history .tag { background:var(--orange); }
+  .tag > span, .tag-btn { color:var(--bg); }
+  .tag > span { font-style:normal; font-weight:400; letter-spacing:0;
+    font-size:var(--fs-md); }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; font-weight:400; }
+  .logo-plate { background:var(--gold); color:var(--bg); }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs, .wl .sep { background:var(--text); transform:none; }
+  .mode { background:none; border-top:0; border-right:0; border-bottom:0; }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip.W { background:var(--blue); color:var(--bg); }
+  .res-chip.L { background:var(--orange); color:var(--bg); }
+  table.hist td, .live-players td { border-top:0; padding-top:2px; padding-bottom:2px; }
+  .tot::before { transform:none; }
 }
-[data-skin="papier"] .mode { border-radius: 2px; }
-[data-skin="papier"] .tag {
-  transform: none; background: none; border-left: 0;
-  border-bottom: 2px solid var(--text);
-  padding: 0 0 6px; margin-bottom: 16px;
-}
-[data-skin="papier"] .tag > span {
-  transform: none; font-style: normal; font-weight: 700;
-  font-size: 15px; letter-spacing: .04em; text-transform: none; color: var(--text);
-}
-[data-skin="papier"] header {
-  background: var(--panel); border-bottom: 1px solid var(--line);
-}
-[data-skin="papier"] header::after { height: 2px; }
-[data-skin="papier"] .logo, [data-skin="papier"] .wl .w, [data-skin="papier"] .wl .l,
-[data-skin="papier"] .mode .mmr-val, [data-skin="papier"] .clock,
-[data-skin="papier"] .live-score .s0, [data-skin="papier"] .live-score .s1 {
-  font-family: inherit; font-style: normal; text-shadow: none;
-}
-[data-skin="papier"] .logo-plate, [data-skin="papier"] .chip,
-[data-skin="papier"] .rank-pill, [data-skin="papier"] .res-chip,
-[data-skin="papier"] .hd-streak, [data-skin="papier"] .streak-banner,
-[data-skin="papier"] .h2h-chip, [data-skin="papier"] .evo-tab,
-[data-skin="papier"] .hdr-btn, [data-skin="papier"] .ghost-chip,
-[data-skin="papier"] .upd-pill {
-  transform: none; border-radius: 2px;
-}
-[data-skin="papier"] .logo-plate > span, [data-skin="papier"] .chip > *,
-[data-skin="papier"] .rank-pill > span, [data-skin="papier"] .res-chip > span,
-[data-skin="papier"] .hd-streak > span, [data-skin="papier"] .streak-banner > span,
-[data-skin="papier"] .evo-tab > span, [data-skin="papier"] .hdr-btn > span,
-[data-skin="papier"] .ghost-chip > span, [data-skin="papier"] .upd-pill > * {
-  transform: none;
-}
-[data-skin="papier"] .tot::before { display: none; }
 
-/* Néon : verre et enseignes.
-   Coins très arrondis, panneaux translucides floutés, halos colorés autour
-   des bordures et des chiffres. */
-[data-skin="neon"] body {
-  background:
-    radial-gradient(90% 70% at 15% -10%, color-mix(in srgb, var(--blue) 26%, transparent), transparent 60%),
-    radial-gradient(80% 60% at 90% 110%, color-mix(in srgb, var(--orange) 24%, transparent), transparent 60%),
+/* Borne : la table des scores d'une borne d'arcade.
+   Chiffres en pixels, texte en pixels plus fins pour rester lisible, cadres
+   épais, ombre portée en escalier sur le score. */
+[data-skin="borne"] {
+  --ui-font:'VT323',ui-monospace,monospace;
+  --num-font:'Press Start 2P','VT323',monospace; --num-weight:400; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-xs:16px; --fs-sm:18px; --fs-md:20px; --fs-lg:22px; --fs-xl:24px;
+  --fs-2xl:24px; --fs-3xl:32px; --fs-4xl:46px; --fs-5xl:84px;
+}
+@scope ([data-skin="borne"]) to (:scope [data-skin]) {
+  .wr-ring { width:128px; height:128px; }
+  .card { background:var(--panel); border:4px solid var(--line-strong); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--gold); }
+  .tag > span { font-family:var(--num-font); font-style:normal;
+    font-weight:400; font-size:12px; letter-spacing:0; }
+  header { background:none; border-bottom:4px solid var(--line-strong); }
+  header::after { display:none; }
+  .logo { font-family:var(--num-font); font-style:normal; font-weight:400; font-size:14px; }
+  .live-score .s0, .live-score .s1 { text-shadow:6px 6px 0 var(--edge); }
+  .live-score .vs { width:10px; height:44px; transform:none;
+    background:linear-gradient(var(--text) 0 10px, transparent 10px 34px, var(--text) 34px); }
+  .wl .sep { display:none; }
+  .wl { gap:22px; }
+  .mode { background:var(--panel2); border-top:0; border-right:0; border-bottom:0; }
+  .res-chip, .res-chip > span, .pips i { transform:none; }
+  .res-chip { font-style:normal; }
+  td.hscore { width:auto; padding-right:18px; font-size:14px; }
+  .wr-ring circle { stroke-width:12; }
+  .tot::before { transform:none; }
+}
+
+/* Magnéto : l'écran bleu du magnétoscope.
+   Texte incrusté à l'ombre dure, marque de lecture devant chaque titre,
+   aucun cadre. Pour revoir sa session comme une cassette. */
+[data-skin="magneto"] {
+  --ui-font:'VT323',ui-monospace,monospace; --num-weight:400; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-xs:16px; --fs-sm:18px; --fs-md:20px; --fs-lg:24px; --fs-xl:30px;
+  --fs-2xl:40px; --fs-3xl:52px; --fs-4xl:80px; --fs-5xl:136px;
+  --panel:var(--bg) !important;
+  --panel2:color-mix(in srgb, var(--bg), #000 24%) !important;
+  --muted:color-mix(in srgb, var(--text) 82%, var(--bg)) !important;
+  --line:color-mix(in srgb, var(--text) 38%, var(--bg)) !important;
+  --line-strong:color-mix(in srgb, var(--text) 72%, var(--bg)) !important;
+}
+@scope ([data-skin="magneto"]) to (:scope [data-skin]) {
+  .wr-ring { width:128px; height:128px; }
+  .card { background:none; border:0; }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-style:normal; font-weight:400; letter-spacing:.04em;
+    font-size:var(--fs-md); }
+  .tag > span::before { content:'\25B6\00A0'; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; font-weight:400; }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .wl .w, .wl .l, .live-score .s0, .live-score .s1 {
+    text-shadow:4px 4px 0 color-mix(in srgb, #000 55%, transparent); }
+  .live-score .vs { width:12px; height:56px; transform:none;
+    background:linear-gradient(var(--text) 0 12px, transparent 12px 44px, var(--text) 44px); }
+  .wl .sep { display:none; }
+  .wl { gap:24px; }
+  .mode { background:var(--panel2); border-top:0; border-right:0; border-bottom:0; }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip.W { background:var(--text); color:var(--bg); }
+  .res-chip.L { background:var(--orange); color:var(--bg); }
+  .evo-tab.on, .ranked-toggle button.on, .hdr-btn.accent {
+    background:var(--text); color:var(--bg); border-color:var(--text); }
+  .alert-plate { background:var(--text); color:var(--bg); }
+  .tot::before { transform:none; }
+}
+
+/* Garage : l'atelier.
+   Lettres au pochoir, cadres épais, et la bande de sécurité jaune et noire
+   sous le bandeau. */
+[data-skin="garage"] {
+  --num-font:'Saira Stencil One','Barlow Condensed',sans-serif; --num-weight:400;
+  --num-style:normal; --skew:0deg; --cut:0px; --cut-sm:0px;
+}
+@scope ([data-skin="garage"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:2px solid var(--line-strong); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:var(--blue); padding:3px 10px; }
+  .tag > span, .tag-btn { color:var(--on-blue); }
+  .tag > span { font-family:var(--num-font); font-weight:400;
+    font-style:normal; letter-spacing:.06em; }
+  header { background:var(--panel); }
+  header::after { height:8px;
+    background:repeating-linear-gradient(-45deg, var(--blue) 0 12px, var(--bg) 12px 24px); }
+  .logo { font-style:normal; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs, .wl .sep { background:var(--line-strong); transform:none; }
+  .mode { background:var(--panel2); }
+  .res-chip, .res-chip > span { transform:none; }
+  .tot::before { transform:none; }
+}
+
+/* Compteur : le tableau de bord.
+   Cadran gradué pour le taux de victoire, aiguille claire, et tout ce qui
+   concerne la défaite ou le direct passe dans la zone rouge. */
+[data-skin="compteur"] {
+  --ui-font:'Chakra Petch','Segoe UI',sans-serif; --num-weight:700;
+  --skew:-10deg; --cut:0px; --cut-sm:0px; --card-radius:4px;
+}
+@scope ([data-skin="compteur"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:1px solid var(--line); }
+  .card.live.playing { border-color:var(--orange); }
+  .tag { background:none; padding:0 0 0 10px; border-left:3px solid var(--orange); transform:none; }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-style:normal; font-weight:500; transform:none;
+    font-size:var(--fs-sm); letter-spacing:.12em; }
+  header { background:none; }
+  header::after { height:2px;
+    background:linear-gradient(90deg, var(--text) 0 72%, var(--orange) 72%); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .logo b { color:var(--text); }
+  .wr-ring .trk { stroke:var(--line-strong); stroke-dasharray:2 5; }
+  .wr-ring .arc { stroke:var(--text); }
+  .wr-ring.down .arc { stroke:var(--orange); }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { background:var(--orange); }
+  .wl .sep { background:var(--line-strong); }
+  .mode { background:var(--panel2); }
+}
+
+/* Aquadôme : sous l'eau.
+   Le fond s'assombrit vers le bas comme la lumière qui se perd en
+   profondeur ; les résultats sont des bulles, grosses pour une victoire. */
+[data-skin="aquadome"] {
+  --ui-font:'Outfit','Segoe UI',sans-serif;
+  --num-font:'Unbounded','Outfit',sans-serif; --num-weight:600; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:18px;
+  --page-bg:linear-gradient(180deg, color-mix(in srgb, var(--bg), #fff 9%),
+    var(--bg) 55%, color-mix(in srgb, var(--bg), #000 34%));
+  --panel:color-mix(in srgb, var(--bg), #fff 7%) !important;
+  --panel2:color-mix(in srgb, var(--bg), #fff 13%) !important;
+  --muted:color-mix(in srgb, var(--text) 68%, var(--bg)) !important;
+}
+@scope ([data-skin="aquadome"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:1px solid color-mix(in srgb, var(--blue) 26%, transparent); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:color-mix(in srgb, var(--blue) 16%, transparent);
+    border-radius:999px; padding:4px 14px; }
+  .tag > span, .tag-btn { color:var(--blue); }
+  .tag > span { font-style:normal; font-weight:600;
+    font-size:var(--fs-sm); letter-spacing:0; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; text-transform:none; letter-spacing:0; }
+  .logo-plate { border-radius:999px; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:10px; height:10px; border-radius:50%;
+    background:var(--line-strong); transform:none; }
+  .wl .sep { display:none; }
+  .wl { gap:22px; }
+  .pips { align-items:center; }
+  .pips i { border-radius:50%; transform:none; }
+  .pips i.W { width:14px; height:14px; }
+  .pips i.L { width:8px; height:8px; }
+  .mode { background:var(--panel2); border-radius:12px; border-top-color:transparent;
+    border-right-color:transparent; border-bottom-color:transparent; }
+  .hdr-btn, .evo-tab, .ranked-toggle button, .rank-pill, .ot-mini, .mvp-chip,
+  .ff-chip, .h2h-chip, button.ghost, button.primary, .chip { border-radius:999px; }
+  .tot::before { display:none; }
+}
+
+/* Gazette : le journal du lendemain.
+   Titres à empattements, filet double en tête de rubrique, aucun cadre, et
+   le match en cours sous un filet gras comme un titre de une. */
+[data-skin="gazette"] {
+  --ui-font:Georgia,'Times New Roman',serif;
+  --num-font:'DM Serif Display',Georgia,serif; --num-weight:400; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px;
+  --panel:var(--bg) !important;
+  --panel2:color-mix(in srgb, var(--bg), #000 6%) !important;
+}
+@scope ([data-skin="gazette"]) to (:scope [data-skin]) {
+  .card { background:none; border:0; border-top:3px double var(--text); }
+  .card.live.playing { border-top:6px solid var(--text); }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--text); }
+  .tag > span { font-family:var(--num-font); font-style:normal;
+    font-weight:400; font-size:var(--fs-lg); letter-spacing:0; }
+  header { background:none; border-bottom:4px solid var(--text); }
+  header::after { display:none; }
+  .logo { font-family:var(--num-font); font-style:normal; font-weight:400;
+    font-size:var(--fs-xl); text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { display:none; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs, .wl .sep { width:1px; background:var(--text); transform:none; }
+  .mode { background:none; border-top:0; border-right:0; border-bottom:0; border-left-width:1px; }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip { font-style:normal; }
+  .res-chip.W { background:none; color:var(--text); }
+  .res-chip.L { background:none; color:var(--orange); }
+  .tot::before { transform:none; width:1px; background:var(--text); }
+}
+
+/* Carnet : la feuille de match.
+   Petits carreaux, chiffres à la main, bâtons pour compter les matchs, et
+   le match en cours entouré au stylo rouge. */
+[data-skin="carnet"] {
+  --ui-font:'Familjen Grotesk','Segoe UI',sans-serif;
+  --num-font:'Caveat','Segoe Print',cursive; --num-weight:700; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-2xl:40px; --fs-3xl:54px; --fs-4xl:84px; --fs-5xl:144px;
+  --page-bg:
+    linear-gradient(color-mix(in srgb, var(--blue) 13%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, color-mix(in srgb, var(--blue) 13%, transparent) 1px, transparent 1px) 0 0 / 24px 24px,
     var(--bg);
+  --panel:var(--bg) !important;
 }
-[data-skin="neon"] .card {
-  clip-path: none; border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--blue) 35%, transparent);
-  background: color-mix(in srgb, var(--panel) 72%, transparent);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, .45),
-              inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+@scope ([data-skin="carnet"]) to (:scope [data-skin]) {
+  .card { background:none; border:0; }
+  .card.live.playing { outline:3px solid var(--orange); outline-offset:-8px;
+    border-radius:255px 18px 225px 18px / 18px 225px 18px 255px; }
+  .tag { background:none; padding:0; }
+  .tag > span, .tag-btn { color:var(--blue); }
+  .tag > span { font-family:var(--num-font); font-style:normal;
+    font-weight:700; font-size:26px; letter-spacing:0;
+    text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:4px; }
+  header { background:none; border-bottom:2px solid var(--orange); }
+  header::after { display:none; }
+  .logo { font-family:var(--num-font); font-style:normal; font-size:28px;
+    text-transform:none; letter-spacing:0; }
+  .logo-plate { display:none; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs, .wl .sep { width:3px; background:var(--text); transform:rotate(14deg); }
+  .mode { background:none; border-top:0; border-right:0; border-bottom:0; border-left-width:2px; }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip { font-family:var(--num-font); font-style:normal; font-size:var(--fs-lg); }
+  .res-chip.W { background:none; color:var(--blue); }
+  .res-chip.L { background:none; color:var(--orange); }
+  .pips i { width:3px; border-radius:2px; transform:none; }
+  .pips i.W { height:20px; }
+  .pips i.L { height:20px; transform:rotate(24deg); }
+  .tot::before { display:none; }
 }
-/* Le point lumineux et le filet bicolore n'existent que dans cet habillage :
-   il les crée lui-même. */
-[data-skin="neon"] .card::after {
-  content: ''; position: absolute; pointer-events: none;
-  width: 10px; height: 10px; border-radius: 50%;
-  top: 14px; right: 14px; background: var(--blue);
-  box-shadow: 0 0 18px 3px var(--blue);
-}
-[data-skin="neon"] .card::before {
-  content: ''; position: absolute; pointer-events: none; top: 0;
-  left: 18px; right: 18px; height: 2px; border-radius: 2px;
-  background: linear-gradient(90deg, var(--blue), var(--orange));
-  filter: blur(.3px);
-}
-[data-skin="neon"] .tag {
-  transform: none; border-radius: 999px; border-left: 0;
-  background: color-mix(in srgb, var(--blue) 22%, transparent);
-  border: 1px solid color-mix(in srgb, var(--blue) 45%, transparent);
-  padding: 4px 16px;
-}
-[data-skin="neon"] .tag > span { transform: none; letter-spacing: .14em; color: var(--text); }
-/* Le flou reste sur les cartes, pas sur l'en-tête : deux surfaces floutées
-   plus des halos partout, c'était l'empilement de techniques que le filtre
-   rejette. Une seule surface en verre suffit à porter l'habillage. */
-[data-skin="neon"] header {
-  background: color-mix(in srgb, var(--panel) 82%, transparent);
-}
-/* Halo conservé sur le seul chiffre qui compte de loin, le score de session.
-   Il en portait aussi le MMR et le score en direct : quatre halos plus celui
-   du coin d'accent, c'était trois de trop. */
-[data-skin="neon"] .wl .w, [data-skin="neon"] .wl .l {
-  text-shadow: 0 0 26px currentColor, 0 0 6px currentColor;
-}
-[data-skin="neon"] .logo-plate, [data-skin="neon"] .chip,
-[data-skin="neon"] .rank-pill, [data-skin="neon"] .res-chip,
-[data-skin="neon"] .hd-streak, [data-skin="neon"] .streak-banner,
-[data-skin="neon"] .h2h-chip, [data-skin="neon"] .evo-tab,
-[data-skin="neon"] .hdr-btn, [data-skin="neon"] .ghost-chip,
-[data-skin="neon"] .upd-pill {
-  transform: none; border-radius: 999px;
-}
-[data-skin="neon"] .logo-plate > span, [data-skin="neon"] .chip > *,
-[data-skin="neon"] .rank-pill > span, [data-skin="neon"] .res-chip > span,
-[data-skin="neon"] .hd-streak > span, [data-skin="neon"] .streak-banner > span,
-[data-skin="neon"] .evo-tab > span, [data-skin="neon"] .hdr-btn > span,
-[data-skin="neon"] .ghost-chip > span, [data-skin="neon"] .upd-pill > * {
-  transform: none;
-}
-[data-skin="neon"] .mode { border-radius: 12px; }
 
-/* Brut : brutaliste.
-   Noir et blanc, cadres de trois pixels, ombres portées franches et
-   décalées, aucune transparence, typographie énorme. */
-[data-skin="brut"] body { background: var(--bg); }
-[data-skin="brut"] .card {
-  clip-path: none; border-radius: 0;
-  border: 3px solid var(--text);
-  background: var(--panel);
-  box-shadow: 7px 7px 0 var(--blue);
-  margin-right: 7px; margin-bottom: 7px;
+/* Vignette : l'album d'autocollants.
+   Cartes blanches à gros contour sur un fond de couleur franche, titres
+   dans des étiquettes pleines. */
+[data-skin="vignette"] {
+  --ui-font:'Archivo','Segoe UI',sans-serif; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:14px;
+  --panel:color-mix(in srgb, var(--bg), #fff 90%) !important;
+  --panel2:color-mix(in srgb, var(--bg), #fff 66%) !important;
+  --muted:color-mix(in srgb, var(--text) 78%, #fff) !important;
+  --line:color-mix(in srgb, var(--text) 20%, #fff) !important;
+  --line-strong:color-mix(in srgb, var(--text) 64%, #fff) !important;
 }
-[data-skin="brut"] .tag {
-  transform: none; border-left: 0; border-radius: 0;
-  background: var(--text); padding: 6px 14px;
+@scope ([data-skin="vignette"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:3px solid var(--text); clip-path:none; }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:var(--text); border-radius:999px; padding:3px 14px; }
+  .tag > span, .tag-btn { color:var(--panel); }
+  .tag > span { font-style:normal; font-weight:800;
+    font-size:var(--fs-sm); letter-spacing:0; }
+  header { background:none; }
+  header::after { display:none; }
+  .logo { font-style:normal; text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--panel); border-radius:6px; }
+  .live-score .s0, .live-score .s1 { text-shadow:none; }
+  .live-score .vs { width:6px; border-radius:3px; background:var(--text); transform:none; }
+  .wl .sep { background:var(--text); border-radius:3px; }
+  .mode { border-radius:10px; }
+  .res-chip { border-radius:6px; transform:none; font-style:normal; }
+  .res-chip > span { transform:none; }
+  .hdr-btn, .evo-tab, .ranked-toggle button, button.ghost, button.primary, .chip { border-radius:999px; }
 }
-[data-skin="brut"] .tag > span {
-  transform: none; color: var(--bg); letter-spacing: .1em; font-size: 15px;
-}
-[data-skin="brut"] header {
-  background: var(--bg); border-bottom: 3px solid var(--text);
-}
-[data-skin="brut"] header::after { display: none; }
-/* La plaque « RL » est peinte en couleur d'accent dans l'habillage d'origine ;
-   ici l'accent est le blanc du texte, donc on inverse pour rester lisible. */
-[data-skin="brut"] .logo-plate { background: var(--text); border: 0; }
-[data-skin="brut"] .logo-plate > span { color: var(--bg); }
-[data-skin="brut"] .wl .w, [data-skin="brut"] .wl .l {
-  text-shadow: 5px 5px 0 var(--text);
-}
-[data-skin="brut"] .logo-plate, [data-skin="brut"] .chip,
-[data-skin="brut"] .rank-pill, [data-skin="brut"] .res-chip,
-[data-skin="brut"] .hd-streak, [data-skin="brut"] .streak-banner,
-[data-skin="brut"] .h2h-chip, [data-skin="brut"] .evo-tab,
-[data-skin="brut"] .hdr-btn, [data-skin="brut"] .ghost-chip,
-[data-skin="brut"] .upd-pill {
-  transform: none; border-radius: 0; border: 2px solid var(--text);
-}
-[data-skin="brut"] .logo-plate > span, [data-skin="brut"] .chip > *,
-[data-skin="brut"] .rank-pill > span, [data-skin="brut"] .res-chip > span,
-[data-skin="brut"] .hd-streak > span, [data-skin="brut"] .streak-banner > span,
-[data-skin="brut"] .evo-tab > span, [data-skin="brut"] .hdr-btn > span,
-[data-skin="brut"] .ghost-chip > span, [data-skin="brut"] .upd-pill > * {
-  transform: none;
-}
-[data-skin="brut"] .mode { border-radius: 0; border: 2px solid var(--text); }
-/* L'état du jeu et le pseudo sont du texte nu dans l'habillage d'origine ;
-   ici tout est encadré, donc ils reprennent une marge intérieure. */
-[data-skin="brut"] header .chip { padding: 3px 10px; }
 
-/* Calme : rien que le contenu.
-   Ni cadre, ni biseau, ni dégradé. De l'air, des filets d'un pixel, une
-   graisse légère. L'inverse exact de l'habillage d'origine. */
-[data-skin="calme"] body { background: var(--bg); }
-[data-skin="calme"] .card {
-  clip-path: none; border: 0; border-radius: 0;
-  background: transparent; box-shadow: none;
-  padding: 18px 22px;
-  border-top: 1px solid var(--line);
+/* Givre : clair et calme.
+   Cartes à peine posées sur le fond, chiffres fins, aucun aplat. Le
+   pendant clair d'Ardoise. */
+[data-skin="givre"] {
+  --ui-font:'Familjen Grotesk','Segoe UI',sans-serif;
+  --num-weight:400; --num-style:normal;
+  --tag-case:none; --skew:0deg; --cut:0px; --cut-sm:0px; --card-radius:10px;
+  --panel:color-mix(in srgb, var(--bg), #fff 72%) !important;
 }
-[data-skin="calme"] .tag {
-  transform: none; background: none; border-left: 0;
-  padding: 0; margin-bottom: 18px;
+@scope ([data-skin="givre"]) to (:scope [data-skin]) {
+  .card { background:var(--panel); border:1px solid var(--line); }
+  .card.live.playing { border-color:var(--blue); }
+  .tag { background:none; padding:0; margin-bottom:10px; }
+  .tag > span, .tag-btn { color:var(--muted); }
+  .tag > span { font-style:normal; font-weight:400;
+    font-size:var(--fs-md); letter-spacing:0; }
+  header { background:none; }
+  header::after { height:1px; background:var(--line); }
+  .logo { font-style:normal; font-weight:700; text-transform:none; letter-spacing:0; }
+  .logo b { color:var(--text); }
+  .logo-plate { display:none; }
+  .wl .w, .wl .l, .live-score .s0, .live-score .s1 { letter-spacing:-.03em; text-shadow:none; }
+  .live-score .vs, .wl .sep { display:none; }
+  .live-score { gap:30px; }
+  .wl { gap:26px; }
+  .mode { background:none; border-radius:8px; }
+  .res-chip { border-radius:4px; transform:none; font-style:normal; }
+  .res-chip > span { transform:none; }
+  .hdr-btn, .evo-tab, .ranked-toggle button, button.ghost, button.primary { border-radius:6px; }
+  .tot::before { transform:none; width:1px; }
 }
-[data-skin="calme"] .tag > span {
-  transform: none; font-style: normal; font-weight: 600;
-  font-size: 12px; letter-spacing: .24em; color: var(--muted);
-}
-[data-skin="calme"] header { background: transparent; }
-[data-skin="calme"] header::after { height: 1px; background: var(--line); }
-[data-skin="calme"] .wl .w, [data-skin="calme"] .wl .l,
-[data-skin="calme"] .mode .mmr-val {
-  font-style: normal; font-weight: 300; text-shadow: none;
-}
-[data-skin="calme"] .logo-plate, [data-skin="calme"] .chip,
-[data-skin="calme"] .rank-pill, [data-skin="calme"] .res-chip,
-[data-skin="calme"] .hd-streak, [data-skin="calme"] .streak-banner,
-[data-skin="calme"] .h2h-chip, [data-skin="calme"] .evo-tab,
-[data-skin="calme"] .hdr-btn, [data-skin="calme"] .ghost-chip,
-[data-skin="calme"] .upd-pill {
-  transform: none; border-radius: 4px;
-}
-[data-skin="calme"] .logo-plate > span, [data-skin="calme"] .chip > *,
-[data-skin="calme"] .rank-pill > span, [data-skin="calme"] .res-chip > span,
-[data-skin="calme"] .hd-streak > span, [data-skin="calme"] .streak-banner > span,
-[data-skin="calme"] .evo-tab > span, [data-skin="calme"] .hdr-btn > span,
-[data-skin="calme"] .ghost-chip > span, [data-skin="calme"] .upd-pill > * {
-  transform: none;
-}
-[data-skin="calme"] .mode { border-radius: 6px; }
-[data-skin="calme"] .tot::before { display: none; }
 
+/* Encre : noir sur blanc.
+   Une seule encre : ton score est plein, celui d'en face en contour. La
+   différence se lit à la forme, pas à la couleur. */
+[data-skin="encre"] {
+  --ui-font:'Martian Mono',ui-monospace,monospace; --num-weight:700; --num-style:normal;
+  --skew:0deg; --cut:0px; --cut-sm:0px;
+  --fs-sm:12px; --fs-md:13px; --fs-lg:16px; --fs-xl:22px;
+  --panel:var(--bg) !important;
+  --panel2:color-mix(in srgb, var(--bg), var(--text) 6%) !important;
+  --line:color-mix(in srgb, var(--text) 30%, var(--bg)) !important;
+  --line-strong:var(--text) !important;
+  --muted:color-mix(in srgb, var(--text) 66%, var(--bg)) !important;
+}
+@scope ([data-skin="encre"]) to (:scope [data-skin]) {
+  .wr-ring { width:128px; height:128px; }
+  .card { background:var(--bg); border:1px solid var(--text); }
+  .card.live.playing { border-width:3px; }
+  .tag { background:var(--text); padding:2px 8px; }
+  .tag > span, .tag-btn { color:var(--bg); }
+  .tag > span { font-style:normal; font-weight:700;
+    font-size:var(--fs-xs); letter-spacing:.06em; }
+  header { background:none; border-bottom:1px solid var(--text); }
+  header::after { display:none; }
+  .logo { font-style:normal; font-size:var(--fs-md); }
+  .logo b { color:var(--text); }
+  .logo-plate { background:var(--text); color:var(--bg); }
+  .wl .w, .live-score .s0 { color:var(--text); text-shadow:none; }
+  .wl .l, .live-score .s1 { color:transparent; text-shadow:none;
+    -webkit-text-stroke:.035em var(--text); }
+  .live-score .vs, .wl .sep { width:4px; background:var(--text); transform:none; }
+  .mode { background:none; }
+  .wr-ring .arc, .wr-ring.down .arc { stroke:var(--text); }
+  .pips i { transform:none; }
+  .pips i.W { background:var(--text); }
+  .pips i.L { background:none; box-shadow:inset 0 0 0 1px var(--text); }
+  .res-chip, .res-chip > span { transform:none; }
+  .res-chip { font-style:normal; }
+  .res-chip.W { background:var(--text); color:var(--bg); }
+  .res-chip.L { background:none; box-shadow:inset 0 0 0 1px var(--text); color:var(--text); }
+  .evo-tab.on, .ranked-toggle button.on, .hdr-btn.accent {
+    background:var(--text); color:var(--bg); border-color:var(--text); }
+  .alert-plate { background:var(--text); color:var(--bg); }
+  .tot::before { transform:none; }
+}
